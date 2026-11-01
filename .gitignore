@@ -70,3 +70,8 @@ start_csagent_openrouter.bat
 
 # Config MCP locale (machine) — les modèles à versionner sont les fichiers *.example
 mcp.json
+
+
+runs.jsonl
+runs.jsonl.tmp
+workflows/*.bak

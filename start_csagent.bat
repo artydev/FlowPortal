@@ -29,16 +29,16 @@ exit /b 1
 rem WORKDIR = dossier de travail de CSFlow (celui de son exe, sinon de app.py).
 rem Le worker doit tourner dans ce dossier pour partager tmp\... avec CSFlow.
 set "WORKDIR=%~dp0"
-if exist "%~dp0CSFlow.exe" goto wd_ok
-if exist "%~dp0build\CSFlow.exe" set "WORKDIR=%~dp0build\"
+if exist "%~dp0FlowPortal.exe" goto wd_ok
+if exist "%~dp0build\FlowPortal.exe" set "WORKDIR=%~dp0build\"
 :wd_ok
 
 if exist mcp.json goto mcp_ok
-if exist CSFlow.exe copy mcp.windows.exe.example mcp.json >nul
+if exist FlowPortal.exe copy mcp.windows.exe.example mcp.json >nul
 if exist mcp.json goto mcp_made
 if exist app.py copy mcp.windows.source.example mcp.json >nul
 if exist mcp.json goto mcp_made
-echo  ERREUR : mcp.json introuvable (et ni CSFlow.exe ni app.py a cote de ce fichier).
+echo  ERREUR : mcp.json introuvable (et ni FlowPortal.exe ni app.py a cote de ce fichier).
 pause
 exit /b 1
 :mcp_made

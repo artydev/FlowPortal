@@ -19,10 +19,10 @@ if ! command -v "$CSAGENT_BIN" >/dev/null 2>&1; then
     echo " ERREUR : $CSAGENT_BIN est introuvable dans le PATH (adapte CSAGENT_BIN)."; exit 1
 fi
 if [ ! -f mcp.json ]; then
-    # exe a cote de ce fichier -> ./CSFlow ; sinon sources -> python3 app.py
-    if   [ -x ./CSFlow ]; then SRC=mcp.json.example
+    # exe a cote de ce fichier -> ./FlowPortal ; sinon sources -> python3 app.py
+    if   [ -x ./FlowPortal ]; then SRC=mcp.json.example
     elif [ -f ./app.py ]; then SRC=mcp.linux.source.example
-    else echo " ERREUR : ni ./CSFlow ni app.py a cote de ce fichier."; exit 1; fi
+    else echo " ERREUR : ni ./FlowPortal ni app.py a cote de ce fichier."; exit 1; fi
     if [ ! -f "$SRC" ]; then echo " ERREUR : $SRC introuvable."; exit 1; fi
     if [ "$SRC" = mcp.linux.source.example ]; then
         command -v python3 >/dev/null 2>&1 || { echo " ERREUR : python3 est introuvable."; exit 1; }

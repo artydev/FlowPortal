@@ -11,8 +11,21 @@
 | Moteur, nœuds, client et serveur MCP, interface CSFlow | repris de CSFlow (commit `625a317` et PR #9) |
 | `portal.py` : cartes, prérequis, lecture et écriture validée du YAML, historique des lancements | **fait**, testé (`tests/test_portal.py`) |
 | Exécutable compilé : `FlowPortal.exe` (Windows) / `FlowPortal` (Linux), à la place de `CSFlow.exe` | **fait** (scripts de build et de démarrage, exemples `mcp.*.example`) |
-| Page du portail (`ui/portal.html`) et mode `--portal` | à venir |
-| Lancement avec paramètres saisis dans le portail (`inputs`) | à venir (petit changement de `engine.py`) |
+| Page du portail (`ui/portal.html`), ouverte par défaut (`--classic` pour l'ancienne interface) : cartes, lancement avec paramètres, validations et saisies, YAML (lecture, édition, plein écran), résultat de chaque lancement | **fait** |
+| `engine.py` : `WorkflowEngine(..., inputs={...})` remplace les valeurs du bloc `inputs:` | **fait**, testé |
+
+### Lancer le portail
+
+| Windows (exe compilé) | Linux (exe compilé) | Depuis les sources |
+|---|---|---|
+| `FlowPortal.exe` | `./FlowPortal` | `python app.py` |
+
+Le portail s'ouvre par défaut. Pour l'interface classique de CSFlow, ajoutez `--classic` (`FlowPortal.exe --classic`,
+`python app.py --classic`) ; elle reste aussi accessible depuis le portail (« Interface classique »).
+Un seul workflow s'exécute à la fois. L'historique est écrit dans `runs.jsonl`, à côté de l'exécutable (200 lancements au plus ;
+les valeurs des variables d'environnement qui ressemblent à des secrets, comme `GOAL_API_KEY`, y sont masquées).
+Depuis le portail, l'édition d'un workflow est validée par le moteur avant l'écriture, et l'ancienne version est gardée en `.bak`.
+La dictée vocale d'une étape `user_input` n'est disponible que dans l'interface classique ; le portail propose la saisie au clavier.
 
 `portal.py` n'a aucune dépendance au navigateur : il peut être testé et utilisé sans interface.
 

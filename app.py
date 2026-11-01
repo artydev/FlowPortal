@@ -1,12 +1,13 @@
 #!/usr/bin/env python3
 """
-app.py — EEL desktop UI pour CSFlow
+app.py — EEL desktop UI pour FlowPortal / CSFlow
 ─────────────────────────────────────
 Requirements:
     pip install eel pyyaml
 
 Usage (depuis le dossier workflow/) :
-    python app.py
+    python app.py            portail (une carte par workflow)
+    python app.py --classic  interface classique de CSFlow
 """
 
 import os
@@ -83,8 +84,10 @@ except ImportError:
 
 from engine import WorkflowEngine
 import audio_client
+import portal as _portal
 
 WORKFLOWS_DIR = APP_DIR / "workflows"
+PORTAL = _portal.Portal(WORKFLOWS_DIR, APP_DIR / "runs.jsonl", base_dir=APP_DIR)
 
 eel.init(str(RES_DIR / "ui"))
 
@@ -187,18 +190,40 @@ def load_workflow(path: str) -> dict:
         return {"ok": False, "error": str(exc)}
 
 
-@eel.expose
-def run_workflow(path: str) -> dict:
+_run_busy = threading.Event()          # un lancement est en cours (le portail n'en accepte qu'un à la fois)
+
+
+def _start_run(path: str, inputs: dict | None = None) -> dict:
+    """Lance un workflow dans un thread ; chaque lancement est enregistré dans runs.jsonl (portail)."""
     global _approval_event, _approval_result, _input_event, _input_result, _input_request
     _approval_event  = None
     _approval_result = {}
     _input_event, _input_result, _input_request = None, {}, {}
 
+    try:
+        rec = PORTAL.recorder(Path(path).name, inputs)
+    except _portal.PortalError:                      # nom de fichier hors norme : lancé, mais sans historique
+        rec = None
+
     def on_event(event: dict):
+        if rec is not None:
+            try:
+                rec.on_event(event)
+            except Exception as exc:                 # l'historique ne doit jamais gêner le lancement
+                print(f"[PORTAL] enregistrement : {exc}", flush=True)
         try:
             eel.receiveEvent(event)    # Python → JS direct
         except Exception as exc:
             print(f"[EEL] receiveEvent échoué : {exc}", flush=True)
+
+    def _finish(error: str = ""):
+        if rec is None:
+            return
+        try:
+            saved = rec.finish(status="error" if error else None, error=error)
+            eel.receiveEvent({"type": "portal_run_saved", "run_id": saved["id"], "status": saved["status"]})
+        except Exception as exc:
+            print(f"[PORTAL] historique : {exc}", flush=True)
 
     def wait_approval() -> str:
         global _approval_event, _approval_result
@@ -218,21 +243,27 @@ def run_workflow(path: str) -> dict:
         return result or {"cancelled": True}
 
     _wf_done = threading.Event()
+    _run_busy.set()
 
     def _run():
+        error = ""
         try:
             engine = WorkflowEngine(path,
                                     event_callback=on_event,
                                     approval_wait=wait_approval,
-                                    input_wait=wait_input)
+                                    input_wait=wait_input,
+                                    inputs=inputs)
             engine.run()
         except Exception as exc:
+            error = str(exc)
             try:
-                eel.receiveEvent({"type": "workflow_error", "message": str(exc)})
+                eel.receiveEvent({"type": "workflow_error", "message": error})
             except Exception:
                 print(f"[ENGINE] erreur : {exc}", flush=True)
         finally:
             _wf_done.set()
+            _run_busy.clear()
+            _finish(error)
 
     def _watchdog():
         """Timeout 10 min — émet workflow_error si le thread engine se bloque."""
@@ -242,10 +273,17 @@ def run_workflow(path: str) -> dict:
                                   "message": "Timeout : workflow bloqué > 10 min"})
             except Exception:
                 pass
+            _run_busy.clear()
+            _finish("Timeout : workflow bloqué > 10 min")
 
     threading.Thread(target=_run,      daemon=True).start()
     threading.Thread(target=_watchdog, daemon=True).start()
     return {"status": "started"}
+
+
+@eel.expose
+def run_workflow(path: str) -> dict:
+    return _start_run(path)
 
 
 @eel.expose
@@ -319,7 +357,108 @@ def submit_input(text: str, cancelled: bool = False) -> dict:
     return {"ok": True}
 
 
+# ── portail (ui/portal.html) ──────────────────────────────────────────────────
+
+_PREVIEW_BYTES = 20000
+_OPEN_EXT = {".html", ".htm", ".txt", ".md", ".csv", ".json", ".xlsx", ".xls", ".pdf", ".png", ".jpg", ".jpeg",
+             ".svg", ".log", ".xml", ".yaml", ".yml", ".docx"}
+
+
+def _app_file(path: str):
+    """Fichier situé dans le dossier de l'application (workflows, tmp…), sinon None."""
+    try:
+        p = Path(str(path or ""))
+        p = (p if p.is_absolute() else APP_DIR / p).resolve()
+        p.relative_to(APP_DIR.resolve())
+    except (ValueError, OSError):
+        return None
+    return p if p.is_file() else None
+
+
+@eel.expose
+def portal_list() -> dict:
+    return {"cards": PORTAL.list_cards(), "recent": PORTAL.runs(None, 6), "busy": _run_busy.is_set()}
+
+
+@eel.expose
+def portal_read(filename: str) -> dict:
+    return PORTAL.read_yaml(filename)
+
+
+@eel.expose
+def portal_check(text: str) -> dict:
+    return PORTAL.check_yaml(text)
+
+
+@eel.expose
+def portal_save(filename: str, text: str) -> dict:
+    return PORTAL.save_yaml(filename, text)
+
+
+@eel.expose
+def portal_runs(filename: str | None = None, limit: int = 20) -> list:
+    return PORTAL.runs(filename or None, limit)
+
+
+@eel.expose
+def portal_run_detail(run_id: str) -> dict:
+    rec = PORTAL.get_run(run_id)
+    return {"ok": True, "run": rec} if rec else {"ok": False, "error": "Lancement introuvable."}
+
+
+@eel.expose
+def portal_run(filename: str, inputs: dict | None = None) -> dict:
+    if _run_busy.is_set():
+        return {"ok": False, "error": "Un workflow est déjà en cours d'exécution."}
+    try:
+        path = PORTAL.workflow_path(filename)
+        values = PORTAL.normalize_inputs(filename, inputs)
+        card = PORTAL.card(filename)
+    except _portal.PortalError as exc:
+        return {"ok": False, "error": str(exc)}
+    if not card["ready"]:
+        return {"ok": False, "error": "Prérequis manquants : " + " ".join(card["missing"])}
+    _start_run(str(path), values)
+    return {"ok": True}
+
+
+@eel.expose
+def portal_file_preview(path: str) -> dict:
+    p = _app_file(path)
+    if p is None:
+        return {"ok": False, "error": "Fichier introuvable."}
+    with p.open("rb") as fh:
+        raw = fh.read(_PREVIEW_BYTES + 1)
+    if b"\0" in raw:
+        return {"ok": True, "binary": True, "size": p.stat().st_size}
+    return {"ok": True, "binary": False, "size": p.stat().st_size, "truncated": len(raw) > _PREVIEW_BYTES,
+            "text": raw[:_PREVIEW_BYTES].decode("utf-8", errors="replace")}
+
+
+@eel.expose
+def portal_open_file(path: str) -> dict:
+    """Ouvre un fichier produit avec l'application par défaut (types usuels uniquement, jamais un exécutable)."""
+    p = _app_file(path)
+    if p is None or p.suffix.lower() not in _OPEN_EXT:
+        return {"ok": False, "error": "Ce fichier ne peut pas être ouvert depuis le portail."}
+    try:
+        if sys.platform.startswith("win"):
+            os.startfile(str(p))                                    # noqa: S606
+        else:
+            import subprocess
+            subprocess.Popen(["open" if sys.platform == "darwin" else "xdg-open", str(p)],
+                             stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
+    except Exception as exc:                                        # noqa: BLE001
+        return {"ok": False, "error": str(exc)}
+    return {"ok": True}
+
+
 # ── entry point ───────────────────────────────────────────────────────────────
+
+def _start_page(args: list) -> str:
+    """Page ouverte au démarrage : le portail, ou l'interface classique avec --classic."""
+    return "index.html" if "--classic" in args else "portal.html"
+
 
 def _free_port() -> int:
     """Port libre choisi par le système : deux instances (ou une instance restée ouverte) ne se gênent pas."""
@@ -346,14 +485,15 @@ if __name__ == "__main__":
     # « essayer chrome, puis edge, puis le navigateur par défaut », la moindre erreur système au démarrage
     # du serveur (port occupé…) relançait la tentative suivante et ouvrait une 2e fenêtre.
     _port = int(os.environ.get("CSFLOW_PORT") or 0) or _free_port()
-    _url = f"http://localhost:{_port}/index.html"
+    _page = _start_page(sys.argv[1:])
+    _url = f"http://localhost:{_port}/{_page}"
     _headless = os.environ.get("CSFLOW_NO_BROWSER") == "1"      # WSL / serveur : on ouvre l'URL soi-même
     _windows = sys.platform.startswith("win")
     _mode = None if (_headless or not _windows) else _pick_browser()
     print(f"CSFlow : {_url}", flush=True)
     # Windows : Eel ouvre Edge ou Chrome. Linux / WSL / macOS : ui_launcher choisit (Chromium, navigateur de
     # Windows sous WSL, Firefox…) et évite les navigateurs qui affichent mal la page (Epiphany).
-    eel.start("index.html", mode=_mode or False, port=_port, size=(1440, 820), block=False)
+    eel.start(_page, mode=_mode or False, port=_port, size=(1440, 820), block=False)
     if not _headless:
         if _windows:
             if _mode is None:

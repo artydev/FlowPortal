@@ -105,7 +105,8 @@ class WorkflowEngine:
     def __init__(self, workflow_path: str,
                  event_callback=None,
                  approval_wait=None,
-                 input_wait=None):
+                 input_wait=None,
+                 inputs: dict | None = None):
         """
         event_callback : callable(event: dict) — UI event bus (optional)
         approval_wait  : callable() -> str — blocks until human approves/rejects;
@@ -113,6 +114,8 @@ class WorkflowEngine:
                          to terminal prompt)
         input_wait     : callable(request: dict) -> dict — blocks until the human submits
                          the text of a user_input step ({"text": ...} or {"cancelled": True})
+        inputs         : dict — valeurs qui remplacent celles du bloc `inputs:` du workflow
+                         (seules les clés déclarées dans le workflow sont prises en compte)
         """
         path = Path(workflow_path)
         if not path.exists():
@@ -128,7 +131,9 @@ class WorkflowEngine:
         self._input_wait    = input_wait
 
         # Pre-seed ctx with workflow inputs
-        for k, v in self.wf.get("inputs", {}).items():
+        for k, v in (self.wf.get("inputs") or {}).items():
+            if inputs and k in inputs:
+                v = inputs[k]
             self.ctx[k] = {"output": str(v), "value": v}
 
     # ── event helper ──────────────────────────────────────────────────────────

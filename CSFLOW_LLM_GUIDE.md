@@ -40,7 +40,7 @@ Principe de conception : **Python orchestre, l'IA lit et rédige, l'humain déci
 ### Environnement
 
 - Windows en priorité (`cmd.exe`), mais Linux/macOS fonctionnent (`bash`).
-- Application compilée possible (`CSFlow.exe`, Nuitka) : **aucun Python n'est alors installé** sur le poste. Dans ce cas, utilise `type: python` (interpréteur embarqué) et **jamais** `cmd: 'python ...'` dans un `shell`.
+- Application compilée possible (`FlowPortal.exe`, Nuitka) : **aucun Python n'est alors installé** sur le poste. Dans ce cas, utilise `type: python` (interpréteur embarqué) et **jamais** `cmd: 'python ...'` dans un `shell`.
 - Le dossier de travail est celui de l'exe (ou de `app.py`) ; les chemins relatifs (`tmp/...`) partent de là. Les workflows sont dans `workflows/`.
 
 ---
@@ -319,7 +319,7 @@ Utilise un bloc littéral `|` pour du contenu multiligne (l'indentation du bloc 
 
 | Sujet | Règle |
 |---|---|
-| Dossier de travail | celui de `CSFlow.exe` / `app.py`. Contient `workflows/`, `tmp/`, `csflow.schema.json`, `start_agent.sh` / `start_agent.bat`. |
+| Dossier de travail | celui de `FlowPortal.exe` / `app.py`. Contient `workflows/`, `tmp/`, `csflow.schema.json`, `start_agent.sh` / `start_agent.bat`. |
 | Chemins | **toujours relatifs** (`tmp/copil/kpi.py`) ; sépare-les par « / » : identiques sous Windows et Linux (un `\` devient un caractère du nom de fichier sous Linux). |
 | Zone de travail | écris les fichiers générés sous `tmp/` ; ne touche pas à `workflows/`. |
 | CSAgent | doit être lancé **depuis le même dossier** (`start_agent.sh` / `start_agent.bat` : lance CSAgent puis CSFlow, arrête CSAgent à la fermeture). Sinon ses fichiers atterrissent ailleurs et `file_read` ne les trouve pas. |
@@ -447,7 +447,7 @@ Depuis le dossier de l'application (`workflow\`) :
 | `python engine.py --nodes` / `--nodes --md` | liste les types et paramètres (source de vérité) |
 | `python engine.py --schema` | schéma JSON (`csflow.schema.json`) pour VS Code |
 | `python engine.py workflows\mon.yaml` | exécute en terminal |
-| `python app.py` ou `CSFlow.exe` | lance l'interface |
+| `python app.py` ou `FlowPortal.exe` | lance l'interface |
 
 Ce que la validation détecte : YAML invalide, `steps` vide/absent, étape non-dictionnaire, `id` manquant (avertissement) ou en double (erreur), `type` manquant/inconnu (erreur + suggestion), clé inconnue (avertissement + suggestion), paramètre **obligatoire** manquant (erreur), `next`/`on_approve`/`on_reject` visant une étape inexistante (erreur + suggestion), branche `human_approval` sans cible (avertissement), variable `{{x}}` ne correspondant à aucune étape ni entrée (avertissement).
 
@@ -492,7 +492,7 @@ Quand l'utilisateur te montre un de ces workflows, **explique-le** en distinguan
 
 ### Mode MCP : un agent lance les workflows
 
-`CSFlow --mcp` expose quatre outils à CSAgent : `csflow_list`, `csflow_check`, `csflow_run`, `csflow_status`
+`FlowPortal --mcp` expose quatre outils à CSAgent : `csflow_list`, `csflow_check`, `csflow_run`, `csflow_status`
 (voir `REFERENCE.md`). Ce que tu dois savoir pour conseiller le développeur :
 
 - un workflow contenant `human_approval` est **refusé** par `csflow_run` : s'il doit pouvoir être lancé par un agent,

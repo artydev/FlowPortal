@@ -32,20 +32,20 @@ exit /b 1
 :agent_ok
 
 rem NB : "python.exe" avec extension : "start python" peut ouvrir un DOSSIER nomme python du PATH.
-rem Application CSFlow : exe a cote de ce fichier, sinon build\CSFlow.exe, sinon app.py
+rem Application CSFlow : exe a cote de ce fichier, sinon build\FlowPortal.exe, sinon app.py
 rem WORKDIR = dossier de travail de CSFlow (exe -> son dossier ; app.py -> son dossier).
 rem Le worker CSAgent DOIT tourner dans ce meme dossier, sinon tmp\... n'est pas partage.
 set "CSFLOW_CMD="
 set "WORKDIR=%~dp0"
-if exist "%~dp0CSFlow.exe" set CSFLOW_CMD="%~dp0CSFlow.exe"
+if exist "%~dp0FlowPortal.exe" set CSFLOW_CMD="%~dp0FlowPortal.exe"
 if defined CSFLOW_CMD goto flow_ok
-if exist "%~dp0build\CSFlow.exe" set CSFLOW_CMD="%~dp0build\CSFlow.exe"
-if exist "%~dp0build\CSFlow.exe" set "WORKDIR=%~dp0build\"
+if exist "%~dp0build\FlowPortal.exe" set CSFLOW_CMD="%~dp0build\FlowPortal.exe"
+if exist "%~dp0build\FlowPortal.exe" set "WORKDIR=%~dp0build\"
 if defined CSFLOW_CMD goto flow_ok
 if exist "%~dp0app.py" set CSFLOW_CMD=python.exe "%~dp0app.py"
 if defined CSFLOW_CMD goto flow_ok
 echo.
-echo  ERREUR : CSFlow.exe ou app.py introuvable a cote de ce fichier.
+echo  ERREUR : FlowPortal.exe ou app.py introuvable a cote de ce fichier.
 pause
 exit /b 1
 :flow_ok
@@ -70,7 +70,7 @@ timeout /t 3 /nobreak >nul
 
 rem 3. CSFlow : on attend sa fermeture
 echo   Lancement de CSFlow...
-start "CSFlow" /wait %CSFLOW_CMD%
+start "FlowPortal" /wait %CSFLOW_CMD%
 
 rem 4. CSFlow est ferme : on arrete CSAgent (par titre de fenetre, puis par port)
 echo   CSFlow ferme -- arret de CSAgent.

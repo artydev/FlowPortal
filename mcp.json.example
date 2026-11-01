@@ -3,9 +3,9 @@
 {
   "mcpServers": {
     "csflow": {
-      // Windows : "CSFlow.exe"   —   Linux : "./CSFlow"   —   depuis les sources : "python" + args ["app.py", "--mcp"]
+      // Windows : "FlowPortal.exe"   —   Linux : "./FlowPortal"   —   depuis les sources : "python" + args ["app.py", "--mcp"]
       // En cas de doute sur le chemin relatif, mettez le chemin ABSOLU de l'exécutable.
-      "command": "./CSFlow",
+      "command": "./FlowPortal",
       "args": ["--mcp"],
       "cwd": "."
     }

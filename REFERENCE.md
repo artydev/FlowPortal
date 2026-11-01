@@ -151,7 +151,7 @@ CSFlow parle lui-même MCP (bibliothèque standard, rien à installer). Les serv
 - Le résultat d'un outil est une **donnée** : avec `save_as`, il s'écrit dans un fichier qu'un agent relit, sans être collé dans son instruction.
 - Le fichier `mcp.json` sert aussi à CSAgent : il peut contenir les deux usages (par exemple le serveur `csflow` de CSAgent et vos serveurs d'outils).
 
-## Mode MCP (`CSFlow --mcp`)
+## Mode MCP (`FlowPortal --mcp`)
 
 Serveur MCP (stdio, JSON-RPC 2.0) qui expose les workflows du dossier `workflows/` à un client comme CSAgent.
 
@@ -168,4 +168,3 @@ Serveur MCP (stdio, JSON-RPC 2.0) qui expose les workflows du dossier `workflows
 
 `workflow` = nom de fichier seul (`demo_report` ou `demo_report.yaml`) ; chemins, `..` et fichiers cachés refusés.
 Un seul run à la fois ; un workflow avec `human_approval` ou `user_input` n'est jamais lancé par ce mode.
-

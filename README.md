@@ -1,3 +1,33 @@
+# FlowPortal — portail de workflows pour CSFlow
+
+> Un portail local où chaque workflow est une carte : on le lance en un clic, on lit et on modifie son YAML,
+> on retrouve le résultat de chaque lancement. FlowPortal repose sur le moteur de **CSFlow** (Python × CSAgent),
+> dont toute la documentation ci-dessous reste valable.
+
+## État du projet
+
+| Élément | État |
+|---|---|
+| Moteur, nœuds, client et serveur MCP, interface CSFlow | repris de CSFlow (commit `625a317` et PR #9) |
+| `portal.py` : cartes, prérequis, lecture et écriture validée du YAML, historique des lancements | **fait**, testé (`tests/test_portal.py`) |
+| Exécutable compilé : `FlowPortal.exe` (Windows) / `FlowPortal` (Linux), à la place de `CSFlow.exe` | **fait** (scripts de build et de démarrage, exemples `mcp.*.example`) |
+| Page du portail (`ui/portal.html`) et mode `--portal` | à venir |
+| Lancement avec paramètres saisis dans le portail (`inputs`) | à venir (petit changement de `engine.py`) |
+
+`portal.py` n'a aucune dépendance au navigateur : il peut être testé et utilisé sans interface.
+
+| Fonction | Rôle |
+|---|---|
+| `Portal.list_cards()` | un dictionnaire par workflow : titre, résumé, entrées, étapes, étiquettes (CSAgent, validation humaine, MCP), prérequis manquants, dernier lancement |
+| `Portal.check_yaml(texte)` / `save_yaml(nom, texte)` | validation par `schema.check`, refus s'il y a des erreurs, copie `.bak`, écriture atomique, nom de fichier contrôlé |
+| `Portal.recorder(nom, inputs)` | transforme les événements du moteur en un enregistrement (`runs.jsonl`, 200 lancements au plus, secrets masqués) |
+| `Portal.runs()` / `get_run(id)` | historique, du plus récent au plus ancien |
+
+Les prérequis d'une carte sont déduits des étapes `mcp_tools` / `mcp_call` : serveur absent de `mcp.json`, ou variable
+`${VAR}` de ce serveur non définie dans l'environnement. Les clés ne sont jamais lues ni affichées, seulement leur présence.
+
+---
+
 # CSFlow — Python × CSAgent
 
 > Automatisation de workflows : Python enchaîne les étapes, CSAgent s'occupe du raisonnement. 
@@ -88,7 +118,7 @@ l'adresse `http://localhost:<port>/index.html` et la marche à suivre (`sudo apt
 
 | Windows | Linux / WSL |
 |---|---|
-| `build_nuitka.bat` → `build\CSFlow.exe` | `./build_nuitka.sh` → `build/CSFlow` |
+| `build_nuitka.bat` → `build\FlowPortal.exe` | `./build_nuitka.sh` → `build/FlowPortal` |
 | Prérequis : `pip install nuitka -r requirements.txt` et un compilateur C | Prérequis : `sudo apt install gcc patchelf`, puis `pip install nuitka -r requirements.txt` |
 
 L'exécutable embarque l'interpréteur Python : aucun Python n'est à installer sur le poste qui l'utilise.
@@ -414,7 +444,7 @@ Python sur le poste : le nœud `python` les exécute avec l'interpréteur **emba
 ```
 
 Sorties identiques à `shell` : `output`, `stdout`, `stderr`, `returncode`. Dans l'exe compilé, CSFlow
-se relance lui-même (`CSFlow.exe --csflow-python …`, `./CSFlow --csflow-python …` sous Linux), ce qui donne isolation et `timeout`.
+se relance lui-même (`FlowPortal.exe --csflow-python …`, `./FlowPortal --csflow-python …` sous Linux), ce qui donne isolation et `timeout`.
 
 Limites : seuls les modules de la bibliothèque standard listés dans `build_nuitka.bat` / `build_nuitka.sh`
 (`--include-module`) sont disponibles — ajoutez-y les vôtres — et pas de `pip install` à l'exécution.
@@ -442,20 +472,20 @@ Les étapes `mcp_tools` (lister les outils) et `mcp_call` (appeler un outil) par
 
 Un workflow ne peut désigner qu'un serveur déclaré (il ne lance pas de commande de son choix), la connexion est partagée par les étapes puis fermée à la fin, et le résultat d'un outil reste une donnée (à relire par un agent depuis un fichier). Détails dans `REFERENCE.md`. Exemple complet : `workflows/goal_football.yaml` (football, serveur MCP de GOAL API ; copier `mcp.goal.example` en `mcp.json` et définir `GOAL_API_KEY`).
 
-## Mode MCP : CSAgent lance vos workflows (`CSFlow --mcp`)
+## Mode MCP : CSAgent lance vos workflows (`FlowPortal --mcp`)
 
-`CSFlow --mcp` démarre CSFlow **sans interface**, comme serveur MCP (stdio). CSAgent, en mode terminal
+`FlowPortal --mcp` démarre CSFlow **sans interface**, comme serveur MCP (stdio). CSAgent, en mode terminal
 normal, peut alors lister, vérifier et exécuter vos workflows, et vous rendre compte du résultat.
 
 ```
-Vous ──► CSAgent interactif (sans --yes) ──MCP──► CSFlow --mcp ──► moteur ──► (étapes agent) ──► CSAgent worker --api :8080
+Vous ──► CSAgent interactif (sans --yes) ──MCP──► FlowPortal --mcp ──► moteur ──► (étapes agent) ──► CSAgent worker --api :8080
 ```
 
 ### Mise en route (exe compilé, Windows)
 
 Au premier lancement, l'exe crée à côté de lui `workflows\`, `tmp\`, `csflow.schema.json`, `CSFLOW_LLM_GUIDE.md` et `REFERENCE.md` (sans jamais écraser un fichier existant). Donnez le guide LLM à votre assistant pour qu'il écrive des workflows corrects.
 
-1. Compilez avec `build_nuitka.bat` : `build\` contient `CSFlow.exe`, `start_agent.bat`, `start_csagent.bat`,
+1. Compilez avec `build_nuitka.bat` : `build\` contient `FlowPortal.exe`, `start_agent.bat`, `start_csagent.bat`,
    `mcp.windows.exe.example` et le dossier `skills\`.
 2. Dans `build\` :
    ```
@@ -471,18 +501,18 @@ Au premier lancement, l'exe crée à côté de lui `workflows\`, `tmp\`, `csflow
 
 Autres cas : depuis les sources, les scripts choisissent la bonne config MCP — sous Windows,
 `start_csagent.bat` copie `mcp.windows.source.example` (`python.exe app.py --mcp`) ; sous Linux,
-`./start_csagent.sh` copie `mcp.json.example` (`./CSFlow --mcp`) si l'exe est à côté, sinon
+`./start_csagent.sh` copie `mcp.json.example` (`./FlowPortal --mcp`) si l'exe est à côté, sinon
 `mcp.linux.source.example` (`python3 app.py --mcp`).
 CSAgent lit la skill `skills/csflow.md` depuis son dossier de travail : lancez-le depuis le dossier de CSFlow.
 
 ### Linux/WSL sans l'exe (depuis les sources)
 
 Sous Linux, Python est en général déjà installé : inutile de compiler l'exe. CSAgent lance alors
-`python3 app.py --mcp` au lieu de `./CSFlow --mcp` ; le serveur MCP est le même.
+`python3 app.py --mcp` au lieu de `./FlowPortal --mcp` ; le serveur MCP est le même.
 
 - **Prérequis :** `python3` (3.10 ou plus récent) et PyYAML (`sudo apt install python3-yaml`, ou `pip install pyyaml`
   dans un environnement virtuel). `eel` n'est **pas** nécessaire pour le mode MCP, seulement pour l'interface.
-- **Lancer :** depuis le dossier de CSFlow, `./start_csagent.sh`. Sans `./CSFlow` mais avec `app.py`, le script crée
+- **Lancer :** depuis le dossier de CSFlow, `./start_csagent.sh`. Sans `./FlowPortal` mais avec `app.py`, le script crée
   `mcp.json` à partir de `mcp.linux.source.example` et vérifie `python3` et PyYAML.
 - **Fichiers :** `workflows/` et `tmp/` sont dans le dossier des sources, à côté de `app.py`. Le nœud `python`
   utilise alors le `python3` du système au lieu de l'interpréteur embarqué.
@@ -524,4 +554,3 @@ et un dossier de confiance.
 MIT, voir [LICENSE](LICENSE).
 
 <img width="1903" height="1015" alt="image" src="https://github.com/user-attachments/assets/34989752-8fc1-4ec9-b679-e2a21ace5f09" />
-

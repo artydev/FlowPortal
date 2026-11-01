@@ -28,7 +28,7 @@ def _exe() -> str:
         getattr(comp, "original_argv0", "") or "",
         sys.argv[0] if sys.argv else "",
         sys.executable,
-        getattr(comp, "containing_dir", "") and os.path.join(comp.containing_dir, "CSFlow.exe" if sys.platform == "win32" else "CSFlow"),
+        getattr(comp, "containing_dir", "") and os.path.join(comp.containing_dir, "FlowPortal.exe" if sys.platform == "win32" else "FlowPortal"),
     ]
     import shutil
     for c in cands:
@@ -42,7 +42,7 @@ def _exe() -> str:
 
 
 def run_python_cli(argv: list) -> int:
-    """Entry point used by the compiled exe:  CSFlow.exe --csflow-python <script|-c code> [args]"""
+    """Entry point used by the compiled exe:  FlowPortal.exe --csflow-python <script|-c code> [args]"""
     import runpy
     import traceback
     if argv and argv[0] == "-c":

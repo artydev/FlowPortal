@@ -1,0 +1,67 @@
+# yaml-language-server: $schema=../csflow.schema.json
+name: auto-fix-demo
+description: Crée un script Python cassé, l'exécute, demande à CSAgent de corriger les bugs, puis vérifie.
+
+# Les chemins sont RELATIFS au dossier CSFlow/ (CSAgent n'écrit que dans son dossier
+# courant — lancez-le depuis ce dossier avec start_agent.sh / start_agent.bat).
+# Les « / » fonctionnent sur Windows comme sur Linux.
+
+steps:
+
+  # ── 1. écrire un script volontairement cassé ────────────────────────────────
+  - id: create_broken_script
+    type: file_write
+    description: Création du script cassé
+    path: 'tmp/broken.py'
+    content: |
+      # Sales report — broken version (for demo purposes)
+
+      def compute_average(numbers):
+          return sum(numbers) / len(numbers)   # BUG 1: ZeroDivisionError on empty list
+
+      data = [12400, 9800, 15200, 7300]
+      avg  = compute_average([])               # BUG 1 triggered here
+
+      total = sum(data)
+      print(f"Average revenue : {avg:>10,.2f}")
+      print(f"Total revenue   : {totla:>10,.2f}")   # BUG 2: typo  totla -> total
+
+  # ── 2. l'exécuter (échec attendu) ───────────────────────────────────────────
+  - id: first_run
+    type: python
+    description: Première exécution (doit échouer)
+    script: 'tmp/broken.py'
+    continue_on_error: true
+
+  # ── 3. CSAgent corrige (ignoré si le script passait déjà) ───────────────────
+  - id: fix_with_agent
+    type: agent
+    description: Correction par CSAgent
+    skip_if: "{{first_run.returncode}} == 0"
+    prompt: |
+      The Python script "tmp/broken.py" (relative path) failed with this error:
+
+      {{first_run.output}}
+
+      Read the file, identify every bug, fix them all, and overwrite the same file.
+      Use only relative paths (you can only write inside the current directory).
+      Do not add extra comments or explanations — just correct the code.
+      Do NOT run, test or execute anything — only use read_file / edit_file / write_file;
+      the workflow re-runs the script itself afterwards.
+
+  # ── 4. vérifier la correction ───────────────────────────────────────────────
+  - id: verify_run
+    type: python
+    description: Vérification
+    script: 'tmp/broken.py'
+
+  # ── 5. terminé ──────────────────────────────────────────────────────────────
+  - id: done
+    type: log
+    description: Terminé
+    level: success
+    message: |
+      Script corrigé et vérifié ✓
+
+      Sortie :
+      {{verify_run.output}}

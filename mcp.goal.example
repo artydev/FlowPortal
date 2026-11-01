@@ -1,0 +1,11 @@
+// Serveur MCP de GOAL API (football) pour les etapes mcp_tools / mcp_call de CSFlow.
+// A copier en mcp.json, puis definir la variable d'environnement GOAL_API_KEY avec votre cle.
+// Ne mettez jamais la cle en clair dans ce fichier.
+{
+  "mcpServers": {
+    "goal-api": {
+      "url": "https://mcp.goal-api.com/mcp",
+      "headers": { "Authorization": "Bearer ${GOAL_API_KEY}" }
+    }
+  }
+}

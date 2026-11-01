@@ -1,0 +1,149 @@
+# yaml-language-server: $schema=../csflow.schema.json
+name: datagouv-irve
+description: >-
+  Recherche les jeux de données sur les bornes de recharge IRVE (Infrastructures
+  de Recharge pour Véhicules Électriques) sur data.gouv.fr via le serveur MCP officiel,
+  liste leurs ressources, récupère un aperçu des données tabulaires, puis demande
+  à CSAgent de rédiger un résumé structuré.
+  Prérequis : mcp.json avec l'entrée « datagouv » (voir mcp.client.example).
+
+steps:
+
+  # ── 1. Lister les outils disponibles (facultatif — utile la première fois) ──
+  - id: outils
+    type: mcp_tools
+    description: "Inventaire des outils offerts par le serveur MCP data.gouv.fr"
+    server: datagouv
+    # config: mcp.json    # par défaut : mcp.json dans le dossier courant
+
+  - id: log_outils
+    type: log
+    level: info
+    message: "Outils disponibles ({{outils.count}}) :\n{{outils.output}}"
+
+  # ── 2. Recherche du jeu de données IRVE ────────────────────────────────────
+  - id: recherche
+    type: mcp_call
+    description: "Recherche 'IRVE bornes recharge' sur data.gouv.fr"
+    server: datagouv
+    tool: search_datasets
+    arguments:
+      query: "IRVE bornes de recharge véhicules électriques"
+      page_size: 5
+    save_as: tmp/datagouv/recherche.txt
+
+  - id: log_recherche
+    type: log
+    level: info
+    message: "Résultats de la recherche :\n{{recherche.output}}"
+
+  # ── 3. Extraire l'identifiant du premier résultat ──────────────────────────
+  #    On délègue l'extraction à CSAgent pour éviter du parsing fragile en YAML.
+  - id: extraire_id
+    type: agent
+    description: "Extraction de l'identifiant du premier jeu de données"
+    prompt: |
+      Lis le fichier tmp/datagouv/recherche.txt qui contient les résultats d'une recherche
+      sur data.gouv.fr. Extrais UNIQUEMENT l'identifiant (champ « id ») du PREMIER jeu de données
+      listé. Réponds avec cet identifiant en une seule ligne, sans texte autour.
+      Exemple de réponse : 5448d3a0c751df01f85d0572
+
+  # ── 4. Détails du jeu de données ──────────────────────────────────────────
+  - id: details
+    type: mcp_call
+    description: "Détails complets du jeu de données IRVE"
+    server: datagouv
+    tool: get_dataset_info
+    arguments:
+      dataset_id: "{{extraire_id.output}}"
+    save_as: tmp/datagouv/details.txt
+
+  # ── 5. Liste des ressources (fichiers) ────────────────────────────────────
+  - id: ressources
+    type: mcp_call
+    description: "Liste des fichiers disponibles dans ce jeu de données"
+    server: datagouv
+    tool: list_dataset_resources
+    arguments:
+      dataset_id: "{{extraire_id.output}}"
+    save_as: tmp/datagouv/ressources.txt
+
+  - id: log_ressources
+    type: log
+    level: info
+    message: "Ressources du jeu de données :\n{{ressources.output}}"
+
+  # ── 6. Extraire l'identifiant de la première ressource CSV ────────────────
+  - id: extraire_ressource_id
+    type: agent
+    description: "Extraction de l'identifiant de la première ressource CSV/XLS"
+    prompt: |
+      Lis le fichier tmp/datagouv/ressources.txt qui liste les ressources (fichiers)
+      d'un jeu de données data.gouv.fr. Identifie la première ressource de format CSV
+      ou XLSX (cherche « csv » ou « xlsx » dans la liste). Extrais UNIQUEMENT son identifiant
+      (champ « id » ou « resource_id », selon ce qui est listé). Réponds avec cet
+      identifiant en une seule ligne, sans texte autour.
+
+  # ── 7. Aperçu des données tabulaires ─────────────────────────────────────
+  - id: donnees
+    type: mcp_call
+    description: "Aperçu des 20 premières lignes via l'API Tabulaire de data.gouv.fr"
+    server: datagouv
+    tool: query_resource_data
+    arguments:
+      resource_id: "{{extraire_ressource_id.output}}"
+      page_size: 20
+    save_as: tmp/datagouv/donnees.txt
+
+  # ── 8. Métriques du jeu de données ───────────────────────────────────────
+  - id: metriques
+    type: mcp_call
+    description: "Statistiques de consultation du jeu de données (12 derniers mois)"
+    server: datagouv
+    tool: get_metrics
+    arguments:
+      dataset_id: "{{extraire_id.output}}"
+    save_as: tmp/datagouv/metriques.txt
+
+  # ── 9. Rédaction du rapport par CSAgent ──────────────────────────────────
+  - id: rapport
+    type: agent
+    description: "Rédaction du rapport structuré par CSAgent"
+    prompt: |
+      Rédige le fichier tmp/datagouv/rapport_irve.md (chemin relatif).
+
+      Tu disposes des fichiers suivants (lis-les tous avant d'écrire) :
+        - tmp/datagouv/details.txt   : métadonnées du jeu de données
+        - tmp/datagouv/ressources.txt: liste des fichiers disponibles
+        - tmp/datagouv/donnees.txt   : aperçu des 20 premières lignes de données
+        - tmp/datagouv/metriques.txt : statistiques de consultation
+
+      Produis un rapport Markdown structuré comportant :
+      1. **En-tête** : titre du jeu de données, organisation productrice, licence, date de dernière mise à jour.
+      2. **Résumé** (3-5 lignes) : de quoi s'agit-il, à quoi sert ce jeu de données ?
+      3. **Ressources disponibles** : tableau listant les fichiers (nom, format, taille si indiquée).
+      4. **Aperçu des données** : description des colonnes et 3 exemples de lignes significatifs.
+      5. **Fréquentation** : résumé des statistiques de téléchargement/consultation.
+      6. **Pistes d'usage** : 3 idées concrètes d'utilisation de ces données.
+
+      Règles :
+      - N'invente aucun fait : tout doit provenir des fichiers fournis.
+      - Si une information est absente d'un fichier, indique-le clairement.
+      - Longueur : 200 à 400 lignes maximum.
+
+  # ── 10. Lecture du rapport produit ───────────────────────────────────────
+  - id: lire_rapport
+    type: file_read
+    description: "Lecture du rapport final"
+    path: tmp/datagouv/rapport_irve.md
+
+  # ── 11. Fin ───────────────────────────────────────────────────────────────
+  - id: fin
+    type: log
+    level: success
+    message: |
+      ✓ Rapport généré : tmp/datagouv/rapport_irve.md
+      Jeu de données ID : {{extraire_id.output}}
+
+      Début du rapport :
+      {{lire_rapport.content}}

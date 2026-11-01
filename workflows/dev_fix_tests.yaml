@@ -1,0 +1,144 @@
+# yaml-language-server: $schema=../csflow.schema.json
+name: dev-fix-tests
+description: "Lance les tests, laisse CSAgent corriger le code, relance les tests, puis committe après votre validation."
+
+# Démo développeur : un petit projet Python avec des bugs volontaires, versionné dans
+# son propre dépôt git (tmp/devfix) — rien n'est committé dans votre vrai projet.
+# Pour l'appliquer à votre code, changez `project` et la commande de test.
+# CSAgent n'écrit que dans son dossier courant : lancez-le depuis ce dossier
+# (start_agent.sh / start_agent.bat).
+
+inputs:
+  project: 'tmp/devfix'
+
+steps:
+
+  # ── 1. un projet d'exemple avec deux bugs ───────────────────────────────────
+  - id: create_code
+    type: file_write
+    description: Création du code (avec bugs)
+    path: '{{project}}/inventory.py'
+    content: |
+      def total_stock(items):
+          return sum(i["qty"] for i in items)
+
+      def average_price(items):
+          return sum(i["price"] for i in items) / len(items)
+
+      def low_stock(items, threshold=5):
+          return [i["name"] for i in items if i["qty"] < threshold]
+
+      def apply_discount(price, percent):
+          return price - percent / 100
+
+  - id: create_tests
+    type: file_write
+    description: Création des tests
+    path: '{{project}}/test_inventory.py'
+    content: |
+      import unittest
+      from inventory import total_stock, average_price, low_stock, apply_discount
+
+      ITEMS = [
+          {"name": "vis", "qty": 5, "price": 2.0},
+          {"name": "clou", "qty": 20, "price": 1.0},
+          {"name": "écrou", "qty": 3, "price": 3.0},
+      ]
+
+      class InventoryTests(unittest.TestCase):
+          def test_total_stock(self):
+              self.assertEqual(total_stock(ITEMS), 28)
+
+          def test_average_price_empty(self):
+              self.assertEqual(average_price([]), 0)
+
+          def test_low_stock_includes_threshold(self):
+              self.assertEqual(low_stock(ITEMS, 5), ["vis", "écrou"])
+
+          def test_discount(self):
+              self.assertAlmostEqual(apply_discount(200, 10), 180)
+
+      if __name__ == "__main__":
+          unittest.main()
+
+  # ── 2. état de départ versionné ─────────────────────────────────────────────
+  - id: baseline
+    type: shell
+    description: Version de départ (git)
+    cmd: 'git init -q {{project}} && git -C {{project}} add -A && git -C {{project}} -c user.name=CSFlow -c user.email=csflow@example.com commit -q -m "Version de départ" && echo prêt'
+    continue_on_error: true
+
+  # ── 3. premiers tests (échec attendu) ───────────────────────────────────────
+  - id: first_tests
+    type: python
+    description: Premiers tests (doivent échouer)
+    cwd: '{{project}}'
+    code: |
+      import sys, unittest
+      r = unittest.main(module=None, argv=['unittest', 'discover'], exit=False).result
+      sys.exit(0 if r.wasSuccessful() else 1)
+    continue_on_error: true
+
+  # ── 4. CSAgent corrige le code, pas les tests (ignoré si tout passe déjà) ───
+  - id: fix_with_agent
+    type: agent
+    description: Correction par CSAgent
+    skip_if: "{{first_tests.returncode}} == 0"
+    auto_confirm: true
+    prompt: |
+      Les tests du dossier "{{project}}" (chemin relatif) échouent :
+
+      {{first_tests.output}}
+
+      Lis inventory.py et test_inventory.py, corrige les bugs dans inventory.py UNIQUEMENT.
+      Ne modifie jamais les tests. Utilise seulement des chemins relatifs.
+      Pas d'explication : corrige le code.
+      N'exécute RIEN (pas de shell, pas de tests) — utilise seulement read_file / edit_file / write_file ;
+      le workflow relance lui-même les tests ensuite.
+
+  # ── 5. nouveaux tests et différences ────────────────────────────────────────
+  - id: retest
+    type: python
+    description: Tests après correction
+    cwd: '{{project}}'
+    code: |
+      import sys, unittest
+      r = unittest.main(module=None, argv=['unittest', 'discover'], exit=False).result
+      sys.exit(0 if r.wasSuccessful() else 1)
+    continue_on_error: true
+
+  - id: diff
+    type: shell
+    description: Modifications proposées
+    cmd: 'git -C {{project}} diff --stat'
+    continue_on_error: true
+
+  # ── 6. le développeur décide ────────────────────────────────────────────────
+  - id: validation
+    type: human_approval
+    description: Validation du développeur
+    message: "Tests après correction : code {{retest.returncode}} (0 = tous réussis). Fichiers modifiés : {{diff.output}} Committer ?"
+    on_approve: commit
+    on_reject: rollback
+
+  - id: commit
+    type: shell
+    description: Commit de la correction
+    cmd: 'git -C {{project}} add -A && git -C {{project}} -c user.name=CSFlow -c user.email=csflow@example.com commit -q -m "Correction des bugs par CSAgent" && git -C {{project}} log --oneline -1'
+    next: fin
+
+  - id: rollback
+    type: shell
+    description: Annulation des modifications
+    cmd: 'git -C {{project}} checkout -- .'
+    next: annule
+
+  - id: fin
+    type: end
+    description: Correction committée
+    message: "Correction committée : {{commit.output}}"
+
+  - id: annule
+    type: end
+    description: Modifications annulées
+    message: Modifications annulées, le code est revenu à la version de départ.

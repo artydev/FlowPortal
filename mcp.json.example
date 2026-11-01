@@ -1,0 +1,13 @@
+// CSAgent --mcp-config mcp.json   (copiez ce fichier en mcp.json, à côté de CSFlow)
+// Les commentaires et virgules finales sont acceptés par CSAgent.
+{
+  "mcpServers": {
+    "csflow": {
+      // Windows : "CSFlow.exe"   —   Linux : "./CSFlow"   —   depuis les sources : "python" + args ["app.py", "--mcp"]
+      // En cas de doute sur le chemin relatif, mettez le chemin ABSOLU de l'exécutable.
+      "command": "./CSFlow",
+      "args": ["--mcp"],
+      "cwd": "."
+    }
+  }
+}

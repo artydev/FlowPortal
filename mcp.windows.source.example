@@ -1,0 +1,10 @@
+// Windows, depuis les sources (app.py a cote de ce fichier). CSAgent --mcp-config mcp.json
+{
+  "mcpServers": {
+    "csflow": {
+      "command": "python.exe",
+      "args": ["app.py", "--mcp"],
+      "cwd": "."
+    }
+  }
+}

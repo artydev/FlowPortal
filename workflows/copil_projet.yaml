@@ -1,0 +1,301 @@
+# yaml-language-server: $schema=../csflow.schema.json
+name: Préparation du COPIL
+description: "Du plan de projet brut au rapport COPIL validé : indicateurs calculés par Python, analyse par CSAgent, décision humaine."
+
+# ─────────────────────────────────────────────────────────────────────────────
+#  Scénario de démonstration (en français, pour un chef de projet)
+#
+#  Projet fictif « Refonte du portail usagers » : 10 tâches, une réunion hebdo,
+#  un COPIL dans 6 jours et une mise en production promise au 15/12/2026.
+#
+#  Ce que le workflow montre :
+#    • Python fait ce qui doit être exact  → calcul des indicateurs (valeur acquise, CPI,
+#                                              retards, dérive) : jamais d'IA pour des chiffres ;
+#    • CSAgent fait ce qui demande de lire → risques, actions et décisions tirés de notes libres,
+#                                              rédaction du rapport pour la direction ;
+#    • Une branche conditionnelle           → note d'escalade uniquement si le statut est ROUGE ;
+#    • Une décision humaine                 → rien n'est diffusé sans validation du chef de projet.
+#
+#  Prérequis : CSAgent lancé depuis ce dossier (start_agent.sh / start_agent.bat).
+#  Les écritures de CSAgent sont limitées à son dossier courant ; l'étape « validation »
+#  est le vrai garde-fou, d'où auto_confirm: true sur les étapes agent.
+#  Pour rejouer à une autre date : modifier date_reference ci-dessous.
+# ─────────────────────────────────────────────────────────────────────────────
+
+inputs:
+  date_reference: '2026-10-16'
+
+steps:
+
+  # ── 1. Les données (en vrai : export Jira / Excel / MS Project) ──────────────
+  - id: plan_projet
+    type: file_write
+    description: "Plan de projet (10 tâches)"
+    path: 'tmp/copil/taches.csv'
+    content: |
+      id,tache,responsable,statut,avancement,charge_prevue_j,charge_consommee_j,echeance
+      T01,Cadrage et périmètre,Claire Martin,Terminé,100,10,9,2026-08-28
+      T02,Maquettes UX,Julien Bernard,Terminé,100,15,19,2026-09-18
+      T03,Architecture technique,Sofia Haddad,Terminé,100,12,12,2026-09-25
+      T04,Authentification FranceConnect,Marc Lefèvre,En cours,70,20,24,2026-10-09
+      T05,Espace usager,Léa Dubois,En cours,45,35,22,2026-10-30
+      T06,Migration des données,Karim Benali,Bloqué,20,25,12,2026-10-12
+      T07,Paiement en ligne,Marc Lefèvre,À faire,0,18,0,2026-11-13
+      T08,Recette et tests de charge,Sofia Haddad,À faire,0,20,0,2026-11-27
+      T09,Accessibilité RGAA,Julien Bernard,En cours,30,12,5,2026-10-23
+      T10,Formation des agents,Claire Martin,À faire,0,8,0,2026-12-04
+
+  - id: notes_reunion
+    type: file_write
+    description: "Notes de la réunion hebdo"
+    path: 'tmp/copil/notes_reunion.md'
+    content: |
+      # Réunion hebdomadaire — jeudi 15/10/2026
+
+      Présents : Claire Martin (cheffe de projet), Julien, Marc, Sofia, Karim, Léa.
+
+      - Karim : la migration des données est à l'arrêt. On attend depuis deux semaines l'export
+        de l'ancienne base par la DSI. Il a relancé deux fois, sans réponse. Sans cet export,
+        rien n'avance de son côté.
+      - Marc : FranceConnect a changé ses spécifications de callback, ça nous a coûté quatre jours.
+        Il craint de ne pas tenir le paiement en ligne sans renfort.
+      - Léa : l'espace usager avance bien, mais les composants de formulaires ne sont pas
+        finalisés : Julien doit les livrer avant vendredi.
+      - Julien : l'audit RGAA est prévu fin octobre, mais le prestataire n'a personne avant le 20.
+      - Sofia : elle s'inquiète pour la recette, l'environnement de pré-production n'est pas
+        encore commandé (délai habituel : trois semaines).
+      - Claire : Mme Roche (DGS, sponsor du projet) veut un point au COPIL du 22/10/2026.
+        La mise en production a été promise pour le 15 décembre.
+      - Décision : gel du périmètre jusqu'à la recette, à confirmer par le sponsor.
+      - Karim sera en congé du 26 au 30 octobre.
+
+  - id: outil_indicateurs
+    type: file_write
+    description: "Calculateur d'indicateurs"
+    path: 'tmp/copil/kpi.py'
+    content: |
+      # kpi.py — indicateurs de pilotage d'un projet (calcul déterministe, sans IA)
+      # Usage : python kpi.py <plan.csv> <date AAAA-MM-JJ> [--statut]
+      import csv
+      import json
+      import os
+      import sys
+      from datetime import date
+
+      PROJET = "Refonte du portail usagers"
+      TJM = 650                      # coût moyen d'un jour-homme, en euros (hypothèse)
+
+
+      def fr(x, d=1):
+          """Format français : 1 234,5"""
+          return f"{x:,.{d}f}".replace(",", " ").replace(".", ",")
+
+
+      def jour(d):
+          return d.strftime("%d/%m/%Y")
+
+
+      def statut_global(cpi, nb_retards, nb_bloquees):
+          if cpi < 0.85 or (nb_bloquees >= 1 and nb_retards >= 2):
+              return "ROUGE"
+          if cpi < 0.95 or nb_retards >= 1:
+              return "ORANGE"
+          return "VERT"
+
+
+      def main():
+          if len(sys.argv) < 3:
+              sys.exit("Usage : python kpi.py <plan.csv> <date AAAA-MM-JJ> [--statut]")
+          chemin = sys.argv[1]
+          ref = date.fromisoformat(sys.argv[2])
+          seul_statut = "--statut" in sys.argv[3:]
+
+          with open(chemin, encoding="utf-8", newline="") as f:
+              taches = list(csv.DictReader(f))
+
+          bac = sum(float(t["charge_prevue_j"]) for t in taches)      # charge prévue totale
+          ac = sum(float(t["charge_consommee_j"]) for t in taches)    # charge consommée
+          ev = sum(float(t["charge_prevue_j"]) * float(t["avancement"]) / 100
+                   for t in taches)                                    # valeur acquise
+          cpi = ev / ac if ac else 1.0                                 # indice de performance coût
+          eac = bac / cpi if cpi else bac                              # estimation à terminaison
+
+          retards, bloquees, surveiller = [], [], []
+          for t in taches:
+              ech = date.fromisoformat(t["echeance"])
+              reste = float(t["avancement"]) < 100
+              if t["statut"] == "Bloqué":
+                  bloquees.append(t)
+              if reste and ech < ref:
+                  retards.append((t, (ref - ech).days))
+              elif reste and (ech - ref).days <= 14:
+                  surveiller.append((t, (ech - ref).days))
+
+          statut = statut_global(cpi, len(retards), len(bloquees))
+          if seul_statut:
+              print(statut)
+              return
+
+          derive_j = eac - bac
+          lignes = [
+              f"# Indicateurs de pilotage — {PROJET}",
+              f"Date de référence : {jour(ref)}",
+              "",
+              "| Indicateur | Valeur |",
+              "|---|---|",
+              f"| Avancement réel (valeur acquise) | {fr(ev / bac * 100)} % |",
+              f"| Charge consommée | {fr(ac / bac * 100)} % ({fr(ac, 0)} j sur {fr(bac, 0)} j prévus) |",
+              f"| Indice de performance coût (CPI) | {fr(cpi, 2)} |",
+              f"| Estimation à terminaison | {fr(eac, 0)} j, soit {fr(derive_j, 0)} j de dérive "
+              f"(environ {fr(derive_j * TJM, 0)} € à {TJM} €/j) |",
+              f"| Tâches en retard | {len(retards)} |",
+              f"| Tâches bloquées | {len(bloquees)} |",
+              f"| Statut global | {statut} |",
+              "",
+              "## Tâches en retard",
+          ]
+          lignes += [f"- {t['id']} {t['tache']} ({t['responsable']}) : {n} j de retard, "
+                     f"avancement {t['avancement']} %" for t, n in retards] or ["- aucune"]
+          lignes += ["", "## Tâches bloquées"]
+          lignes += [f"- {t['id']} {t['tache']} ({t['responsable']}), avancement {t['avancement']} %"
+                     for t in bloquees] or ["- aucune"]
+          lignes += ["", "## À surveiller (échéance sous 14 jours)"]
+          lignes += [f"- {t['id']} {t['tache']} ({t['responsable']}) : échéance dans {n} j, "
+                     f"avancement {t['avancement']} %" for t, n in surveiller] or ["- aucune"]
+          rapport = "\n".join(lignes) + "\n"
+
+          dossier = os.path.dirname(chemin) or "."
+          with open(os.path.join(dossier, "indicateurs.md"), "w", encoding="utf-8") as f:
+              f.write(rapport)
+          with open(os.path.join(dossier, "kpi.json"), "w", encoding="utf-8") as f:
+              json.dump({"statut": statut, "cpi": round(cpi, 2), "avancement": round(ev / bac * 100, 1),
+                         "retards": len(retards), "bloquees": len(bloquees),
+                         "eac_jours": round(eac, 1)}, f, ensure_ascii=False, indent=2)
+          print(rapport)
+
+
+      main()
+
+  # ── 2. Calculs exacts : Python, pas d'IA ─────────────────────────────────────
+  - id: indicateurs
+    type: python
+    description: "Indicateurs de pilotage"
+    script: 'tmp/copil/kpi.py'
+    args: ['tmp/copil/taches.csv', '{{date_reference}}']
+
+  - id: statut
+    type: python
+    description: "Statut global (RAG)"
+    script: 'tmp/copil/kpi.py'
+    args: ['tmp/copil/taches.csv', '{{date_reference}}', '--statut']
+
+  # ── 3. Lecture et rédaction : CSAgent ────────────────────────────────────────
+  - id: risques
+    type: agent
+    description: "Analyse des risques"
+    auto_confirm: true
+    prompt: |
+      (Utilise seulement read_file / write_file, pas de shell.)
+      Tu es analyste de risques projet. Réponds toujours en français.
+      Lis ces fichiers (chemins relatifs, dossier courant) :
+      - tmp/copil/taches.csv : le plan de projet
+      - tmp/copil/indicateurs.md : indicateurs déjà calculés, ne les recalcule pas
+      - tmp/copil/notes_reunion.md : notes de la réunion hebdomadaire
+
+      Identifie les 5 risques les plus importants pour la mise en production du 15 décembre 2026.
+      Écris dans tmp/copil/risques.md un tableau Markdown avec les colonnes :
+      Risque | Cause | Probabilité (Faible/Moyenne/Forte) | Impact (Faible/Moyen/Fort) | Action recommandée.
+      Classe-les du plus critique au moins critique. Appuie chaque risque sur un fait précis des
+      fichiers (tâche, personne, chiffre) et n'invente rien.
+      Termine ta réponse par une phrase qui résume le risque n°1.
+
+  - id: actions
+    type: agent
+    description: "Actions et décisions"
+    auto_confirm: true
+    prompt: |
+      (Utilise seulement read_file / write_file, pas de shell.)
+      Réponds toujours en français. Lis tmp/copil/notes_reunion.md (chemin relatif).
+      Écris dans tmp/copil/actions.md :
+      1. "## Décisions" : les décisions prises, une ligne chacune, avec leur statut (actée / à confirmer) ;
+      2. "## Plan d'actions" : un tableau Action | Responsable | Échéance | Priorité (Haute/Moyenne/Basse).
+         Déduis les échéances des dates citées (réunion du 15/10/2026, COPIL du 22/10/2026),
+         sinon écris « à fixer » ;
+      3. "## Points d'attention" : les incohérences ou non-dits que la cheffe de projet doit traiter
+         (une absence, une ressource manquante, un délai qui ne tient pas...).
+      N'invente aucune information absente des notes.
+      Termine ta réponse par une phrase indiquant le nombre d'actions identifiées.
+
+  - id: rapport
+    type: agent
+    description: "Rapport de synthèse COPIL"
+    auto_confirm: true
+    prompt: |
+      (Utilise seulement read_file / write_file, pas de shell.)
+      Tu rédiges, en français professionnel et concis, le rapport d'avancement destiné au COPIL
+      du 22/10/2026 (lecteurs : sponsor, DGS, directeurs).
+      Sources à lire : tmp/copil/indicateurs.md (chiffres de référence, à citer tels quels),
+      tmp/copil/risques.md et tmp/copil/actions.md.
+      Statut global calculé : {{statut.output}}.
+
+      Écris tmp/copil/rapport_copil.md, une page maximum, avec exactement ces sections :
+      # Rapport d'avancement — Refonte du portail usagers
+      ## En une phrase  (le message clé pour un dirigeant pressé)
+      ## Indicateurs clés  (4 à 5 puces chiffrées issues d'indicateurs.md)
+      ## Faits marquants  (3 puces)
+      ## Risques majeurs  (les 3 premiers de risques.md, une ligne chacun)
+      ## Décisions attendues du COPIL  (3 maximum, formulées comme des questions de décision)
+      ## Prochaines étapes sur 14 jours
+
+      Chaque chiffre doit provenir des fichiers : n'invente rien. Ton factuel, sans jargon technique.
+
+  # ── 4. Branche conditionnelle : seulement si le projet est au rouge ──────────
+  - id: escalade
+    type: agent
+    description: "Note d'escalade au sponsor"
+    skip_if: "'{{statut.output}}' != 'ROUGE'"
+    auto_confirm: true
+    prompt: |
+      (Utilise seulement read_file / write_file, pas de shell.)
+      Réponds en français. Le projet est au statut {{statut.output}}.
+      Lis tmp/copil/indicateurs.md, tmp/copil/risques.md et tmp/copil/notes_reunion.md.
+      Rédige dans tmp/copil/note_escalade.md une note courte (10 lignes maximum) de la cheffe de projet
+      à Mme Roche (DGS, sponsor) : la situation en 2 phrases chiffrées, l'impact probable sur la date
+      de mise en production du 15/12/2026, puis 3 options d'arbitrage (renfort de ressources, report
+      de la date, réduction du périmètre) avec pour chacune un avantage et un inconvénient,
+      et enfin la recommandation de la cheffe de projet en une phrase.
+      N'invente aucun chiffre : utilise uniquement ceux des fichiers.
+
+  # ── 5. L'humain décide ───────────────────────────────────────────────────────
+  - id: validation
+    type: human_approval
+    description: "Validation de la cheffe de projet"
+    message: "Statut global : {{statut.output}}. Le rapport COPIL est prêt (tmp/copil/rapport_copil.md). Valider sa diffusion ?"
+    on_approve: relecture
+    on_reject: annule
+
+  - id: relecture
+    type: file_read
+    description: "Relecture du rapport"
+    path: 'tmp/copil/rapport_copil.md'
+
+  - id: diffusion
+    type: log
+    description: "Diffusion au COPIL"
+    level: success
+    message: |
+      📨 Rapport diffusé au COPIL — statut {{statut.output}}
+
+      {{relecture.output}}
+
+      Livrables : tmp/copil/rapport_copil.md · risques.md · actions.md · indicateurs.md (+ note_escalade.md si statut rouge)
+
+  - id: fin
+    type: end
+    description: "Préparation terminée"
+    message: "Préparation du COPIL terminée : indicateurs, risques, actions et rapport produits (plus une note d'escalade si le statut est rouge), diffusion validée."
+
+  - id: annule
+    type: end
+    description: "Diffusion annulée"
+    message: "Diffusion refusée par la cheffe de projet. Les livrables restent disponibles dans tmp/copil pour correction."

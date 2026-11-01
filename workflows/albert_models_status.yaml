@@ -1,0 +1,157 @@
+# yaml-language-server: $schema=../csflow.schema.json
+name: albert-models-status
+description: Récupère les modèles de l'API Albert (DINUM) et leur statut via CSAgent, génère une page HTML "award-winning" en thème clair et l'ouvre dans le navigateur par défaut (Windows et Linux).
+
+steps:
+
+  # ── 1. CSAgent récupère les modèles Albert ET leur statut, écrit en JSON ────
+  - id: fetch_models
+    type: agent
+    description: Récupération des modèles Albert et de leur statut par CSAgent
+    auto_confirm: true
+    prompt: |
+      Use your list_models tool to retrieve the models exposed by the Albert API
+      (hosted by DINUM, Direction interministérielle du numérique).
+
+      Then write the result to tmp/albert_models_status.json as a JSON array.
+      Each element must be an object with exactly these keys:
+        - "name"        : the model id (e.g. "gpt-oss-120b")
+        - "type"        : the model type (e.g. "text-generation")
+        - "aliases"     : a string listing the aliases, separated by " · "
+        - "provider"    : the string "DINUM"
+        - "status"      : the operational status of the model. Every model returned
+                          by list_models is available and operational, so set this
+                          to "available" for each model.
+
+      Use only relative paths: you can only write inside the current directory.
+      Do NOT use absolute paths such as C:\temp.
+      Do NOT invent any model: only include the models returned by list_models.
+      Do NOT invent any status: use "available" for every model returned.
+      Write the JSON file to tmp/albert_models_status.json when done.
+
+  # ── 2. vérifier que le JSON a bien été écrit ────────────────────────────────
+  - id: check_json
+    type: file_read
+    description: Vérification du JSON des modèles et de leur statut
+    path: 'tmp/albert_models_status.json'
+
+  # ── 3. script Python : génère la page HTML "award-winning" en thème clair ───
+  - id: write_script
+    type: file_write
+    description: Écriture du script Python qui crée la page HTML claire et imprime son chemin file://
+    path: 'tmp/albert_models_status_to_html.py'
+    content: |
+      import json, pathlib
+
+      # ---------- Chargement des modèles ----------
+      with open('tmp/albert_models_status.json', encoding='utf-8') as f:
+          models = json.load(f)
+
+      # ---------- Icône / couleur par type ----------
+      type_meta = {
+          'text-generation':              ('🧠', '#7c3aed'),
+          'image-text-to-text':           ('🖼️', '#0ea5e9'),
+          'text-embeddings-inference':    ('🧲', '#10b981'),
+          'text-classification':          ('🏷️', '#f59e0b'),
+          'automatic-speech-recognition': ('🎙️', '#ef4444'),
+      }
+      def meta(t):
+          return type_meta.get(t, ('🤖', '#64748b'))
+
+      # ---------- Badge de statut ----------
+      def status_badge(s):
+          s = (s or 'available').lower()
+          if s in ('available', 'ok', 'operational', 'online', 'up'):
+              return '<span class="status available">● Disponible</span>'
+          if s in ('degraded', 'warning', 'partial'):
+              return '<span class="status degraded">● Dégradé</span>'
+          if s in ('down', 'error', 'offline', 'unavailable'):
+              return '<span class="status down">● Indisponible</span>'
+          return '<span class="status unknown">● ' + s + '</span>'
+
+      # ---------- Construction du HTML (thème clair) ----------
+      html = []
+      html.append('<!DOCTYPE html>')
+      html.append('<html lang="fr"><head><meta charset="UTF-8">')
+      html.append('<meta name="viewport" content="width=device-width, initial-scale=1.0">')
+      html.append('<title>Albert API — Modèles et statut</title>')
+      html.append('<style>')
+      html.append('*{margin:0;padding:0;box-sizing:border-box;}')
+      html.append('body{font-family:"Segoe UI",system-ui,sans-serif;min-height:100vh;background:linear-gradient(160deg,#f8fafc 0%,#eef2ff 45%,#e0e7ff 100%);color:#1e293b;padding:48px 24px;}')
+      html.append('.wrap{max-width:1100px;margin:0 auto;}')
+      html.append('header{text-align:center;margin-bottom:44px;}')
+      html.append('.badge{display:inline-block;background:#eef2ff;border:1px solid #c7d2fe;color:#4f46e5;font-size:12px;letter-spacing:3px;text-transform:uppercase;padding:6px 16px;border-radius:999px;margin-bottom:18px;}')
+      html.append('h1{font-size:44px;font-weight:800;background:linear-gradient(90deg,#4f46e5,#0ea5e9,#10b981);-webkit-background-clip:text;background-clip:text;color:transparent;margin-bottom:10px;}')
+      html.append('.sub{color:#64748b;font-size:16px;}')
+      html.append('.count{display:inline-flex;align-items:center;gap:8px;margin-top:18px;background:#ffffff;border:1px solid #e2e8f0;box-shadow:0 4px 14px rgba(79,70,229,0.08);padding:8px 18px;border-radius:999px;font-size:14px;}')
+      html.append('.count b{color:#10b981;font-size:18px;}')
+      html.append('.grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(320px,1fr));gap:20px;}')
+      html.append('.card{background:#ffffff;border:1px solid #e2e8f0;border-radius:20px;padding:24px;box-shadow:0 10px 30px rgba(15,23,42,0.06);transition:transform .2s ease, border-color .2s ease, box-shadow .2s ease;position:relative;overflow:hidden;}')
+      html.append('.card:hover{transform:translateY(-6px);border-color:#c7d2fe;box-shadow:0 20px 45px rgba(79,70,229,0.15);}')
+      html.append('.card::before{content:"";position:absolute;inset:0 0 auto 0;height:4px;background:var(--accent);}')
+      html.append('.top{display:flex;align-items:center;gap:14px;margin-bottom:14px;}')
+      html.append('.icon{width:52px;height:52px;border-radius:14px;display:flex;align-items:center;justify-content:center;font-size:26px;background:var(--accent);color:#fff;}')
+      html.append('.name{font-size:19px;font-weight:700;color:#0f172a;word-break:break-word;}')
+      html.append('.type{display:inline-block;margin-top:6px;font-size:11px;letter-spacing:1px;text-transform:uppercase;color:#475569;background:#f1f5f9;border:1px solid #e2e8f0;padding:3px 10px;border-radius:999px;}')
+      html.append('.status{display:inline-block;margin-top:10px;font-size:12px;font-weight:600;padding:4px 12px;border-radius:999px;}')
+      html.append('.status.available{color:#047857;background:#d1fae5;border:1px solid #a7f3d0;}')
+      html.append('.status.degraded{color:#b45309;background:#fef3c7;border:1px solid #fde68a;}')
+      html.append('.status.down{color:#b91c1c;background:#fee2e2;border:1px solid #fecaca;}')
+      html.append('.status.unknown{color:#475569;background:#f1f5f9;border:1px solid #e2e8f0;}')
+      html.append('.aliases{margin-top:14px;font-size:12px;color:#64748b;line-height:1.6;border-top:1px solid #e2e8f0;padding-top:12px;}')
+      html.append('.aliases span{color:#94a3b8;text-transform:uppercase;letter-spacing:1px;font-size:10px;display:block;margin-bottom:4px;}')
+      html.append('.provider{margin-top:12px;font-size:11px;color:#94a3b8;}')
+      html.append('footer{text-align:center;margin-top:44px;color:#94a3b8;font-size:12px;}')
+      html.append('@media (max-width:640px){h1{font-size:32px;}.grid{grid-template-columns:1fr;}}')
+      html.append('</style></head><body>')
+      html.append('<div class="wrap">')
+      html.append('<header>')
+      html.append('<div class="badge">Direction interministérielle du numérique</div>')
+      html.append('<h1>Modèles de l\'API Albert</h1>')
+      html.append('<div class="sub">Modèles et statut exposés par l\'API Albert — DINUM</div>')
+      html.append('<div class="count">📦 <b>' + str(len(models)) + '</b> modèles disponibles</div>')
+      html.append('</header>')
+      html.append('<div class="grid">')
+
+      for m in models:
+          icon, accent = meta(m.get('type', ''))
+          html.append('<div class="card" style="--accent:' + accent + '">')
+          html.append('<div class="top"><div class="icon">' + icon + '</div>')
+          html.append('<div><div class="name">' + m.get('name', '?') + '</div>')
+          html.append('<div class="type">' + m.get('type', '?') + '</div>')
+          html.append(status_badge(m.get('status', 'available')) + '</div></div>')
+          html.append('<div class="aliases"><span>Alias</span>' + m.get('aliases', '—') + '</div>')
+          html.append('<div class="provider">Hébergé par ' + m.get('provider', 'DINUM') + '</div>')
+          html.append('</div>')
+
+      html.append('</div>')
+      html.append('<footer>Généré automatiquement par un workflow CSFlow · ' + '{{now}}' + '</footer>')
+      html.append('</div>')
+      html.append('</body></html>')
+
+      out_path = pathlib.Path('tmp/albert_models_status.html')
+      out_path.write_text('\n'.join(html), encoding='utf-8')
+      # Imprime le chemin absolu file:// pour l'ouverture dans le navigateur
+      print(out_path.resolve().as_uri())
+
+  # ── 4. exécuter le script (génère le HTML et imprime le chemin file://) ─────
+  - id: generate_html
+    type: python
+    description: Génération de la page HTML claire et impression du chemin file://
+    script: 'tmp/albert_models_status_to_html.py'
+
+  # ── 5. ouvrir la page dans le navigateur par défaut (Windows et Linux) ───────
+  - id: open_html
+    type: python
+    description: Ouverture de la page dans le navigateur par défaut
+    continue_on_error: true
+    code: |
+      import webbrowser
+      if not webbrowser.open("{{generate_html.output}}".strip()):
+          print("Aucun navigateur lancé : ouvrez tmp/albert_models_status.html")
+
+  # ── 6. fin ──────────────────────────────────────────────────────────────────
+  - id: done
+    type: log
+    level: success
+    message: "Terminé : la page des modèles Albert et de leur statut est dans tmp/albert_models_status.html, ouverte dans le navigateur par défaut."

@@ -1,0 +1,915 @@
+<!doctype html>
+<html lang="fr">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<meta name="color-scheme" content="light">
+<title>CSFlow — Documentation des mots-clés du workflow</title>
+<meta name="description" content="Guide pédagogique de tous les mots-clés d'un workflow CSFlow : clés du fichier, clés des étapes, quatorze types d'étape, variables, enchaînements et tutoriel.">
+<style>
+/* Mêmes couleurs, polices et contrastes (WCAG AA) que l'application CSFlow.
+   Tailles en rem : elles suivent la taille de texte du navigateur. */
+:root {
+  color-scheme: light;
+  --bg: #f1f5f9; --surface: #ffffff; --surface-2: #f8fafc;
+  --line: #cbd5e1; --line-ui: #64748b;
+  --text: #0f172a; --muted: #475569;
+  --brand: #1d4ed8; --brand-soft: #dbeafe; --brand-deep: #1e3a8a;
+  --head: #0f172a; --head-text: #f8fafc; --head-muted: #cbd5e1;
+  --dark: #0b1220; --dark-2: #111c30; --dark-line: #2a3a58; --dark-text: #e2e8f0; --dark-muted: #a5b4cc; --dark-num: #8fa0bd;
+
+  --py: #1e3a8a;  --py-bg: #dbeafe;  --py-line: #2563eb;      /* exécution */
+  --ia: #6b21a8;  --ia-bg: #f3e8ff;  --ia-line: #9333ea;      /* IA */
+  --hu: #854d0e;  --hu-bg: #fef3c7;  --hu-line: #d97706;      /* humain / attention */
+  --ok: #166534;  --ok-bg: #dcfce7;  --ok-line: #16a34a;      /* fichiers / bon */
+  --tl: #115e59;  --tl-bg: #ccfbf1;  --tl-line: #0d9488;      /* réseau */
+  --sl: #334155;  --sl-bg: #e2e8f0;  --sl-line: #64748b;      /* affichage / fin */
+  --err: #991b1b; --err-bg: #fee2e2; --err-line: #dc2626;
+
+  --focus: #1d4ed8; --focus-dark: #93c5fd;
+  --font: "Segoe UI", system-ui, -apple-system, "Helvetica Neue", Arial, sans-serif;
+  --mono: "Cascadia Code", "Cascadia Mono", Consolas, "SF Mono", Menlo, monospace;
+  --r: 14px;
+}
+* { box-sizing: border-box; }
+html { font-size: 100%; scroll-behavior: smooth; scroll-padding-top: 20px; }
+body { margin: 0; background: var(--bg); color: var(--text); font: 1.0625rem/1.65 var(--font); }
+h1, h2, h3, h4, p, ul, ol, figure, dl { margin: 0; }
+ul, ol { padding: 0; list-style: none; }
+a { color: var(--brand); text-underline-offset: 3px; }
+code { font-family: var(--mono); font-size: 0.9375em; background: #e8eef6; border: 1px solid var(--line); border-radius: 6px; padding: 1px 6px; overflow-wrap: anywhere; }
+:focus-visible { outline: 3px solid var(--focus); outline-offset: 3px; border-radius: 6px; }
+.toplinks { display: flex; gap: 6px; flex-wrap: wrap; }
+.toplinks a { color: #e2e8f0; text-decoration: none; padding: 8px 12px; border-radius: 8px; font-size: 1rem; }
+.toplinks a:hover { background: #1e293b; color: #fff; }
+header.top :focus-visible, .code :focus-visible { outline-color: var(--focus-dark); }
+
+.skip { position: absolute; left: 12px; top: -64px; z-index: 20; background: #fff; color: var(--text); padding: 8px 14px;
+        border-radius: 8px; border: 2px solid var(--brand); font-weight: 600; }
+.skip:focus { top: 12px; }
+
+/* ── En-tête ──────────────────────────────────────────────────────────────── */
+header.top { background: var(--head); color: var(--head-text); }
+header.top .in { width: min(1280px, 100% - 40px); margin-inline: auto; display: flex; align-items: center; gap: 16px; padding: 14px 0; flex-wrap: wrap; }
+.mark { flex: none; width: 44px; height: 44px; border-radius: 12px; color: #fff; font-weight: 800; font-size: 1.125rem;
+        background: linear-gradient(135deg, #2563eb, #7c3aed); display: grid; place-items: center; letter-spacing: -.02em; }
+.brand .name { font-size: 1.5rem; font-weight: 700; line-height: 1.2; }
+.brand .name span { color: var(--focus-dark); }
+.brand .tag { font-size: 0.9375rem; color: var(--head-muted); }
+.top .spacer { flex: 1; }
+.pill { display: inline-flex; align-items: center; gap: 8px; border: 1px solid #93c5fd; border-radius: 999px; padding: 6px 16px;
+        font-size: 0.9375rem; font-weight: 600; background: #1e3a8a; color: #dbeafe; }
+
+/* ── Mise en page ─────────────────────────────────────────────────────────── */
+.layout { width: min(1280px, 100% - 40px); margin: 28px auto 0; display: grid; grid-template-columns: clamp(220px, 24vw, 264px) minmax(0, 1fr); gap: clamp(20px, 2.5vw, 32px); align-items: start; }
+nav.toc { position: sticky; top: 16px; max-height: calc(100vh - 32px); overflow: auto; background: var(--surface); border: 1px solid var(--line);
+          border-radius: var(--r); padding: 14px 10px; box-shadow: 0 1px 2px rgba(15,23,42,.06); }
+nav.toc h2 { font-size: 0.9375rem; color: var(--muted); padding: 0 10px 8px; }
+nav.toc ol { display: flex; flex-direction: column; gap: 2px; }
+nav.toc a { display: block; padding: 7px 10px; border-radius: 8px; text-decoration: none; color: var(--text); font-size: 0.9375rem; line-height: 1.35; border: 1px solid transparent; }
+nav.toc a:hover { background: #eaf0f7; }
+nav.toc a[aria-current="true"] { background: var(--brand-soft); border-color: var(--brand); color: var(--brand-deep); font-weight: 600; }
+nav.toc .sub a { padding-left: 24px; font-size: 0.875rem; color: var(--muted); }
+nav.toc .sub a[aria-current="true"] { color: var(--brand-deep); }
+nav.toc details > summary { display: none; }
+
+main { min-width: 0; }
+section.doc { background: var(--surface); border: 1px solid var(--line); border-radius: var(--r); padding: 28px 32px 32px; margin-bottom: 22px;
+              box-shadow: 0 1px 2px rgba(15,23,42,.06); }
+section.doc > h2 { font-size: 1.75rem; line-height: 1.25; margin-bottom: 6px; letter-spacing: -.01em; }
+section.doc > .lead { font-size: 1.125rem; color: var(--muted); margin-bottom: 18px; max-width: 46rem; }
+section.doc h3 { font-size: 1.3125rem; line-height: 1.3; margin: 26px 0 8px; }
+section.doc h4 { font-size: 1.0625rem; margin: 16px 0 6px; }
+section.doc p + p, section.doc p + ul, section.doc ul + p, section.doc p + .code, section.doc .code + p { margin-top: 12px; }
+.bul li { position: relative; padding-left: 20px; margin: 6px 0; }
+.bul li::before { content: ""; position: absolute; left: 4px; top: .72em; width: 7px; height: 7px; border-radius: 50%; background: var(--brand); }
+
+.hero { padding: 36px 0 18px; }
+.eyebrow { font-size: 0.9375rem; font-weight: 700; color: var(--brand); }
+.hero h1 { font-size: clamp(1.9rem, 3.6vw, 2.6rem); line-height: 1.15; letter-spacing: -.015em; margin: 4px 0 12px; }
+.hero p { font-size: 1.1875rem; color: var(--muted); max-width: 48rem; }
+
+/* ── Encadrés ─────────────────────────────────────────────────────────────── */
+.note { display: flex; gap: 12px; margin: 16px 0 4px; padding: 12px 16px; border-radius: 10px; border: 1px solid; border-left-width: 6px; font-size: 1rem; }
+.note > b:first-child { flex: none; }
+.note.idee  { background: var(--py-bg); border-color: var(--py-line); color: #172554; }
+.note.attention { background: var(--hu-bg); border-color: var(--hu-line); color: #451a03; }
+.note.ia { background: var(--ia-bg); border-color: var(--ia-line); color: #3b0764; }
+.note p { margin: 0 !important; }
+.note ul { margin-top: 4px; }
+
+/* ── Pastilles ────────────────────────────────────────────────────────────── */
+.chip { display: inline-flex; align-items: center; gap: 6px; padding: 1px 12px; border-radius: 999px; font-size: 0.875rem; font-weight: 700; border: 1px solid; white-space: nowrap; line-height: 1.6; }
+.chip.py { background: var(--py-bg); color: var(--py); border-color: var(--py-line); }
+.chip.ia { background: var(--ia-bg); color: var(--ia); border-color: var(--ia-line); }
+.chip.hu { background: var(--hu-bg); color: var(--hu); border-color: var(--hu-line); }
+.chip.ok { background: var(--ok-bg); color: var(--ok); border-color: var(--ok-line); }
+.chip.tl { background: var(--tl-bg); color: var(--tl); border-color: var(--tl-line); }
+.chip.sl { background: var(--sl-bg); color: var(--sl); border-color: var(--sl-line); }
+.chip.req { background: var(--err-bg); color: var(--err); border-color: var(--err-line); }
+.chip.opt { background: var(--surface-2); color: var(--muted); border-color: var(--line-ui); }
+
+/* ── Code ─────────────────────────────────────────────────────────────────── */
+.code { min-width: 0; max-width: 100%; background: var(--dark); border: 1px solid var(--dark-line); border-radius: 12px; overflow: hidden; margin-top: 12px; }
+.code .bar { display: flex; align-items: center; gap: 10px; padding: 6px 8px 6px 14px; background: var(--dark-2); border-bottom: 1px solid var(--dark-line); color: var(--dark-text); font-size: 0.875rem; font-weight: 600; }
+.code .bar .t { flex: 1; min-width: 0; overflow-wrap: anywhere; }
+.copy { min-height: 34px; padding: 0 12px; border-radius: 8px; background: transparent; border: 1px solid #8fa0bd; color: var(--dark-text); font: inherit; font-size: 0.875rem; font-weight: 600; cursor: pointer; }
+.copy:hover { background: #1e2d49; }
+.code pre { margin: 0; padding: 12px 0; overflow: auto; font: 0.9375rem/1.7 var(--mono); color: var(--dark-text); tab-size: 2; }
+.code pre .l { display: block; white-space: pre; padding: 0 18px; }
+.yk { color: #93c5fd; } .ys { color: #86efac; } .yn { color: #fcd34d; } .yd { color: #fbbf24; } .yv { color: #f9a8d4; font-weight: 600; }
+.yc { color: #a5b4cc; font-style: italic; } .yb { color: #cbd5e1; }
+.co { display: inline-grid; place-items: center; width: 1.45em; height: 1.45em; margin-left: 10px; border-radius: 50%; background: #2563eb; color: #fff;
+      font: 700 0.8125rem/1 var(--font); vertical-align: middle; font-style: normal; }
+.out { color: var(--dark-text); }
+.legend-co { counter-reset: n; margin-top: 14px; display: grid; gap: 8px; }
+.legend-co li { display: flex; gap: 12px; align-items: baseline; }
+.legend-co .co { margin: 0; flex: none; transform: translateY(2px); }
+
+/* ── Tableaux ─────────────────────────────────────────────────────────────── */
+.tw { overflow-x: auto; margin-top: 12px; border: 1px solid var(--line); border-radius: 12px; }
+table { border-collapse: collapse; width: 100%; font-size: 1rem; }
+caption { text-align: left; padding: 10px 14px; font-weight: 700; background: var(--surface-2); border-bottom: 1px solid var(--line); }
+th, td { text-align: left; vertical-align: top; padding: 10px 14px; border-bottom: 1px solid var(--line); }
+thead th { background: var(--surface-2); font-size: 0.9375rem; color: var(--muted); white-space: nowrap; }
+tbody tr:last-child td, tbody tr:last-child th { border-bottom: 0; }
+tbody th { font-weight: 600; white-space: nowrap; }
+td.k, th.k { font-family: var(--mono); font-size: 0.9375rem; font-weight: 600; white-space: nowrap; }
+tr[hidden] { display: none; }
+
+/* ── Cartes de clés et de types ───────────────────────────────────────────── */
+.keys { display: grid; gap: 12px; margin-top: 14px; grid-template-columns: minmax(0, 1fr); }
+.key { min-width: 0; border: 1px solid var(--line); border-radius: 12px; padding: 14px 16px; background: var(--surface-2); }
+section.doc .key h3 { margin: 0 0 4px; display: flex; flex-wrap: wrap; align-items: center; gap: 8px 10px; font-size: 1.125rem; }
+.key h3 .kn { font-family: var(--mono); }
+.key .schema { color: var(--muted); font-size: 0.9375rem; }
+.key .code { margin-top: 10px; }
+
+.type { min-width: 0; border: 2px solid var(--line-ui); border-radius: var(--r); padding: 20px 22px 22px; margin-top: 18px; background: var(--surface); }
+.type.py { border-color: var(--py-line); } .type.ia { border-color: var(--ia-line); } .type.hu { border-color: var(--hu-line); }
+.type.ok { border-color: var(--ok-line); } .type.tl { border-color: var(--tl-line); } .type.sl { border-color: var(--sl-line); }
+section.doc .type h3 { margin: 0 0 4px; display: flex; flex-wrap: wrap; align-items: center; gap: 8px 12px; }
+.type h3 .ic { font-size: 1.5rem; }
+.type h3 .tn { font-family: var(--mono); }
+.type .summary { font-size: 1.0625rem; font-weight: 600; }
+.type .analogy { color: var(--muted); }
+.type h4 { margin-top: 18px; }
+
+.families { display: grid; gap: 12px; grid-template-columns: repeat(3, minmax(0, 1fr)); margin-top: 14px; }
+.fam { border: 2px solid var(--line-ui); border-radius: 12px; padding: 14px 16px; }
+.fam.py { border-color: var(--py-line); background: #f5f9ff; } .fam.ia { border-color: var(--ia-line); background: #fbf7ff; }
+.fam.hu { border-color: var(--hu-line); background: #fffbeb; } .fam.ok { border-color: var(--ok-line); background: #f4fdf6; }
+.fam.tl { border-color: var(--tl-line); background: #f2fdfb; } .fam.sl { border-color: var(--sl-line); background: #f8fafc; }
+.fam h3 { margin: 0 0 6px !important; font-size: 1.0625rem !important; }
+.fam ul li { margin: 2px 0; }
+
+/* ── Carte des mots-clés (3 niveaux) ──────────────────────────────────────── */
+.levels { display: grid; gap: 0; margin-top: 16px; }
+.lvl { border: 2px solid var(--line-ui); border-radius: 12px; padding: 14px 16px 16px; background: var(--surface-2); }
+.lvl + .lvl { margin-top: 10px; }
+.lvl .row { display: flex; flex-wrap: wrap; gap: 8px; margin-top: 8px; }
+.lvl .t { font-weight: 700; font-size: 1.0625rem; }
+.lvl .d { color: var(--muted); font-size: 0.9375rem; }
+.kbd { font-family: var(--mono); font-size: 0.9375rem; font-weight: 600; padding: 2px 10px; border-radius: 8px; background: #fff; border: 1px solid var(--line-ui); }
+.arrow { text-align: center; color: var(--muted); font-size: 1.25rem; line-height: 1.2; margin: 4px 0 0; }
+
+/* ── Schémas de flux ──────────────────────────────────────────────────────── */
+.dg { display: flex; align-items: center; flex-wrap: wrap; gap: 8px 6px; margin-top: 12px; padding: 16px; background: var(--surface-2); border: 1px solid var(--line); border-radius: 12px; }
+.bx { display: inline-block; padding: 6px 14px; border-radius: 10px; border: 2px solid var(--line-ui); background: #fff; font-weight: 600; font-size: 0.9375rem; }
+.bx.ok { border-color: var(--ok-line); background: var(--ok-bg); color: var(--ok); }
+.bx.err { border-color: var(--err-line); background: var(--err-bg); color: var(--err); }
+.bx.ign { border-style: dashed; border-color: var(--hu-line); background: var(--hu-bg); color: var(--hu); }
+.bx.hu { border-color: var(--hu-line); background: var(--hu-bg); color: var(--hu); border-radius: 22px; }
+.bx.sl { border-color: var(--sl-line); background: var(--sl-bg); color: var(--sl); border-radius: 22px; }
+.ar { color: var(--muted); font-weight: 700; padding: 0 2px; }
+.branch { display: flex; flex-direction: column; gap: 6px; }
+.branch .b { display: flex; align-items: center; gap: 6px; flex-wrap: wrap; }
+.lab { font-size: 0.875rem; font-weight: 700; padding: 0 8px; border-radius: 999px; border: 2px solid; background: #fff; }
+.lab.ok { color: var(--ok); border-color: var(--ok-line); } .lab.err { color: var(--err); border-color: var(--err-line); }
+
+ol.steps { counter-reset: s; display: grid; gap: 10px; margin-top: 12px; grid-template-columns: minmax(0, 1fr); }
+ol.steps > li { min-width: 0; counter-increment: s; position: relative; padding: 10px 14px 10px 56px; border: 1px solid var(--line); border-radius: 10px; background: var(--surface-2); }
+ol.steps > li::before { content: counter(s); position: absolute; left: 14px; top: 10px; width: 30px; height: 30px; border-radius: 50%; display: grid; place-items: center;
+                        background: var(--head); color: #fff; font-weight: 800; font-size: 0.9375rem; }
+
+/* ── Recherche ────────────────────────────────────────────────────────────── */
+.search { display: flex; flex-wrap: wrap; gap: 10px 14px; align-items: center; margin-top: 12px; }
+.search label { font-weight: 600; }
+.search input { flex: 1; min-width: 220px; max-width: 420px; min-height: 44px; padding: 0 14px; font: inherit; border: 2px solid var(--line-ui); border-radius: 10px; background: #fff; color: var(--text); }
+.search .count { color: var(--muted); font-size: 0.9375rem; }
+
+footer { margin-top: 18px; background: var(--head); color: var(--head-muted); padding: 22px 0; font-size: 0.9375rem; }
+footer .in { width: min(1280px, 100% - 40px); margin-inline: auto; display: flex; gap: 12px 24px; justify-content: space-between; flex-wrap: wrap; }
+footer strong { color: var(--head-text); }
+
+@media (max-width: 900px) {
+  .layout { grid-template-columns: minmax(0, 1fr); gap: 16px; }
+  nav.toc { position: static; max-height: none; padding: 0; }
+  nav.toc details > summary { display: block; padding: 14px 16px; font-weight: 700; cursor: pointer; min-height: 48px; }
+  nav.toc h2 { display: none; }
+  nav.toc details ol { padding: 0 10px 12px; }
+  .families { grid-template-columns: minmax(0, 1fr); }
+  section.doc { padding: 22px 18px 26px; }
+}
+@media (prefers-reduced-motion: reduce) { html { scroll-behavior: auto; } }
+@media print {
+  header.top, footer, nav.toc, .copy, .search { display: none !important; }
+  .layout { display: block; } section.doc { break-inside: avoid-page; border: 0; box-shadow: none; padding: 8px 0; }
+  .code { background: #fff; border-color: #999; } .code pre, .out { color: #000; } .code .bar { display: none; }
+}
+</style>
+</head>
+<body>
+<a class="skip" href="#contenu">Aller au contenu</a>
+<header class="top"><div class="in">
+  <div class="mark" aria-hidden="true">CS</div>
+  <div class="brand"><p class="name">CS<span>Flow</span></p><p class="tag">Workflows orchestrés en Python, propulsés par CSAgent</p></div>
+  <div class="spacer"></div>
+  <nav class="toplinks" aria-label="Pages du site"><a href="index.html">Accueil</a><a href="video.html">Démo vidéo</a></nav>
+  <p class="pill">Documentation du YAML</p>
+</div></header>
+
+<div class="layout">
+  <nav class="toc" aria-label="Sommaire"><details id="tocd" open><summary>Sommaire</summary><h2>Sommaire</h2><ol><li><a href="#intro">1. Comprendre en deux minutes</a></li><li><a href="#carte">2. La carte des mots-clés</a></li><li><a href="#fichier">3. Les clés du fichier</a></li><li><a href="#communes">4. Les clés de toute étape</a></li><li><a href="#types">5. Les quatorze types d&#x27;étape</a><ol class="sub"><li><a href="#type-agent">🤖 agent</a></li><li><a href="#type-shell">⚡ shell</a></li><li><a href="#type-python">🐍 python</a></li><li><a href="#type-transform">⚙️ transform</a></li><li><a href="#type-file_read">📄 file_read</a></li><li><a href="#type-file_write">✏️ file_write</a></li><li><a href="#type-http_get">🌐 http_get</a></li><li><a href="#type-http_post">🌐 http_post</a></li><li><a href="#type-mcp_tools">🔌 mcp_tools</a></li><li><a href="#type-mcp_call">🔌 mcp_call</a></li><li><a href="#type-human_approval">👤 human_approval</a></li><li><a href="#type-user_input">✎ user_input</a></li><li><a href="#type-log">📝 log</a></li><li><a href="#type-end">🏁 end</a></li></ol></li><li><a href="#variables">6. Les variables {{…}}</a></li><li><a href="#flux">7. Enchaîner les étapes</a></li><li><a href="#pieges">8. Les pièges courants</a></li><li><a href="#tuto">9. Tutoriel pas à pas</a></li><li><a href="#verifier">10. Vérifier son workflow</a></li><li><a href="#memo">11. Aide-mémoire</a></li><li><a href="#reference">12. Référence et recherche</a></li><li><a href="#mcp">13. Lancer depuis CSAgent (MCP)</a></li><li><a href="#dictee">14. Saisir et dicter un texte</a></li><li><a href="#client-mcp">15. Appeler un serveur MCP</a></li></ol></details></nav>
+  <main id="contenu">
+    <div class="hero">
+      <p class="eyebrow">Guide pédagogique</p>
+      <h1>Écrire un workflow CSFlow : tous les mots-clés expliqués</h1>
+      <p>Ce guide présente chaque clé du fichier YAML, ce qu'elle fait, quand l'utiliser et comment éviter les erreurs. Les tableaux viennent directement du schéma du projet (14 types d'étape, 59 clés) ; chaque exemple a été validé par le moteur.</p>
+    </div>
+
+<section class="doc" id="intro" aria-labelledby="h-intro">
+  <h2 id="h-intro">1. Comprendre en deux minutes</h2>
+  <p class="lead">Un workflow CSFlow est une <b>recette de cuisine</b> écrite dans un fichier texte. Chaque ligne de la recette est une étape ; chaque étape a un verbe (son <i>type</i>) qui dit ce qu'elle fait.</p>
+  <ul class="bul"><li>Les étapes s'exécutent <b>dans l'ordre</b> de la liste, une par une.</li><li>Chaque étape laisse un <b>résultat</b> que les suivantes peuvent réutiliser, avec la syntaxe <code>{{id.output}}</code>.</li><li>On peut <b>bifurquer</b> (une étape peut en sauter une autre, ou le workflow peut se séparer selon la réponse d'un humain) et <b>s'arrêter</b> avec une étape de fin.</li></ul>
+  <h3>Un exemple annoté</h3>
+  <p>Ce petit workflow écrit un fichier puis affiche ce qu'il a écrit. Chaque pastille bleue renvoie à l'explication qui suit.</p>
+  <div class="code"><div class="bar"><span class="t">rapport_hebdo.yaml</span><button type="button" class="copy" data-code="name: Rapport hebdo
+description: Écrit un rapport puis affiche son contenu.
+inputs:
+  projet: Portail usagers
+steps:
+  - id: ecrire
+    type: file_write
+    path: &#x27;tmp/rapport.txt&#x27;
+    content: &quot;Rapport du projet {{projet}} du {{today}}&quot;
+  - id: afficher
+    type: log
+    message: &quot;Fichier écrit : {{ecrire.output}}&quot;" aria-label="Copier : rapport_hebdo.yaml">Copier</button></div><pre tabindex="0" aria-label="rapport_hebdo.yaml"><span class="l"><span class="yk">name</span>: Rapport hebdo<span class="co" role="img" aria-label="repère 1">1</span></span><span class="l"><span class="yk">description</span>: Écrit un rapport puis affiche son contenu.<span class="co" role="img" aria-label="repère 2">2</span></span><span class="l"><span class="yk">inputs</span>:<span class="co" role="img" aria-label="repère 3">3</span></span><span class="l">  <span class="yk">projet</span>: Portail usagers</span><span class="l"><span class="yk">steps</span>:<span class="co" role="img" aria-label="repère 4">4</span></span><span class="l">  <span class="yd">-</span> <span class="yk">id</span>: ecrire<span class="co" role="img" aria-label="repère 5">5</span></span><span class="l">    <span class="yk">type</span>: file_write<span class="co" role="img" aria-label="repère 6">6</span></span><span class="l">    <span class="yk">path</span>:<span class="ys"> &#x27;tmp/rapport.txt&#x27;</span><span class="co" role="img" aria-label="repère 7">7</span></span><span class="l">    <span class="yk">content</span>:<span class="ys"> &quot;Rapport du projet <span class="yv">{{projet}}</span> du <span class="yv">{{today}}</span>&quot;</span></span><span class="l">  <span class="yd">-</span> <span class="yk">id</span>: afficher</span><span class="l">    <span class="yk">type</span>: log</span><span class="l">    <span class="yk">message</span>:<span class="ys"> &quot;Fichier écrit : <span class="yv">{{ecrire.output}}</span>&quot;</span><span class="co" role="img" aria-label="repère 8">8</span></span></pre></div>
+  <ol class="legend-co" aria-label="Explication des repères">
+    <li><span class="co" aria-hidden="true">1</span><span><b>name</b> : le nom du workflow, affiché dans l'interface.</span></li>
+    <li><span class="co" aria-hidden="true">2</span><span><b>description</b> : une phrase pour dire à quoi il sert (facultatif).</span></li>
+    <li><span class="co" aria-hidden="true">3</span><span><b>inputs</b> : des valeurs de départ, réutilisables partout avec <code>{{projet}}</code> (facultatif).</span></li>
+    <li><span class="co" aria-hidden="true">4</span><span><b>steps</b> : la liste des étapes. C'est la seule clé obligatoire.</span></li>
+    <li><span class="co" aria-hidden="true">5</span><span><b>id</b> : le nom de l'étape. Il permet de relire son résultat plus loin : <code>{{ecrire.output}}</code>.</span></li>
+    <li><span class="co" aria-hidden="true">6</span><span><b>type</b> : le verbe de l'étape. Ici « écrire un fichier ».</span></li>
+    <li><span class="co" aria-hidden="true">7</span><span><b>path</b> et <b>content</b> : les paramètres propres au type <code>file_write</code>.</span></li>
+    <li><span class="co" aria-hidden="true">8</span><span><b>{{ecrire.output}}</b> : le résultat de l'étape précédente, inséré dans le message.</span></li>
+  </ol>
+  <div class="note idee"><b>À retenir</b><div><p>Il n'y a que <b>trois niveaux</b> de mots-clés : ceux du fichier, ceux que toute étape accepte, et ceux propres à chaque type d'étape. La section suivante en fait la carte.</p></div></div>
+</section>
+<section class="doc" id="carte" aria-labelledby="h-carte">
+  <h2 id="h-carte">2. La carte des mots-clés</h2>
+  <p class="lead">Avant le détail, voici le plan d'ensemble. Savoir <i>à quel niveau</i> se trouve une clé suffit souvent à savoir où l'écrire.</p>
+  <div class="levels">
+    <div class="lvl">
+      <p class="t">Niveau 1 — Le fichier <span class="chip opt">4 clés</span></p>
+      <p class="d">Écrites tout en haut, sans retrait.</p>
+      <div class="row"><span class="kbd">name</span><span class="kbd">description</span><span class="kbd">inputs</span><span class="kbd">steps</span></div>
+    </div>
+    <p class="arrow" aria-hidden="true">↓ <code>steps</code> contient une liste d'étapes</p>
+    <div class="lvl">
+      <p class="t">Niveau 2 — Toute étape <span class="chip opt">8 clés</span></p>
+      <p class="d">Acceptées par <b>tous</b> les types. Elles disent <i>qui</i> est l'étape et <i>comment</i> elle s'enchaîne.</p>
+      <div class="row"><span class="kbd">id</span><span class="kbd">type</span><span class="kbd">description</span><span class="kbd">skip_if</span><span class="kbd">continue_on_error</span><span class="kbd">next</span><span class="kbd">on_approve</span><span class="kbd">on_reject</span></div>
+    </div>
+    <p class="arrow" aria-hidden="true">↓ la valeur de <code>type</code> décide de la suite</p>
+    <div class="lvl">
+      <p class="t">Niveau 3 — Le type d'étape <span class="chip opt">14 types, 30 paramètres</span></p>
+      <p class="d">Chaque type n'accepte que <b>ses</b> paramètres. Une clé qui n'est pas prévue pour le type est signalée.</p>
+      <div class="row"><span class="kbd">agent</span><span class="kbd">shell</span><span class="kbd">python</span><span class="kbd">transform</span><span class="kbd">file_read</span><span class="kbd">file_write</span><span class="kbd">http_get</span><span class="kbd">http_post</span><span class="kbd">mcp_tools</span><span class="kbd">mcp_call</span><span class="kbd">human_approval</span><span class="kbd">user_input</span><span class="kbd">log</span><span class="kbd">end</span></div>
+    </div>
+  </div>
+  <h3>Les 14 types, par famille</h3>
+  <div class="families">
+    <div class="fam ia"><h3><span class="chip ia">🤖 IA</span></h3><ul><li><code>agent</code> : CSAgent lit, comprend, rédige</li></ul></div>
+    <div class="fam py"><h3><span class="chip py">⚡ Exécution</span></h3><ul><li><code>shell</code> : une commande</li><li><code>python</code> : un script Python, sans Python installé</li><li><code>transform</code> : un petit calcul</li></ul></div>
+    <div class="fam ok"><h3><span class="chip ok">📄 Fichiers</span></h3><ul><li><code>file_read</code> : lire</li><li><code>file_write</code> : écrire</li></ul></div>
+    <div class="fam tl"><h3><span class="chip tl">🌐 Réseau</span></h3><ul><li><code>http_get</code> : interroger</li><li><code>http_post</code> : envoyer</li></ul></div>
+    <div class="fam tl"><h3><span class="chip tl">🔌 Serveur MCP</span></h3><ul><li><code>mcp_tools</code> : lister les outils</li><li><code>mcp_call</code> : appeler un outil</li></ul></div>
+    <div class="fam hu"><h3><span class="chip hu">👤 Humain</span></h3><ul><li><code>human_approval</code> : attendre un feu vert</li><li><code>user_input</code> : demander un texte (saisie ou dictée)</li></ul></div>
+    <div class="fam sl"><h3><span class="chip sl">📝 Affichage et fin</span></h3><ul><li><code>log</code> : afficher un message</li><li><code>end</code> : terminer</li></ul></div>
+  </div>
+</section>
+<section class="doc" id="fichier" aria-labelledby="h-fichier">
+  <h2 id="h-fichier">3. Les clés du fichier</h2>
+  <p class="lead">Quatre clés, écrites tout en haut du fichier. Seule <code>steps</code> est obligatoire.</p>
+  <div class="keys"><div class="key"><h3><span class="kn">name</span><span class="chip opt">facultatif</span><span class="chip opt">texte</span></h3><p class="schema">Schéma : « nom du workflow (affiché dans l&#x27;interface) »</p><p>Le nom qui apparaît dans la liste des workflows et au-dessus du graphe.</p><div class="code"><div class="bar"><span class="t">Exemple : name</span><button type="button" class="copy" data-code="name: Préparation du COPIL" aria-label="Copier : Exemple : name">Copier</button></div><pre tabindex="0" aria-label="Exemple : name"><span class="l"><span class="yk">name</span>: Préparation du COPIL</span></pre></div></div><div class="key"><h3><span class="kn">description</span><span class="chip opt">facultatif</span><span class="chip opt">texte</span></h3><p class="schema">Schéma : « description du workflow »</p><p>Une phrase qui résume le workflow. Elle est affichée au lancement. Si elle contient un deux-points suivi d'un espace, mettez-la entre guillemets.</p><div class="code"><div class="bar"><span class="t">Exemple : description</span><button type="button" class="copy" data-code="description: &quot;Du plan de projet au rapport : orchestration Python, analyse CSAgent&quot;" aria-label="Copier : Exemple : description">Copier</button></div><pre tabindex="0" aria-label="Exemple : description"><span class="l"><span class="yk">description</span>:<span class="ys"> &quot;Du plan de projet au rapport : orchestration Python, analyse CSAgent&quot;</span></span></pre></div></div><div class="key"><h3><span class="kn">inputs</span><span class="chip opt">facultatif</span><span class="chip opt">dictionnaire</span></h3><p class="schema">Schéma : « variables d&#x27;entrée, utilisables dans tout le workflow avec {{nom}} »</p><p>Des valeurs définies une seule fois, en haut. On les réutilise partout avec <code>{{nom}}</code>. Pratique pour changer un dossier ou un nom de projet à un seul endroit.</p><div class="code"><div class="bar"><span class="t">Exemple : inputs</span><button type="button" class="copy" data-code="inputs:
+  projet: Portail usagers
+  dossier: &#x27;tmp/mon-projet&#x27;" aria-label="Copier : Exemple : inputs">Copier</button></div><pre tabindex="0" aria-label="Exemple : inputs"><span class="l"><span class="yk">inputs</span>:</span><span class="l">  <span class="yk">projet</span>: Portail usagers</span><span class="l">  <span class="yk">dossier</span>:<span class="ys"> &#x27;tmp/mon-projet&#x27;</span></span></pre></div></div><div class="key"><h3><span class="kn">steps</span><span class="chip req">obligatoire</span><span class="chip opt">liste</span></h3><p class="schema">Schéma : « liste des étapes »</p><p>La liste des étapes. Elle ne peut pas être vide, et le workflow démarre toujours par la <b>première</b> étape de la liste.</p><div class="code"><div class="bar"><span class="t">Exemple : steps</span><button type="button" class="copy" data-code="steps:
+  - id: premiere
+    type: log
+    message: Bonjour" aria-label="Copier : Exemple : steps">Copier</button></div><pre tabindex="0" aria-label="Exemple : steps"><span class="l"><span class="yk">steps</span>:</span><span class="l">  <span class="yd">-</span> <span class="yk">id</span>: premiere</span><span class="l">    <span class="yk">type</span>: log</span><span class="l">    <span class="yk">message</span>: Bonjour</span></pre></div></div></div>
+</section>
+<section class="doc" id="communes" aria-labelledby="h-communes">
+  <h2 id="h-communes">4. Les clés de toute étape</h2>
+  <p class="lead">Ces huit clés fonctionnent sur <b>n'importe quel</b> type d'étape. Seules <code>id</code> et <code>type</code> sont obligatoires.</p>
+  <div class="note idee"><b>Astuce</b><div><p>Pensez-y comme à l'étiquette collée sur chaque étape : <b>qui</b> elle est (<code>id</code>, <code>type</code>, <code>description</code>), <b>quand</b> elle s'exécute (<code>skip_if</code>, <code>next</code>, <code>on_approve</code>, <code>on_reject</code>) et <b>que faire si ça casse</b> (<code>continue_on_error</code>).</p></div></div>
+  <div class="keys"><div class="key" id="cle-id"><h3><span class="kn">id</span><span class="chip req">obligatoire</span><span class="chip opt">texte</span></h3><p class="schema">Schéma : « identifiant unique de l&#x27;étape ; son résultat s&#x27;utilise avec {{id.output}} »</p><p>Le <b>nom de l'étape</b>. Il doit être unique dans le fichier. Il sert à deux choses : désigner l'étape dans <code>next</code>, <code>on_approve</code> ou <code>on_reject</code>, et lire son résultat avec <code>{{id.output}}</code>. Choisissez-le court, sans espace (par exemple <code>analyse_risques</code>).</p><div class="code"><div class="bar"><span class="t">Exemple : id</span><button type="button" class="copy" data-code="- id: analyse
+  type: log
+  message: Début
+- id: suite
+  type: log
+  message: &quot;L&#x27;analyse a produit : {{analyse.output}}&quot;" aria-label="Copier : Exemple : id">Copier</button></div><pre tabindex="0" aria-label="Exemple : id"><span class="l"><span class="yd">-</span> <span class="yk">id</span>: analyse</span><span class="l">  <span class="yk">type</span>: log</span><span class="l">  <span class="yk">message</span>: Début</span><span class="l"><span class="yd">-</span> <span class="yk">id</span>: suite</span><span class="l">  <span class="yk">type</span>: log</span><span class="l">  <span class="yk">message</span>:<span class="ys"> &quot;L&#x27;analyse a produit : <span class="yv">{{analyse.output}}</span>&quot;</span></span></pre></div></div><div class="key" id="cle-type"><h3><span class="kn">type</span><span class="chip req">obligatoire</span><span class="chip opt">texte</span></h3><p class="schema">Schéma : « type d&#x27;étape (liste : python engine.py --nodes) »</p><p>Le <b>verbe</b> : il décide de ce que fait l'étape et de quels paramètres elle accepte. Il en existe quatorze (voir la section 5). Une faute de frappe est détectée avant l'exécution, avec une suggestion.</p><div class="code"><div class="bar"><span class="t">Exemple : type</span><button type="button" class="copy" data-code="- id: lecture
+  type: file_read
+  path: &#x27;tmp/notes.txt&#x27;" aria-label="Copier : Exemple : type">Copier</button></div><pre tabindex="0" aria-label="Exemple : type"><span class="l"><span class="yd">-</span> <span class="yk">id</span>: lecture</span><span class="l">  <span class="yk">type</span>: file_read</span><span class="l">  <span class="yk">path</span>:<span class="ys"> &#x27;tmp/notes.txt&#x27;</span></span></pre></div></div><div class="key" id="cle-description"><h3><span class="kn">description</span><span class="chip opt">facultatif</span><span class="chip opt">texte</span></h3><p class="schema">Schéma : « libellé affiché dans l&#x27;interface »</p><p>Le <b>libellé lisible</b> affiché dans l'interface (graphe, liste des étapes). Facultatif : sans lui, c'est l'<code>id</code> qui s'affiche. Mettez-le entre guillemets s'il contient « : ».</p><div class="code"><div class="bar"><span class="t">Exemple : description</span><button type="button" class="copy" data-code="- id: lecture
+  type: file_read
+  description: &quot;Lecture des notes de réunion&quot;
+  path: &#x27;tmp/notes.txt&#x27;" aria-label="Copier : Exemple : description">Copier</button></div><pre tabindex="0" aria-label="Exemple : description"><span class="l"><span class="yd">-</span> <span class="yk">id</span>: lecture</span><span class="l">  <span class="yk">type</span>: file_read</span><span class="l">  <span class="yk">description</span>:<span class="ys"> &quot;Lecture des notes de réunion&quot;</span></span><span class="l">  <span class="yk">path</span>:<span class="ys"> &#x27;tmp/notes.txt&#x27;</span></span></pre></div></div><div class="key" id="cle-skip_if"><h3><span class="kn">skip_if</span><span class="chip opt">facultatif</span><span class="chip opt">texte</span></h3><p class="schema">Schéma : « expression Python ; si elle est vraie, l&#x27;étape est ignorée. Ex : &quot;&#x27;{{statut.output}}&#x27; != &#x27;ROUGE&#x27;&quot; »</p><p>Une <b>condition d'exclusion</b> : si elle est vraie, l'étape est ignorée (son état devient <i>skipped</i>, son résultat est vide) et le workflow passe à la suite. C'est une expression Python simple (comparaisons, <code>and</code>, <code>or</code>, <code>not</code>, <code>in</code>). Les <code>{{…}}</code> sont remplacées avant le calcul : entourez de quotes celles qui sont du texte, pas celles qui sont des nombres. Si l'expression est invalide, elle est considérée comme fausse et l'étape s'exécute.</p><div class="code"><div class="bar"><span class="t">Exemple : skip_if</span><button type="button" class="copy" data-code="- id: escalade
+  type: log
+  level: warn
+  skip_if: &quot;&#x27;{{statut.output}}&#x27; != &#x27;ROUGE&#x27;&quot;
+  message: &quot;Statut rouge : prévenir le sponsor&quot;" aria-label="Copier : Exemple : skip_if">Copier</button></div><pre tabindex="0" aria-label="Exemple : skip_if"><span class="l"><span class="yd">-</span> <span class="yk">id</span>: escalade</span><span class="l">  <span class="yk">type</span>: log</span><span class="l">  <span class="yk">level</span>: warn</span><span class="l">  <span class="yk">skip_if</span>:<span class="ys"> &quot;&#x27;<span class="yv">{{statut.output}}</span>&#x27; != &#x27;ROUGE&#x27;&quot;</span></span><span class="l">  <span class="yk">message</span>:<span class="ys"> &quot;Statut rouge : prévenir le sponsor&quot;</span></span></pre></div></div><div class="key" id="cle-continue_on_error"><h3><span class="kn">continue_on_error</span><span class="chip opt">facultatif</span><span class="chip opt">true / false</span></h3><p class="schema">Schéma : « true = le workflow continue même si l&#x27;étape échoue »</p><p><b>Tolérer l'échec</b>. Par défaut, une étape en erreur arrête tout le workflow. Avec <code>true</code>, l'erreur est notée et le workflow continue : vous pouvez lire <code>{{id.returncode}}</code> ou <code>{{id.status}}</code> pour décider quoi faire ensuite.</p><div class="code"><div class="bar"><span class="t">Exemple : continue_on_error</span><button type="button" class="copy" data-code="- id: essai
+  type: python
+  script: &#x27;tmp/script.py&#x27;
+  continue_on_error: true" aria-label="Copier : Exemple : continue_on_error">Copier</button></div><pre tabindex="0" aria-label="Exemple : continue_on_error"><span class="l"><span class="yd">-</span> <span class="yk">id</span>: essai</span><span class="l">  <span class="yk">type</span>: python</span><span class="l">  <span class="yk">script</span>:<span class="ys"> &#x27;tmp/script.py&#x27;</span></span><span class="l">  <span class="yk">continue_on_error</span>:<span class="yn"> true</span></span></pre></div></div><div class="key" id="cle-next"><h3><span class="kn">next</span><span class="chip opt">facultatif</span><span class="chip opt">texte</span></h3><p class="schema">Schéma : « id de l&#x27;étape suivante (défaut : l&#x27;étape suivante dans la liste) »</p><p><b>Sauter</b> à l'étape indiquée au lieu de la suivante dans la liste. Indispensable pour rejoindre une étape de fin après une bifurcation.</p><div class="code"><div class="bar"><span class="t">Exemple : next</span><button type="button" class="copy" data-code="- id: diffusion
+  type: log
+  message: Rapport diffusé
+  next: fin
+- id: annule
+  type: end
+  message: Annulé
+- id: fin
+  type: end
+  message: Terminé" aria-label="Copier : Exemple : next">Copier</button></div><pre tabindex="0" aria-label="Exemple : next"><span class="l"><span class="yd">-</span> <span class="yk">id</span>: diffusion</span><span class="l">  <span class="yk">type</span>: log</span><span class="l">  <span class="yk">message</span>: Rapport diffusé</span><span class="l">  <span class="yk">next</span>: fin</span><span class="l"><span class="yd">-</span> <span class="yk">id</span>: annule</span><span class="l">  <span class="yk">type</span>: end</span><span class="l">  <span class="yk">message</span>: Annulé</span><span class="l"><span class="yd">-</span> <span class="yk">id</span>: fin</span><span class="l">  <span class="yk">type</span>: end</span><span class="l">  <span class="yk">message</span>: Terminé</span></pre></div></div><div class="key" id="cle-on_approve"><h3><span class="kn">on_approve</span><span class="chip opt">facultatif</span><span class="chip opt">texte</span></h3><p class="schema">Schéma : « human_approval : id de l&#x27;étape suivante si approuvé »</p><p>Réservée à <code>human_approval</code> : l'étape à exécuter si l'humain <b>approuve</b>.</p><p>Un exemple complet est donné avec le type <code>human_approval</code> (section 5) et dans le tutoriel.</p></div><div class="key" id="cle-on_reject"><h3><span class="kn">on_reject</span><span class="chip opt">facultatif</span><span class="chip opt">texte</span></h3><p class="schema">Schéma : « human_approval : id de l&#x27;étape suivante si rejeté »</p><p>Réservée à <code>human_approval</code> : l'étape à exécuter si l'humain <b>rejette</b>.</p><p>Un exemple complet est donné avec le type <code>human_approval</code> (section 5) et dans le tutoriel.</p></div></div>
+</section>
+<section class="doc" id="types" aria-labelledby="h-types">
+  <h2 id="h-types">5. Les quatorze types d'étape</h2>
+  <p class="lead">Chaque fiche suit le même plan : à quoi ça sert, quels paramètres, ce que l'étape produit, un exemple, et les pièges.</p>
+  <ul class="bul"><li><a href="#type-agent">🤖 agent</a> : Envoie une instruction à CSAgent et suit son raisonnement en direct ; sortie : sa dernière réponse.</li><li><a href="#type-shell">⚡ shell</a> : Exécute une commande shell (cmd.exe sous Windows, bash ailleurs).</li><li><a href="#type-python">🐍 python</a> : Exécute un script Python (fichier ou code inline) avec l&#x27;interpréteur embarqué : aucun Python à installer.</li><li><a href="#type-transform">⚙️ transform</a> : Évalue une expression Python pour transformer des données.</li><li><a href="#type-file_read">📄 file_read</a> : Lit un fichier texte ; sortie : output (le contenu).</li><li><a href="#type-file_write">✏️ file_write</a> : Écrit (ou remplace) un fichier texte ; les dossiers manquants sont créés.</li><li><a href="#type-http_get">🌐 http_get</a> : Requête HTTP GET ; sorties : body, status_code.</li><li><a href="#type-http_post">🌐 http_post</a> : Requête HTTP POST ; sorties : body, status_code.</li><li><a href="#type-mcp_tools">🔌 mcp_tools</a> : Liste les outils d&#x27;un serveur MCP déclaré dans mcp.json (sans CSAgent) ; sortie : un outil par ligne.</li><li><a href="#type-mcp_call">🔌 mcp_call</a> : Appelle un outil d&#x27;un serveur MCP déclaré dans mcp.json (sans CSAgent) ; sortie : le texte rendu par l&#x27;outil.</li><li><a href="#type-human_approval">👤 human_approval</a> : Met le workflow en pause jusqu&#x27;à ce qu&#x27;un humain approuve ou rejette.</li><li><a href="#type-user_input">✎ user_input</a> : Demande un texte à l&#x27;humain (saisie, interface graphique ou terminal) ; sortie : le texte, aussi écrit dans un fichier.</li><li><a href="#type-log">📝 log</a> : Affiche un message dans la console et dans le log de l&#x27;interface.</li><li><a href="#type-end">🏁 end</a> : Termine le workflow (étape finale, aucune étape ne peut la suivre).</li></ul>
+  
+<article class="type ia" id="type-agent" aria-labelledby="h-agent">
+  <h3 id="h-agent"><span class="ic" aria-hidden="true">🤖</span><span class="tn">agent</span><span class="chip ia">🤖 IA</span></h3>
+  <p class="summary">Envoie une instruction à CSAgent et suit son raisonnement en direct ; sortie : sa dernière réponse.</p>
+  <p class="analogy">En image : Un collaborateur à qui l'on confie une consigne écrite.</p>
+  <h4>Quand l'utiliser ?</h4>
+  <p>Pour tout ce qui demande de <b>lire, comprendre ou rédiger</b> : analyser des notes, résumer un rapport, corriger du code. Pour des chiffres, préférez <code>shell</code> ou <code>transform</code> : un calcul de code est exact et reproductible.</p>
+  <h4>Ses paramètres</h4>
+  <div class="tw" tabindex="0" role="region" aria-label="Paramètres de agent"><table><caption>Paramètres de agent</caption><thead><tr><th scope="col">Clé</th><th scope="col">Statut</th><th scope="col">Valeur</th><th scope="col">Rôle</th></tr></thead><tbody><tr><td class="k">prompt</td><td><span class="chip req">obligatoire</span></td><td>texte</td><td>instruction en langage naturel envoyée à CSAgent</td></tr><tr><td class="k">csagent_url</td><td><span class="chip opt">facultatif</span></td><td>texte</td><td>URL de CSAgent (défaut http://localhost:8080)</td></tr><tr><td class="k">csagent_key</td><td><span class="chip opt">facultatif</span></td><td>texte</td><td>clé d&#x27;API (défaut demo-secret)</td></tr><tr><td class="k">timeout</td><td><span class="chip opt">facultatif</span></td><td>nombre (secondes)</td><td>secondes sans donnée avant abandon (défaut 180)</td></tr><tr><td class="k">auto_confirm</td><td><span class="chip opt">facultatif</span></td><td>true / false</td><td>true = approuver automatiquement les demandes de confirmation de CSAgent</td></tr></tbody></table></div><p style="margin-top:8px;color:var(--muted);font-size:.9375rem">Avec les clés communes à toutes les étapes (<code>id</code>, <code>type</code>, <code>description</code>, <code>skip_if</code>, <code>continue_on_error</code>, <code>next</code>…).</p>
+  <h4>Ce qu'elle produit</h4>
+  <div class="tw" tabindex="0" role="region" aria-label="Champs produits par agent (à lire avec {{id.champ}})"><table><caption>Champs produits par agent (à lire avec {{id.champ}})</caption><thead><tr><th scope="col">Champ</th><th scope="col">Contenu</th></tr></thead><tbody><tr><td class="k">{{id.output}}</td><td>la dernière réponse de CSAgent</td></tr><tr><td class="k">{{id.thoughts}}</td><td>son raisonnement, étape par étape</td></tr></tbody></table></div>
+  <h4>Exemple</h4>
+  <div class="code"><div class="bar"><span class="t">Exemple : agent</span><button type="button" class="copy" data-code="- id: risques
+  type: agent
+  description: Analyse des risques
+  prompt: |
+    Lis le fichier tmp/notes.txt et liste les risques cités,
+    un par ligne, du plus grave au moins grave.
+  auto_confirm: true
+  timeout: 300" aria-label="Copier : Exemple : agent">Copier</button></div><pre tabindex="0" aria-label="Exemple : agent"><span class="l"><span class="yd">-</span> <span class="yk">id</span>: risques</span><span class="l">  <span class="yk">type</span>: agent</span><span class="l">  <span class="yk">description</span>: Analyse des risques</span><span class="l">  <span class="yk">prompt</span>:<span class="yd"> |</span></span><span class="l"><span class="yb">    Lis le fichier tmp/notes.txt et liste les risques cités,</span></span><span class="l"><span class="yb">    un par ligne, du plus grave au moins grave.</span></span><span class="l">  <span class="yk">auto_confirm</span>:<span class="yn"> true</span></span><span class="l">  <span class="yk">timeout</span>:<span class="yn"> 300</span></span></pre></div>
+  <h4>À savoir</h4>
+  <ul class="bul"><li>CSAgent travaille avec ses propres <b>outils</b> : <code>read_file</code> pour lire un fichier, <code>write_file</code> et <code>edit_file</code> pour en écrire ou le modifier. Le workflow ne les déclare pas : demandez simplement l'action dans le <code>prompt</code> (« Lis le fichier… », « Écris le résultat dans… »). Chaque appel s'affiche en direct dans le journal, avec son chemin.</li><li>Gardez le <code>prompt</code> court : il est transmis dans l'adresse de la requête.</li><li>N'utilisez que des chemins relatifs : CSAgent n'écrit que dans son dossier courant (lancez-le depuis <code>workflow\</code>).</li><li>Sans <code>auto_confirm</code>, CSAgent demande une confirmation avant d'écrire un fichier : l'interface affiche <i>Approuver / Rejeter</i>. Avec <code>auto_confirm: true</code>, tout est approuvé automatiquement : ajoutez alors une validation humaine plus loin.</li><li><code>timeout</code> compte les secondes <b>sans aucune donnée reçue</b>, pas la durée totale.</li></ul>
+</article>
+<article class="type py" id="type-shell" aria-labelledby="h-shell">
+  <h3 id="h-shell"><span class="ic" aria-hidden="true">⚡</span><span class="tn">shell</span><span class="chip py">⚡ Exécution</span></h3>
+  <p class="summary">Exécute une commande shell (cmd.exe sous Windows, bash ailleurs).</p>
+  <p class="analogy">En image : Taper une commande dans un terminal.</p>
+  <h4>Quand l'utiliser ?</h4>
+  <p>Pour lancer un outil en ligne de commande identique sur tous les systèmes (git, un compilateur…). La commande tourne dans <code>cmd.exe</code> sous Windows et <code>bash</code> ailleurs : évitez les commandes propres à un système (<code>type</code>, <code>dir</code>, <code>cat</code>, <code>wc</code>) et préférez <code>python</code> pour lire, compter ou calculer : il ne dépend ni de l'installation de Python ni du PATH.</p>
+  <h4>Ses paramètres</h4>
+  <div class="tw" tabindex="0" role="region" aria-label="Paramètres de shell"><table><caption>Paramètres de shell</caption><thead><tr><th scope="col">Clé</th><th scope="col">Statut</th><th scope="col">Valeur</th><th scope="col">Rôle</th></tr></thead><tbody><tr><td class="k">cmd</td><td><span class="chip req">obligatoire</span></td><td>texte</td><td>commande exécutée par cmd.exe (Windows) ou bash ; sorties : output, stdout, stderr, returncode</td></tr><tr><td class="k">timeout</td><td><span class="chip opt">facultatif</span></td><td>nombre (secondes)</td><td>secondes avant arrêt du processus (défaut 60)</td></tr><tr><td class="k">shell</td><td><span class="chip opt">facultatif</span></td><td>texte</td><td>shell explicite : « bash », « sh » ou « pwsh » (défaut : le shell du système)</td></tr></tbody></table></div><p style="margin-top:8px;color:var(--muted);font-size:.9375rem">Avec les clés communes à toutes les étapes (<code>id</code>, <code>type</code>, <code>description</code>, <code>skip_if</code>, <code>continue_on_error</code>, <code>next</code>…).</p>
+  <h4>Ce qu'elle produit</h4>
+  <div class="tw" tabindex="0" role="region" aria-label="Champs produits par shell (à lire avec {{id.champ}})"><table><caption>Champs produits par shell (à lire avec {{id.champ}})</caption><thead><tr><th scope="col">Champ</th><th scope="col">Contenu</th></tr></thead><tbody><tr><td class="k">{{id.output}}</td><td>stdout + stderr rassemblés</td></tr><tr><td class="k">{{id.stdout}}</td><td>la sortie normale</td></tr><tr><td class="k">{{id.stderr}}</td><td>les messages d&#x27;erreur</td></tr><tr><td class="k">{{id.returncode}}</td><td>le code de retour (0 = succès)</td></tr></tbody></table></div>
+  <h4>Exemple</h4>
+  <div class="code"><div class="bar"><span class="t">Exemple : shell</span><button type="button" class="copy" data-code="- id: derniers_commits
+  type: shell
+  description: Afficher les cinq derniers commits
+  cmd: &#x27;git log --oneline -5&#x27;
+  timeout: 30" aria-label="Copier : Exemple : shell">Copier</button></div><pre tabindex="0" aria-label="Exemple : shell"><span class="l"><span class="yd">-</span> <span class="yk">id</span>: derniers_commits</span><span class="l">  <span class="yk">type</span>: shell</span><span class="l">  <span class="yk">description</span>: Afficher les cinq derniers commits</span><span class="l">  <span class="yk">cmd</span>:<span class="ys"> &#x27;git log --oneline -5&#x27;</span></span><span class="l">  <span class="yk">timeout</span>:<span class="yn"> 30</span></span></pre></div>
+  <h4>À savoir</h4>
+  <ul class="bul"><li>Écrivez les chemins avec <code>/</code> (valable partout). Si un <code>\</code> est inévitable (commande <code>cmd.exe</code>), entourez la commande de <b>quotes simples</b> YAML. Ne chaînez pas avec <code>&amp;</code> (sous bash il lance en arrière-plan) : utilisez <code>&amp;&amp;</code>.</li><li>Un code de retour différent de 0 est une erreur : le workflow s'arrête, sauf <code>continue_on_error: true</code> (lisez alors <code>{{id.returncode}}</code>).</li><li>La commande est arrêtée au bout de <code>timeout</code> secondes (60 par défaut).</li></ul>
+</article>
+<article class="type py" id="type-python" aria-labelledby="h-python">
+  <h3 id="h-python"><span class="ic" aria-hidden="true">🐍</span><span class="tn">python</span><span class="chip py">⚡ Exécution</span></h3>
+  <p class="summary">Exécute un script Python (fichier ou code inline) avec l&#x27;interpréteur embarqué : aucun Python à installer.</p>
+  <p class="analogy">En image : Un petit interpréteur Python intégré à CSFlow.</p>
+  <h4>Quand l'utiliser ?</h4>
+  <p>Pour exécuter un script Python écrit dans le workflow (par un <code>file_write</code>) ou du code inline : calculs exacts, tests, mises en forme. Dans l'exe compilé, c'est l'interpréteur <b>embarqué</b> qui tourne : <b>aucun Python à installer</b> sur le poste, aucun PATH à régler.</p>
+  <h4>Ses paramètres</h4>
+  <div class="tw" tabindex="0" role="region" aria-label="Paramètres de python"><table><caption>Paramètres de python</caption><thead><tr><th scope="col">Clé</th><th scope="col">Statut</th><th scope="col">Valeur</th><th scope="col">Rôle</th></tr></thead><tbody><tr><td class="k">script</td><td><span class="chip opt">facultatif</span></td><td>texte</td><td>chemin d&#x27;un fichier .py (relatif au dossier de travail)</td></tr><tr><td class="k">code</td><td><span class="chip opt">facultatif</span></td><td>texte</td><td>code Python inline (alternative à script)</td></tr><tr><td class="k">args</td><td><span class="chip opt">facultatif</span></td><td>texte</td><td>arguments passés au script (liste YAML ou chaîne)</td></tr><tr><td class="k">cwd</td><td><span class="chip opt">facultatif</span></td><td>texte</td><td>dossier d&#x27;exécution (défaut : dossier de travail)</td></tr><tr><td class="k">timeout</td><td><span class="chip opt">facultatif</span></td><td>nombre (secondes)</td><td>secondes avant arrêt du processus (défaut 60)</td></tr></tbody></table></div><p style="margin-top:8px;color:var(--muted);font-size:.9375rem">Avec les clés communes à toutes les étapes (<code>id</code>, <code>type</code>, <code>description</code>, <code>skip_if</code>, <code>continue_on_error</code>, <code>next</code>…).</p>
+  <h4>Ce qu'elle produit</h4>
+  <div class="tw" tabindex="0" role="region" aria-label="Champs produits par python (à lire avec {{id.champ}})"><table><caption>Champs produits par python (à lire avec {{id.champ}})</caption><thead><tr><th scope="col">Champ</th><th scope="col">Contenu</th></tr></thead><tbody><tr><td class="k">{{id.output}}</td><td>stdout + stderr rassemblés</td></tr><tr><td class="k">{{id.stdout}}</td><td>la sortie normale du script</td></tr><tr><td class="k">{{id.stderr}}</td><td>les messages d&#x27;erreur, dont la trace Python</td></tr><tr><td class="k">{{id.returncode}}</td><td>le code de retour (0 = succès)</td></tr></tbody></table></div>
+  <h4>Exemple</h4>
+  <div class="code"><div class="bar"><span class="t">Exemple : python</span><button type="button" class="copy" data-code="- id: indicateurs
+  type: python
+  description: Indicateurs de pilotage
+  script: &#x27;tmp/copil/kpi.py&#x27;
+  args: [&#x27;tmp/copil/taches.csv&#x27;, &#x27;2026-10-19&#x27;]
+  timeout: 30" aria-label="Copier : Exemple : python">Copier</button></div><pre tabindex="0" aria-label="Exemple : python"><span class="l"><span class="yd">-</span> <span class="yk">id</span>: indicateurs</span><span class="l">  <span class="yk">type</span>: python</span><span class="l">  <span class="yk">description</span>: Indicateurs de pilotage</span><span class="l">  <span class="yk">script</span>:<span class="ys"> &#x27;tmp/copil/kpi.py&#x27;</span></span><span class="l">  <span class="yk">args</span>: [&#x27;tmp/copil/taches.csv&#x27;, &#x27;2026-10-19&#x27;]</span><span class="l">  <span class="yk">timeout</span>:<span class="yn"> 30</span></span></pre></div>
+  <h4>À savoir</h4>
+  <ul class="bul"><li>Donnez soit <code>script</code> (un fichier .py, chemin relatif), soit <code>code</code> (du Python écrit directement dans le YAML), avec <code>|</code> pour plusieurs lignes.</li><li>Seule la <b>bibliothèque standard</b> listée dans <code>build_nuitka.bat</code> (<code>--include-module</code>) est disponible : pas de <code>pip install</code> ni de paquets tiers dans l'exe.</li><li>Un code de retour différent de 0 (ou une exception) est une erreur, comme pour <code>shell</code> : <code>continue_on_error: true</code> pour la tolérer.</li><li>Les agents <code>CSAgent</code> ne voient pas cet interpréteur : sur un poste sans Python, interdisez-leur d'exécuter du code dans leur prompt et laissez l'étape <code>python</code> relancer le script.</li></ul>
+</article>
+<article class="type py" id="type-transform" aria-labelledby="h-transform">
+  <h3 id="h-transform"><span class="ic" aria-hidden="true">⚙️</span><span class="tn">transform</span><span class="chip py">⚡ Exécution</span></h3>
+  <p class="summary">Évalue une expression Python pour transformer des données.</p>
+  <p class="analogy">En image : Une calculatrice.</p>
+  <h4>Quand l'utiliser ?</h4>
+  <p>Pour un petit calcul ou un test sans lancer de programme : arrondir un montant, compter les éléments d'une liste, comparer deux valeurs.</p>
+  <h4>Ses paramètres</h4>
+  <div class="tw" tabindex="0" role="region" aria-label="Paramètres de transform"><table><caption>Paramètres de transform</caption><thead><tr><th scope="col">Clé</th><th scope="col">Statut</th><th scope="col">Valeur</th><th scope="col">Rôle</th></tr></thead><tbody><tr><td class="k">expression</td><td><span class="chip req">obligatoire</span></td><td>texte</td><td>expression Python évaluée ; les {{variables}} sont substituées avant</td></tr></tbody></table></div><p style="margin-top:8px;color:var(--muted);font-size:.9375rem">Avec les clés communes à toutes les étapes (<code>id</code>, <code>type</code>, <code>description</code>, <code>skip_if</code>, <code>continue_on_error</code>, <code>next</code>…).</p>
+  <h4>Ce qu'elle produit</h4>
+  <div class="tw" tabindex="0" role="region" aria-label="Champs produits par transform (à lire avec {{id.champ}})"><table><caption>Champs produits par transform (à lire avec {{id.champ}})</caption><thead><tr><th scope="col">Champ</th><th scope="col">Contenu</th></tr></thead><tbody><tr><td class="k">{{id.output}}</td><td>le résultat, en texte</td></tr><tr><td class="k">{{id.value}}</td><td>le résultat brut (nombre, liste…)</td></tr></tbody></table></div>
+  <h4>Exemple</h4>
+  <div class="code"><div class="bar"><span class="t">Exemple : transform</span><button type="button" class="copy" data-code="- id: total_ttc
+  type: transform
+  expression: &quot;round(float(&#x27;{{ht.output}}&#x27;) * 1.2, 2)&quot;" aria-label="Copier : Exemple : transform">Copier</button></div><pre tabindex="0" aria-label="Exemple : transform"><span class="l"><span class="yd">-</span> <span class="yk">id</span>: total_ttc</span><span class="l">  <span class="yk">type</span>: transform</span><span class="l">  <span class="yk">expression</span>:<span class="ys"> &quot;round(float(&#x27;<span class="yv">{{ht.output}}</span>&#x27;) * 1.2, 2)&quot;</span></span></pre></div>
+  <h4>À savoir</h4>
+  <ul class="bul"><li>Les <code>{{variables}}</code> sont remplacées <b>avant</b> le calcul : mettez celles qui contiennent du texte entre quotes, comme <code>&#x27;{{x.output}}&#x27;</code>.</li><li>Fonctions disponibles : <code>len</code>, <code>int</code>, <code>float</code>, <code>str</code>, <code>bool</code>, <code>round</code>, <code>sum</code>, <code>min</code>, <code>max</code>, <code>abs</code>, <code>list</code>, <code>dict</code>, <code>set</code>, <code>tuple</code>, <code>sorted</code>, <code>reversed</code>, <code>enumerate</code>, <code>zip</code>, <code>range</code>, <code>map</code>, <code>filter</code>, <code>any</code>, <code>all</code>. Rien d'autre (pas d'<code>import</code>).</li></ul>
+</article>
+<article class="type ok" id="type-file_read" aria-labelledby="h-file_read">
+  <h3 id="h-file_read"><span class="ic" aria-hidden="true">📄</span><span class="tn">file_read</span><span class="chip ok">📄 Fichiers</span></h3>
+  <p class="summary">Lit un fichier texte ; sortie : output (le contenu).</p>
+  <p class="analogy">En image : Ouvrir un document et lire ce qu'il contient.</p>
+  <h4>Quand l'utiliser ?</h4>
+  <p>Pour récupérer le contenu d'un fichier (un rapport produit plus tôt, des notes, un export) et le réutiliser avec <code>{{id.output}}</code>.</p>
+  <h4>Ses paramètres</h4>
+  <div class="tw" tabindex="0" role="region" aria-label="Paramètres de file_read"><table><caption>Paramètres de file_read</caption><thead><tr><th scope="col">Clé</th><th scope="col">Statut</th><th scope="col">Valeur</th><th scope="col">Rôle</th></tr></thead><tbody><tr><td class="k">path</td><td><span class="chip req">obligatoire</span></td><td>texte</td><td>chemin du fichier à lire (relatif au dossier workflow)</td></tr></tbody></table></div><p style="margin-top:8px;color:var(--muted);font-size:.9375rem">Avec les clés communes à toutes les étapes (<code>id</code>, <code>type</code>, <code>description</code>, <code>skip_if</code>, <code>continue_on_error</code>, <code>next</code>…).</p>
+  <h4>Ce qu'elle produit</h4>
+  <div class="tw" tabindex="0" role="region" aria-label="Champs produits par file_read (à lire avec {{id.champ}})"><table><caption>Champs produits par file_read (à lire avec {{id.champ}})</caption><thead><tr><th scope="col">Champ</th><th scope="col">Contenu</th></tr></thead><tbody><tr><td class="k">{{id.output}}</td><td>le contenu du fichier</td></tr><tr><td class="k">{{id.content}}</td><td>identique à output</td></tr></tbody></table></div>
+  <h4>Exemple</h4>
+  <div class="code"><div class="bar"><span class="t">Exemple : file_read</span><button type="button" class="copy" data-code="- id: relire
+  type: file_read
+  path: &#x27;tmp/rapport.md&#x27;" aria-label="Copier : Exemple : file_read">Copier</button></div><pre tabindex="0" aria-label="Exemple : file_read"><span class="l"><span class="yd">-</span> <span class="yk">id</span>: relire</span><span class="l">  <span class="yk">type</span>: file_read</span><span class="l">  <span class="yk">path</span>:<span class="ys"> &#x27;tmp/rapport.md&#x27;</span></span></pre></div>
+  <h4>À savoir</h4>
+  <ul class="bul"><li>Fichier absent = étape en erreur : le workflow s'arrête, sauf si vous ajoutez <code>continue_on_error: true</code>.</li></ul>
+</article>
+<article class="type ok" id="type-file_write" aria-labelledby="h-file_write">
+  <h3 id="h-file_write"><span class="ic" aria-hidden="true">✏️</span><span class="tn">file_write</span><span class="chip ok">📄 Fichiers</span></h3>
+  <p class="summary">Écrit (ou remplace) un fichier texte ; les dossiers manquants sont créés.</p>
+  <p class="analogy">En image : Enregistrer un document.</p>
+  <h4>Quand l'utiliser ?</h4>
+  <p>Pour créer des données de départ, sauvegarder un résultat, ou préparer un fichier que CSAgent ou un script va lire.</p>
+  <h4>Ses paramètres</h4>
+  <div class="tw" tabindex="0" role="region" aria-label="Paramètres de file_write"><table><caption>Paramètres de file_write</caption><thead><tr><th scope="col">Clé</th><th scope="col">Statut</th><th scope="col">Valeur</th><th scope="col">Rôle</th></tr></thead><tbody><tr><td class="k">path</td><td><span class="chip req">obligatoire</span></td><td>texte</td><td>fichier à écrire (les dossiers sont créés)</td></tr><tr><td class="k">content</td><td><span class="chip req">obligatoire</span></td><td>texte</td><td>texte à écrire</td></tr></tbody></table></div><p style="margin-top:8px;color:var(--muted);font-size:.9375rem">Avec les clés communes à toutes les étapes (<code>id</code>, <code>type</code>, <code>description</code>, <code>skip_if</code>, <code>continue_on_error</code>, <code>next</code>…).</p>
+  <h4>Ce qu'elle produit</h4>
+  <div class="tw" tabindex="0" role="region" aria-label="Champs produits par file_write (à lire avec {{id.champ}})"><table><caption>Champs produits par file_write (à lire avec {{id.champ}})</caption><thead><tr><th scope="col">Champ</th><th scope="col">Contenu</th></tr></thead><tbody><tr><td class="k">{{id.output}}</td><td>« Written N chars → chemin »</td></tr><tr><td class="k">{{id.path}}</td><td>le chemin écrit</td></tr></tbody></table></div>
+  <h4>Exemple</h4>
+  <div class="code"><div class="bar"><span class="t">Exemple : file_write</span><button type="button" class="copy" data-code="- id: notes
+  type: file_write
+  path: &#x27;tmp/notes.txt&#x27;
+  content: |
+    Réunion du {{today}}
+    - Le prestataire n&#x27;a pas livré" aria-label="Copier : Exemple : file_write">Copier</button></div><pre tabindex="0" aria-label="Exemple : file_write"><span class="l"><span class="yd">-</span> <span class="yk">id</span>: notes</span><span class="l">  <span class="yk">type</span>: file_write</span><span class="l">  <span class="yk">path</span>:<span class="ys"> &#x27;tmp/notes.txt&#x27;</span></span><span class="l">  <span class="yk">content</span>:<span class="yd"> |</span></span><span class="l"><span class="yb">    Réunion du <span class="yv">{{today}}</span></span></span><span class="l"><span class="yb">    - Le prestataire n&#x27;a pas livré</span></span></pre></div>
+  <h4>À savoir</h4>
+  <ul class="bul"><li>Un fichier existant est remplacé. Les dossiers manquants sont créés.</li><li>Les <code>{{…}}</code> du contenu sont remplacés <b>avant</b> l'écriture : n'écrivez pas de <code>{{</code> littéral dans <code>content</code>.</li></ul>
+</article>
+<article class="type tl" id="type-http_get" aria-labelledby="h-http_get">
+  <h3 id="h-http_get"><span class="ic" aria-hidden="true">🌐</span><span class="tn">http_get</span><span class="chip tl">🌐 Réseau</span></h3>
+  <p class="summary">Requête HTTP GET ; sorties : body, status_code.</p>
+  <p class="analogy">En image : Ouvrir une page web ou interroger un service en ligne.</p>
+  <h4>Quand l'utiliser ?</h4>
+  <p>Pour lire une donnée distante : une API, un état de service, un fichier publié.</p>
+  <h4>Ses paramètres</h4>
+  <div class="tw" tabindex="0" role="region" aria-label="Paramètres de http_get"><table><caption>Paramètres de http_get</caption><thead><tr><th scope="col">Clé</th><th scope="col">Statut</th><th scope="col">Valeur</th><th scope="col">Rôle</th></tr></thead><tbody><tr><td class="k">url</td><td><span class="chip req">obligatoire</span></td><td>texte</td><td>adresse à appeler</td></tr><tr><td class="k">headers</td><td><span class="chip opt">facultatif</span></td><td>dictionnaire</td><td>en-têtes HTTP (dictionnaire)</td></tr><tr><td class="k">timeout</td><td><span class="chip opt">facultatif</span></td><td>nombre (secondes)</td><td>secondes avant abandon (défaut 30)</td></tr></tbody></table></div><p style="margin-top:8px;color:var(--muted);font-size:.9375rem">Avec les clés communes à toutes les étapes (<code>id</code>, <code>type</code>, <code>description</code>, <code>skip_if</code>, <code>continue_on_error</code>, <code>next</code>…).</p>
+  <h4>Ce qu'elle produit</h4>
+  <div class="tw" tabindex="0" role="region" aria-label="Champs produits par http_get (à lire avec {{id.champ}})"><table><caption>Champs produits par http_get (à lire avec {{id.champ}})</caption><thead><tr><th scope="col">Champ</th><th scope="col">Contenu</th></tr></thead><tbody><tr><td class="k">{{id.output}}</td><td>la réponse (texte)</td></tr><tr><td class="k">{{id.body}}</td><td>identique à output</td></tr><tr><td class="k">{{id.status_code}}</td><td>le code HTTP, par exemple 200</td></tr></tbody></table></div>
+  <h4>Exemple</h4>
+  <div class="code"><div class="bar"><span class="t">Exemple : http_get</span><button type="button" class="copy" data-code="- id: sante
+  type: http_get
+  url: &quot;https://api.exemple.fr/sante&quot;
+  headers:
+    Accept: application/json
+  timeout: 10" aria-label="Copier : Exemple : http_get">Copier</button></div><pre tabindex="0" aria-label="Exemple : http_get"><span class="l"><span class="yd">-</span> <span class="yk">id</span>: sante</span><span class="l">  <span class="yk">type</span>: http_get</span><span class="l">  <span class="yk">url</span>:<span class="ys"> &quot;https://api.exemple.fr/sante&quot;</span></span><span class="l">  <span class="yk">headers</span>:</span><span class="l">    <span class="yk">Accept</span>: application/json</span><span class="l">  <span class="yk">timeout</span>:<span class="yn"> 10</span></span></pre></div>
+  <h4>À savoir</h4>
+  <ul class="bul"><li>Un code HTTP hors 200 à 299 est une erreur. Avec <code>continue_on_error: true</code>, vous pouvez lire <code>{{sante.status_code}}</code> et réagir.</li></ul>
+</article>
+<article class="type tl" id="type-http_post" aria-labelledby="h-http_post">
+  <h3 id="h-http_post"><span class="ic" aria-hidden="true">🌐</span><span class="tn">http_post</span><span class="chip tl">🌐 Réseau</span></h3>
+  <p class="summary">Requête HTTP POST ; sorties : body, status_code.</p>
+  <p class="analogy">En image : Envoyer un formulaire.</p>
+  <h4>Quand l'utiliser ?</h4>
+  <p>Pour transmettre une donnée à un service : notifier, déclencher un traitement, publier un résultat.</p>
+  <h4>Ses paramètres</h4>
+  <div class="tw" tabindex="0" role="region" aria-label="Paramètres de http_post"><table><caption>Paramètres de http_post</caption><thead><tr><th scope="col">Clé</th><th scope="col">Statut</th><th scope="col">Valeur</th><th scope="col">Rôle</th></tr></thead><tbody><tr><td class="k">url</td><td><span class="chip req">obligatoire</span></td><td>texte</td><td>adresse à appeler</td></tr><tr><td class="k">body</td><td><span class="chip opt">facultatif</span></td><td>texte</td><td>corps de la requête</td></tr><tr><td class="k">headers</td><td><span class="chip opt">facultatif</span></td><td>dictionnaire</td><td>en-têtes HTTP (dictionnaire)</td></tr><tr><td class="k">timeout</td><td><span class="chip opt">facultatif</span></td><td>nombre (secondes)</td><td>secondes avant abandon (défaut 30)</td></tr></tbody></table></div><p style="margin-top:8px;color:var(--muted);font-size:.9375rem">Avec les clés communes à toutes les étapes (<code>id</code>, <code>type</code>, <code>description</code>, <code>skip_if</code>, <code>continue_on_error</code>, <code>next</code>…).</p>
+  <h4>Ce qu'elle produit</h4>
+  <div class="tw" tabindex="0" role="region" aria-label="Champs produits par http_post (à lire avec {{id.champ}})"><table><caption>Champs produits par http_post (à lire avec {{id.champ}})</caption><thead><tr><th scope="col">Champ</th><th scope="col">Contenu</th></tr></thead><tbody><tr><td class="k">{{id.output}}</td><td>la réponse (texte)</td></tr><tr><td class="k">{{id.body}}</td><td>identique à output</td></tr><tr><td class="k">{{id.status_code}}</td><td>le code HTTP, par exemple 201</td></tr></tbody></table></div>
+  <h4>Exemple</h4>
+  <div class="code"><div class="bar"><span class="t">Exemple : http_post</span><button type="button" class="copy" data-code="- id: notifier
+  type: http_post
+  url: &quot;https://api.exemple.fr/notifications&quot;
+  headers:
+    Content-Type: application/json
+  body:
+    message: &quot;COPIL prêt le {{today}}&quot;" aria-label="Copier : Exemple : http_post">Copier</button></div><pre tabindex="0" aria-label="Exemple : http_post"><span class="l"><span class="yd">-</span> <span class="yk">id</span>: notifier</span><span class="l">  <span class="yk">type</span>: http_post</span><span class="l">  <span class="yk">url</span>:<span class="ys"> &quot;https://api.exemple.fr/notifications&quot;</span></span><span class="l">  <span class="yk">headers</span>:</span><span class="l">    <span class="yk">Content-Type</span>: application/json</span><span class="l">  <span class="yk">body</span>:</span><span class="l">    <span class="yk">message</span>:<span class="ys"> &quot;COPIL prêt le <span class="yv">{{today}}</span>&quot;</span></span></pre></div>
+  <h4>À savoir</h4>
+  <ul class="bul"><li><code>body</code> : un texte est envoyé tel quel ; un dictionnaire YAML est envoyé en JSON.</li><li>Même règle que <code>http_get</code> : un code hors 200 à 299 est une erreur.</li></ul>
+</article>
+<article class="type tl" id="type-mcp_tools" aria-labelledby="h-mcp_tools">
+  <h3 id="h-mcp_tools"><span class="ic" aria-hidden="true">🔌</span><span class="tn">mcp_tools</span><span class="chip tl">🔌 Serveur MCP</span></h3>
+  <p class="summary">Liste les outils d&#x27;un serveur MCP déclaré dans mcp.json (sans CSAgent) ; sortie : un outil par ligne.</p>
+  <p class="analogy">En image : Demander la carte du restaurant avant de commander.</p>
+  <h4>Quand l'utiliser ?</h4>
+  <p>Pour savoir ce qu'un serveur MCP sait faire <b>et comment l'appeler</b> : la liste donne chaque outil avec ses arguments. À placer avant un <code>mcp_call</code> dont on ne connaît pas encore les noms d'arguments.</p>
+  <h4>Ses paramètres</h4>
+  <div class="tw" tabindex="0" role="region" aria-label="Paramètres de mcp_tools"><table><caption>Paramètres de mcp_tools</caption><thead><tr><th scope="col">Clé</th><th scope="col">Statut</th><th scope="col">Valeur</th><th scope="col">Rôle</th></tr></thead><tbody><tr><td class="k">server</td><td><span class="chip req">obligatoire</span></td><td>texte</td><td>nom du serveur dans le fichier de configuration (clé mcpServers)</td></tr><tr><td class="k">config</td><td><span class="chip opt">facultatif</span></td><td>texte</td><td>fichier de configuration MCP (défaut mcp.json)</td></tr><tr><td class="k">timeout</td><td><span class="chip opt">facultatif</span></td><td>nombre (secondes)</td><td>secondes d&#x27;attente par requête (défaut 60)</td></tr></tbody></table></div><p style="margin-top:8px;color:var(--muted);font-size:.9375rem">Avec les clés communes à toutes les étapes (<code>id</code>, <code>type</code>, <code>description</code>, <code>skip_if</code>, <code>continue_on_error</code>, <code>next</code>…).</p>
+  <h4>Ce qu'elle produit</h4>
+  <div class="tw" tabindex="0" role="region" aria-label="Champs produits par mcp_tools (à lire avec {{id.champ}})"><table><caption>Champs produits par mcp_tools (à lire avec {{id.champ}})</caption><thead><tr><th scope="col">Champ</th><th scope="col">Contenu</th></tr></thead><tbody><tr><td class="k">{{id.output}}</td><td>un outil par ligne : nom(arguments) — description (? = facultatif)</td></tr><tr><td class="k">{{id.tools}}</td><td>les noms des outils, séparés par des virgules</td></tr><tr><td class="k">{{id.count}}</td><td>le nombre d&#x27;outils</td></tr></tbody></table></div>
+  <h4>Exemple</h4>
+  <div class="code"><div class="bar"><span class="t">Exemple : mcp_tools</span><button type="button" class="copy" data-code="- id: outils
+  type: mcp_tools
+  server: goal-api" aria-label="Copier : Exemple : mcp_tools">Copier</button></div><pre tabindex="0" aria-label="Exemple : mcp_tools"><span class="l"><span class="yd">-</span> <span class="yk">id</span>: outils</span><span class="l">  <span class="yk">type</span>: mcp_tools</span><span class="l">  <span class="yk">server</span>: goal-api</span></pre></div>
+  <h4>À savoir</h4>
+  <ul class="bul"><li><code>server</code> est un <b>nom</b> déclaré dans <code>mcp.json</code> (clé <code>mcpServers</code>) : un workflow ne peut pas lancer de commande ni viser une adresse de son choix.</li><li>Dans la liste, un argument suivi de <code>?</code> est facultatif. Écrivez-la dans un fichier (<code>file_write</code>) pour la consulter après coup.</li><li>CSFlow parle MCP lui-même : <b>CSAgent n'est pas nécessaire</b> (voir la section 15).</li></ul>
+</article>
+<article class="type tl" id="type-mcp_call" aria-labelledby="h-mcp_call">
+  <h3 id="h-mcp_call"><span class="ic" aria-hidden="true">🔌</span><span class="tn">mcp_call</span><span class="chip tl">🔌 Serveur MCP</span></h3>
+  <p class="summary">Appelle un outil d&#x27;un serveur MCP déclaré dans mcp.json (sans CSAgent) ; sortie : le texte rendu par l&#x27;outil.</p>
+  <p class="analogy">En image : Commander un plat précis, avec ses options.</p>
+  <h4>Quand l'utiliser ?</h4>
+  <p>Pour appeler un outil d'un serveur MCP : lire des données (football, météo, documents…) ou déclencher une action que le serveur propose. Le résultat est du texte que les étapes suivantes relisent avec <code>{{id.output}}</code>.</p>
+  <h4>Ses paramètres</h4>
+  <div class="tw" tabindex="0" role="region" aria-label="Paramètres de mcp_call"><table><caption>Paramètres de mcp_call</caption><thead><tr><th scope="col">Clé</th><th scope="col">Statut</th><th scope="col">Valeur</th><th scope="col">Rôle</th></tr></thead><tbody><tr><td class="k">server</td><td><span class="chip req">obligatoire</span></td><td>texte</td><td>nom du serveur dans le fichier de configuration (clé mcpServers)</td></tr><tr><td class="k">tool</td><td><span class="chip req">obligatoire</span></td><td>texte</td><td>nom de l&#x27;outil à appeler</td></tr><tr><td class="k">arguments</td><td><span class="chip opt">facultatif</span></td><td>dictionnaire ou texte JSON</td><td>arguments de l&#x27;outil : un objet YAML (les {{...}} sont remplacés), ou un texte JSON</td></tr><tr><td class="k">config</td><td><span class="chip opt">facultatif</span></td><td>texte</td><td>fichier de configuration MCP (défaut mcp.json)</td></tr><tr><td class="k">timeout</td><td><span class="chip opt">facultatif</span></td><td>nombre (secondes)</td><td>secondes d&#x27;attente de la réponse (défaut 60)</td></tr><tr><td class="k">save_as</td><td><span class="chip opt">facultatif</span></td><td>texte</td><td>fichier où écrire le résultat complet (chemin relatif)</td></tr><tr><td class="k">max_chars</td><td><span class="chip opt">facultatif</span></td><td>nombre</td><td>longueur maximale de la sortie (défaut 50000) ; save_as garde tout</td></tr></tbody></table></div><p style="margin-top:8px;color:var(--muted);font-size:.9375rem">Avec les clés communes à toutes les étapes (<code>id</code>, <code>type</code>, <code>description</code>, <code>skip_if</code>, <code>continue_on_error</code>, <code>next</code>…).</p>
+  <h4>Ce qu'elle produit</h4>
+  <div class="tw" tabindex="0" role="region" aria-label="Champs produits par mcp_call (à lire avec {{id.champ}})"><table><caption>Champs produits par mcp_call (à lire avec {{id.champ}})</caption><thead><tr><th scope="col">Champ</th><th scope="col">Contenu</th></tr></thead><tbody><tr><td class="k">{{id.output}}</td><td>le texte rendu par l&#x27;outil (tronqué à max_chars)</td></tr><tr><td class="k">{{id.structured}}</td><td>le résultat structuré en JSON, quand le serveur en fournit un</td></tr><tr><td class="k">{{id.path}}</td><td>le fichier écrit, avec save_as</td></tr></tbody></table></div>
+  <h4>Exemple</h4>
+  <div class="code"><div class="bar"><span class="t">Exemple : mcp_call</span><button type="button" class="copy" data-code="- id: quota
+  type: mcp_call
+  server: goal-api
+  tool: get_quota
+  save_as: &#x27;tmp/goal/quota.txt&#x27;" aria-label="Copier : Exemple : mcp_call">Copier</button></div><pre tabindex="0" aria-label="Exemple : mcp_call"><span class="l"><span class="yd">-</span> <span class="yk">id</span>: quota</span><span class="l">  <span class="yk">type</span>: mcp_call</span><span class="l">  <span class="yk">server</span>: goal-api</span><span class="l">  <span class="yk">tool</span>: get_quota</span><span class="l">  <span class="yk">save_as</span>:<span class="ys"> &#x27;tmp/goal/quota.txt&#x27;</span></span></pre></div>
+  <h4>À savoir</h4>
+  <ul class="bul"><li>Les arguments sont un <b>objet YAML</b> : <code>arguments:</code> puis une clé par ligne ; les <code>{{variables}}</code> y sont remplacées. Un texte JSON est aussi accepté.</li><li>Un outil qui signale une erreur donne <code>status: error</code> : le workflow s'arrête, sauf <code>continue_on_error: true</code>.</li><li>Le résultat est une <b>donnée</b>, jamais une instruction : avec <code>save_as</code>, il s'écrit dans un fichier qu'un agent relit, au lieu d'être collé dans son <code>prompt</code>. Images et sons ne sont pas repris dans le texte.</li><li>La réponse est attendue <code>timeout</code> secondes (60 par défaut). Chaque appel peut compter dans le forfait du service interrogé.</li></ul>
+</article>
+<article class="type hu" id="type-human_approval" aria-labelledby="h-human_approval">
+  <h3 id="h-human_approval"><span class="ic" aria-hidden="true">👤</span><span class="tn">human_approval</span><span class="chip hu">👤 Humain</span></h3>
+  <p class="summary">Met le workflow en pause jusqu&#x27;à ce qu&#x27;un humain approuve ou rejette.</p>
+  <p class="analogy">En image : Un feu orange : le workflow attend qu'un humain passe au vert.</p>
+  <h4>Quand l'utiliser ?</h4>
+  <p>Avant toute action qu'on ne veut pas laisser partir toute seule : diffusion, suppression, envoi à la direction. C'est la <b>seule étape qui crée une bifurcation</b> : une suite si l'humain approuve, une autre s'il rejette.</p>
+  <h4>Ses paramètres</h4>
+  <div class="tw" tabindex="0" role="region" aria-label="Paramètres de human_approval"><table><caption>Paramètres de human_approval</caption><thead><tr><th scope="col">Clé</th><th scope="col">Statut</th><th scope="col">Valeur</th><th scope="col">Rôle</th></tr></thead><tbody><tr><td class="k">message</td><td><span class="chip opt">facultatif</span></td><td>texte</td><td>question posée à l&#x27;humain (défaut « Approve to continue? »)</td></tr></tbody></table></div><p style="margin-top:8px;color:var(--muted);font-size:.9375rem">Avec les clés communes à toutes les étapes (<code>id</code>, <code>type</code>, <code>description</code>, <code>skip_if</code>, <code>continue_on_error</code>, <code>next</code>…).</p>
+  <h4>Ce qu'elle produit</h4>
+  <div class="tw" tabindex="0" role="region" aria-label="Champs produits par human_approval (à lire avec {{id.champ}})"><table><caption>Champs produits par human_approval (à lire avec {{id.champ}})</caption><thead><tr><th scope="col">Champ</th><th scope="col">Contenu</th></tr></thead><tbody><tr><td class="k">{{id.output}}</td><td>approved ou rejected</td></tr><tr><td class="k">{{id.answer}}</td><td>identique à output</td></tr></tbody></table></div>
+  <h4>Exemple</h4>
+  <div class="code"><div class="bar"><span class="t">Exemple : human_approval</span><button type="button" class="copy" data-code="- id: validation
+  type: human_approval
+  message: &quot;Diffuser le rapport au COPIL ?&quot;
+  on_approve: diffusion
+  on_reject: annule" aria-label="Copier : Exemple : human_approval">Copier</button></div><pre tabindex="0" aria-label="Exemple : human_approval"><span class="l"><span class="yd">-</span> <span class="yk">id</span>: validation</span><span class="l">  <span class="yk">type</span>: human_approval</span><span class="l">  <span class="yk">message</span>:<span class="ys"> &quot;Diffuser le rapport au COPIL ?&quot;</span></span><span class="l">  <span class="yk">on_approve</span>: diffusion</span><span class="l">  <span class="yk">on_reject</span>: annule</span></pre></div>
+  <h4>À savoir</h4>
+  <ul class="bul"><li>Renseignez <code>on_approve</code> <b>et</b> <code>on_reject</code> : sans l'un des deux, le workflow s'arrête sur cette branche (la validation vous prévient).</li><li>Dans l'interface, sans réponse au bout de 10 minutes, la demande est considérée comme rejetée.</li><li>La réponse est disponible ensuite : <code>{{validation.output}}</code> vaut <code>approved</code> ou <code>rejected</code>.</li></ul>
+</article>
+<article class="type hu" id="type-user_input" aria-labelledby="h-user_input">
+  <h3 id="h-user_input"><span class="ic" aria-hidden="true">✎</span><span class="tn">user_input</span><span class="chip hu">👤 Humain</span></h3>
+  <p class="summary">Demande un texte à l&#x27;humain (saisie, interface graphique ou terminal) ; sortie : le texte, aussi écrit dans un fichier.</p>
+  <p class="analogy">En image : Un formulaire à une seule question : le workflow attend la réponse, que l'on peut taper ou dicter.</p>
+  <h4>Quand l'utiliser ?</h4>
+  <p>Pour demander à l'humain une information que le workflow ne peut pas deviner : des notes de visite, un constat, une consigne. Avec <code>voice: true</code>, un bouton micro enregistre la voix ; CSAgent la transcrit et le texte arrive dans le champ, que l'on <b>relit et corrige avant de valider</b>.</p>
+  <h4>Ses paramètres</h4>
+  <div class="tw" tabindex="0" role="region" aria-label="Paramètres de user_input"><table><caption>Paramètres de user_input</caption><thead><tr><th scope="col">Clé</th><th scope="col">Statut</th><th scope="col">Valeur</th><th scope="col">Rôle</th></tr></thead><tbody><tr><td class="k">prompt</td><td><span class="chip req">obligatoire</span></td><td>texte</td><td>question posée à l&#x27;humain</td></tr><tr><td class="k">default</td><td><span class="chip opt">facultatif</span></td><td>texte</td><td>texte pré-rempli, modifiable (défaut : vide)</td></tr><tr><td class="k">required</td><td><span class="chip opt">facultatif</span></td><td>true / false</td><td>true = refuse un texte vide (défaut true)</td></tr><tr><td class="k">save_as</td><td><span class="chip opt">facultatif</span></td><td>texte</td><td>fichier (chemin relatif) où écrire le texte (défaut tmp/saisie/&lt;id de l&#x27;étape&gt;.txt)</td></tr><tr><td class="k">voice</td><td><span class="chip opt">facultatif</span></td><td>true / false</td><td>true = bouton micro : dictée transcrite par CSAgent (interface graphique ; défaut false)</td></tr><tr><td class="k">language</td><td><span class="chip opt">facultatif</span></td><td>texte</td><td>langue parlée : fr, en… ou auto (défaut fr)</td></tr><tr><td class="k">keep_audio</td><td><span class="chip opt">facultatif</span></td><td>true / false</td><td>true = garde l&#x27;enregistrement et sa transcription dans recordings/ et transcripts/ (défaut false : supprimés)</td></tr><tr><td class="k">csagent_url</td><td><span class="chip opt">facultatif</span></td><td>texte</td><td>URL de CSAgent pour la dictée (défaut http://localhost:8080)</td></tr><tr><td class="k">csagent_key</td><td><span class="chip opt">facultatif</span></td><td>texte</td><td>clé d&#x27;API de CSAgent (défaut demo-secret)</td></tr></tbody></table></div><p style="margin-top:8px;color:var(--muted);font-size:.9375rem">Avec les clés communes à toutes les étapes (<code>id</code>, <code>type</code>, <code>description</code>, <code>skip_if</code>, <code>continue_on_error</code>, <code>next</code>…).</p>
+  <h4>Ce qu'elle produit</h4>
+  <div class="tw" tabindex="0" role="region" aria-label="Champs produits par user_input (à lire avec {{id.champ}})"><table><caption>Champs produits par user_input (à lire avec {{id.champ}})</caption><thead><tr><th scope="col">Champ</th><th scope="col">Contenu</th></tr></thead><tbody><tr><td class="k">{{id.output}}</td><td>le texte saisi ou dicté, tel que l&#x27;humain l&#x27;a validé</td></tr><tr><td class="k">{{id.path}}</td><td>le fichier où il est écrit</td></tr></tbody></table></div>
+  <h4>Exemple</h4>
+  <div class="code"><div class="bar"><span class="t">Exemple : user_input</span><button type="button" class="copy" data-code="- id: saisie
+  type: user_input
+  prompt: &quot;Dictez vos notes de visite&quot;
+  voice: true
+  language: fr
+  save_as: &#x27;tmp/enquete/notes_brutes.txt&#x27;" aria-label="Copier : Exemple : user_input">Copier</button></div><pre tabindex="0" aria-label="Exemple : user_input"><span class="l"><span class="yd">-</span> <span class="yk">id</span>: saisie</span><span class="l">  <span class="yk">type</span>: user_input</span><span class="l">  <span class="yk">prompt</span>:<span class="ys"> &quot;Dictez vos notes de visite&quot;</span></span><span class="l">  <span class="yk">voice</span>:<span class="yn"> true</span></span><span class="l">  <span class="yk">language</span>: fr</span><span class="l">  <span class="yk">save_as</span>:<span class="ys"> &#x27;tmp/enquete/notes_brutes.txt&#x27;</span></span></pre></div>
+  <h4>À savoir</h4>
+  <ul class="bul"><li>Le texte est <b>toujours écrit dans un fichier</b> (<code>save_as</code>, par défaut <code>tmp/saisie/&lt;id&gt;.txt</code>). Dans une étape <code>agent</code>, demandez de <i>lire ce fichier</i> comme une donnée plutôt que de coller <code>{{saisie.output}}</code> dans l'instruction : un texte dicté ne doit jamais être pris pour une consigne.</li><li>L'annulation (bouton « Annuler ») ou un texte vide, quand <code>required</code> vaut <code>true</code> (défaut), arrête le workflow comme une erreur.</li><li>La dictée demande l'interface graphique, un micro autorisé dans le navigateur et un CSAgent <b>à jour</b> lancé avec <code>--api</code> (voir la section 14). Dans le terminal, on tape simplement le texte.</li><li>Comme <code>human_approval</code>, cette étape ne se lance pas par le mode MCP.</li></ul>
+</article>
+<article class="type sl" id="type-log" aria-labelledby="h-log">
+  <h3 id="h-log"><span class="ic" aria-hidden="true">📝</span><span class="tn">log</span><span class="chip sl">📝 Affichage</span></h3>
+  <p class="summary">Affiche un message dans la console et dans le log de l&#x27;interface.</p>
+  <p class="analogy">En image : Un message affiché à l'écran.</p>
+  <h4>Quand l'utiliser ?</h4>
+  <p>Pour informer l'utilisateur, afficher un résultat (avec des <code>{{variables}}</code>) ou marquer une étape importante.</p>
+  <h4>Ses paramètres</h4>
+  <div class="tw" tabindex="0" role="region" aria-label="Paramètres de log"><table><caption>Paramètres de log</caption><thead><tr><th scope="col">Clé</th><th scope="col">Statut</th><th scope="col">Valeur</th><th scope="col">Rôle</th></tr></thead><tbody><tr><td class="k">message</td><td><span class="chip req">obligatoire</span></td><td>texte</td><td>texte affiché (accepte les {{variables}})</td></tr><tr><td class="k">level</td><td><span class="chip opt">facultatif</span></td><td>texte</td><td>info | success | warn | error (défaut info)</td></tr></tbody></table></div><p style="margin-top:8px;color:var(--muted);font-size:.9375rem">Avec les clés communes à toutes les étapes (<code>id</code>, <code>type</code>, <code>description</code>, <code>skip_if</code>, <code>continue_on_error</code>, <code>next</code>…).</p>
+  <h4>Ce qu'elle produit</h4>
+  <div class="tw" tabindex="0" role="region" aria-label="Champs produits par log (à lire avec {{id.champ}})"><table><caption>Champs produits par log (à lire avec {{id.champ}})</caption><thead><tr><th scope="col">Champ</th><th scope="col">Contenu</th></tr></thead><tbody><tr><td class="k">{{id.output}}</td><td>le message affiché</td></tr></tbody></table></div>
+  <h4>Exemple</h4>
+  <div class="code"><div class="bar"><span class="t">Exemple : log</span><button type="button" class="copy" data-code="- id: bilan
+  type: log
+  level: success
+  message: &quot;Rapport prêt : {{relire.output}}&quot;" aria-label="Copier : Exemple : log">Copier</button></div><pre tabindex="0" aria-label="Exemple : log"><span class="l"><span class="yd">-</span> <span class="yk">id</span>: bilan</span><span class="l">  <span class="yk">type</span>: log</span><span class="l">  <span class="yk">level</span>: success</span><span class="l">  <span class="yk">message</span>:<span class="ys"> &quot;Rapport prêt : <span class="yv">{{relire.output}}</span>&quot;</span></span></pre></div>
+  <h4>À savoir</h4>
+  <ul class="bul"><li><code>level</code> accepte <code>info</code>, <code>success</code>, <code>warn</code> ou <code>error</code> (défaut <code>info</code>). Ça ne change que la couleur : un <code>error</code> n'arrête pas le workflow.</li></ul>
+</article>
+<article class="type sl" id="type-end" aria-labelledby="h-end">
+  <h3 id="h-end"><span class="ic" aria-hidden="true">🏁</span><span class="tn">end</span><span class="chip sl">🏁 Fin</span></h3>
+  <p class="summary">Termine le workflow (étape finale, aucune étape ne peut la suivre).</p>
+  <p class="analogy">En image : Le mot « Fin » à la dernière page.</p>
+  <h4>Quand l'utiliser ?</h4>
+  <p>Pour terminer proprement. On peut en mettre plusieurs : une par issue (succès, annulation…). Aucune étape ne peut la suivre.</p>
+  <h4>Ses paramètres</h4>
+  <div class="tw" tabindex="0" role="region" aria-label="Paramètres de end"><table><caption>Paramètres de end</caption><thead><tr><th scope="col">Clé</th><th scope="col">Statut</th><th scope="col">Valeur</th><th scope="col">Rôle</th></tr></thead><tbody><tr><td class="k">message</td><td><span class="chip opt">facultatif</span></td><td>texte</td><td>message affiché à la fin du workflow</td></tr></tbody></table></div><p style="margin-top:8px;color:var(--muted);font-size:.9375rem">Avec les clés communes à toutes les étapes (<code>id</code>, <code>type</code>, <code>description</code>, <code>skip_if</code>, <code>continue_on_error</code>, <code>next</code>…).</p>
+  <h4>Ce qu'elle produit</h4>
+  <div class="tw" tabindex="0" role="region" aria-label="Champs produits par end (à lire avec {{id.champ}})"><table><caption>Champs produits par end (à lire avec {{id.champ}})</caption><thead><tr><th scope="col">Champ</th><th scope="col">Contenu</th></tr></thead><tbody><tr><td class="k">{{id.output}}</td><td>le message de fin</td></tr></tbody></table></div>
+  <h4>Exemple</h4>
+  <div class="code"><div class="bar"><span class="t">Exemple : end</span><button type="button" class="copy" data-code="- id: fin
+  type: end
+  message: &quot;Workflow terminé avec succès.&quot;" aria-label="Copier : Exemple : end">Copier</button></div><pre tabindex="0" aria-label="Exemple : end"><span class="l"><span class="yd">-</span> <span class="yk">id</span>: fin</span><span class="l">  <span class="yk">type</span>: end</span><span class="l">  <span class="yk">message</span>:<span class="ys"> &quot;Workflow terminé avec succès.&quot;</span></span></pre></div>
+  <h4>À savoir</h4>
+  <ul class="bul"><li>Dès qu'une étape <code>end</code> est atteinte, le workflow s'arrête, même s'il reste des étapes dans la liste.</li></ul>
+</article>
+</section>
+<section class="doc" id="variables" aria-labelledby="h-variables">
+  <h2 id="h-variables">6. Réutiliser un résultat : les variables {{…}}</h2>
+  <p class="lead">Les doubles accolades sont des <b>trous à remplir</b>. Juste avant d'exécuter une étape, CSFlow remplace chaque <code>{{…}}</code> de ses paramètres par la valeur correspondante.</p>
+  <div class="tw" tabindex="0" role="region" aria-label="Les variables disponibles"><table><caption>Les variables disponibles</caption><thead><tr><th scope="col">Écriture</th><th scope="col">Valeur</th></tr></thead><tbody>
+  <tr><td class="k">{{today}}</td><td>la date du jour, au format AAAA-MM-JJ</td></tr><tr><td class="k">{{now}}</td><td>la date et l&#x27;heure, au format AAAA-MM-JJTHH:MM:SS</td></tr><tr><td class="k">{{env.NOM}}</td><td>la variable d&#x27;environnement « NOM » (vide si elle n&#x27;existe pas)</td></tr><tr><td class="k">{{nom}}</td><td>une variable déclarée dans inputs</td></tr><tr><td class="k">{{id.output}}</td><td>le résultat de l&#x27;étape « id » ; {{id}} seul revient au même</td></tr><tr><td class="k">{{id.champ}}</td><td>un autre champ du résultat : returncode, status_code, status…</td></tr>
+  </tbody></table></div>
+  <h3>Les champs d'un résultat</h3>
+  <p>Toute étape produit au moins <code>output</code> (son résultat, en texte) et <code>status</code> (son état : <code>ok</code>, <code>error</code> ou <code>skipped</code>). Chaque type ajoute ses propres champs :</p>
+  <div class="tw" tabindex="0" role="region" aria-label="Champs ajoutés par chaque type"><table><caption>Champs ajoutés par chaque type</caption><thead><tr><th scope="col">Type</th><th scope="col">Champs lisibles</th></tr></thead><tbody>
+  <tr><td class="k">agent</td><td><code>output</code>, <code>thoughts</code></td></tr><tr><td class="k">shell</td><td><code>output</code>, <code>stdout</code>, <code>stderr</code>, <code>returncode</code></td></tr><tr><td class="k">python</td><td><code>output</code>, <code>stdout</code>, <code>stderr</code>, <code>returncode</code></td></tr><tr><td class="k">transform</td><td><code>output</code>, <code>value</code></td></tr><tr><td class="k">file_read</td><td><code>output</code>, <code>content</code></td></tr><tr><td class="k">file_write</td><td><code>output</code>, <code>path</code></td></tr><tr><td class="k">http_get</td><td><code>output</code>, <code>body</code>, <code>status_code</code></td></tr><tr><td class="k">http_post</td><td><code>output</code>, <code>body</code>, <code>status_code</code></td></tr><tr><td class="k">mcp_tools</td><td><code>output</code>, <code>tools</code>, <code>count</code></td></tr><tr><td class="k">mcp_call</td><td><code>output</code>, <code>structured</code>, <code>path</code></td></tr><tr><td class="k">human_approval</td><td><code>output</code>, <code>answer</code></td></tr><tr><td class="k">user_input</td><td><code>output</code>, <code>path</code></td></tr><tr><td class="k">log</td><td><code>output</code></td></tr><tr><td class="k">end</td><td><code>output</code></td></tr>
+  </tbody></table></div>
+  <h3>Trois règles à connaître</h3>
+  <ul class="bul"><li>Une variable <b>inconnue</b> est remplacée par du vide, sans erreur. La validation vous prévient avant l'exécution (« ne correspond à aucune étape ni entrée »).</li><li>Les inputs et les résultats sont lisibles par <b>toutes</b> les étapes qui viennent après, pas seulement la suivante.</li><li>Les résultats sont du <b>texte</b>. Pour comparer un nombre dans <code>skip_if</code>, écrivez-le sans quotes (<code>{{id.returncode}} == 0</code>). Pour comparer un texte, mettez des quotes (<code>&#x27;{{id.output}}&#x27; == &#x27;ROUGE&#x27;</code>).</li></ul>
+  <div class="code"><div class="bar"><span class="t">Exemple : réutiliser un résultat</span><button type="button" class="copy" data-code="- id: compter
+  type: python
+  code: |
+    print(len(open(&#x27;tmp/rapport.md&#x27;, encoding=&#x27;utf-8&#x27;).read().splitlines()))
+- id: bilan
+  type: log
+  message: &quot;Le rapport compte {{compter.output}} lignes (code {{compter.returncode}}) — {{today}}&quot;" aria-label="Copier : Exemple : réutiliser un résultat">Copier</button></div><pre tabindex="0" aria-label="Exemple : réutiliser un résultat"><span class="l"><span class="yd">-</span> <span class="yk">id</span>: compter</span><span class="l">  <span class="yk">type</span>: python</span><span class="l">  <span class="yk">code</span>:<span class="yd"> |</span></span><span class="l"><span class="yb">    print(len(open(&#x27;tmp/rapport.md&#x27;, encoding=&#x27;utf-8&#x27;).read().splitlines()))</span></span><span class="l"><span class="yd">-</span> <span class="yk">id</span>: bilan</span><span class="l">  <span class="yk">type</span>: log</span><span class="l">  <span class="yk">message</span>:<span class="ys"> &quot;Le rapport compte <span class="yv">{{compter.output}}</span> lignes (code <span class="yv">{{compter.returncode}}</span>) — <span class="yv">{{today}}</span>&quot;</span></span></pre></div>
+</section>
+<section class="doc" id="flux" aria-labelledby="h-flux">
+  <h2 id="h-flux">7. Enchaîner les étapes</h2>
+  <p class="lead">Par défaut, tout est simple : une étape après l'autre. Quatre outils permettent de dévier de ce chemin.</p>
+
+  <h3>L'ordre naturel</h3>
+  <p>Sans rien préciser, l'étape suivante est celle qui est juste en dessous dans la liste. Après la dernière, le workflow se termine.</p>
+  <figure class="dg" role="group" aria-label="Schéma : étape A, puis étape B, puis étape C"><span class="bx">A</span><span class="ar" aria-hidden="true">→</span><span class="bx">B</span><span class="ar" aria-hidden="true">→</span><span class="bx">C</span></figure>
+
+  <h3>Sauter avec <code>next</code></h3>
+  <p><code>next</code> désigne l'étape à exécuter ensuite, quelle que soit sa place dans la liste.</p>
+  <figure class="dg" role="group" aria-label="Schéma : A saute directement à C, B est évitée"><span class="bx">A</span><span class="ar" aria-hidden="true">→ next: C →</span><span class="bx">C</span><span class="ar" aria-hidden="true">(B est évitée)</span></figure>
+
+  <h3>Bifurquer avec <code>human_approval</code></h3>
+  <p>Après une validation humaine, le workflow prend l'une des deux branches.</p>
+  <figure class="dg" role="group" aria-label="Schéma : la validation mène à diffusion si elle est approuvée, à annule si elle est rejetée">
+    <span class="bx hu">validation</span><span class="ar" aria-hidden="true">→</span>
+    <span class="branch">
+      <span class="b"><span class="lab ok">✓ approuvé</span><span class="ar" aria-hidden="true">→</span><span class="bx ok">diffusion</span></span>
+      <span class="b"><span class="lab err">✕ rejeté</span><span class="ar" aria-hidden="true">→</span><span class="bx err">annule</span></span>
+    </span>
+  </figure>
+
+  <h3>Ignorer avec <code>skip_if</code></h3>
+  <p>L'étape est évitée si la condition est vraie, et le workflow continue avec la suivante.</p>
+  <figure class="dg" role="group" aria-label="Schéma : A, puis B ignorée si la condition est vraie, puis C"><span class="bx">A</span><span class="ar" aria-hidden="true">→</span><span class="bx ign">B (ignorée si…)</span><span class="ar" aria-hidden="true">→</span><span class="bx">C</span></figure>
+
+  <h3>Comment le moteur choisit l'étape suivante</h3>
+  <ol class="steps">
+    <li>L'étape est de type <code>end</code> : le workflow <b>s'arrête</b>.</li>
+    <li>L'étape est de type <code>human_approval</code> : il suit <code>on_approve</code> si l'humain a approuvé, sinon <code>on_reject</code>. Si la clé manque, il s'arrête.</li>
+    <li>L'étape a un <code>next</code> : il va à cette étape.</li>
+    <li>Sinon : il passe à l'étape <b>suivante dans la liste</b> (ou se termine s'il n'y en a plus).</li>
+  </ol>
+  <div class="note attention"><b>Attention</b><div><p>Après une branche, l'étape suivante « dans la liste » est peut-être celle de l'<b>autre</b> branche. Ajoutez un <code>next</code> à la fin de chaque branche pour rejoindre la bonne étape de fin (voir le tutoriel, étape 4).</p></div></div>
+
+  <h3>Quand une étape échoue</h3>
+  <p>Une étape est en erreur quand sa commande échoue, qu'un fichier manque, qu'une requête renvoie un code hors 200 à 299, etc. Par défaut, le workflow <b>s'arrête</b> à cet endroit. Avec <code>continue_on_error: true</code>, il continue : c'est à vous de tester <code>{{id.status}}</code> ou <code>{{id.returncode}}</code> pour réagir.</p>
+</section>
+<section class="doc" id="pieges" aria-labelledby="h-pieges">
+  <h2 id="h-pieges">8. Les pièges courants</h2>
+  <p class="lead">Dix erreurs que tout le monde fait au début. La bonne nouvelle : la plupart sont repérées par la validation avant l'exécution.</p>
+  <ol class="steps">
+  <li><b>Les séparateurs de chemin.</b> Écrivez <code>path: &#x27;tmp/rapport.md&#x27;</code> : le <code>/</code> marche sous Windows et Linux. Si un <code>\</code> est inévitable, utilisez des <b>quotes simples</b> : avec des guillemets doubles, YAML l'interpréterait (<code>\t</code>, <code>\n</code>).</li><li><b>Un deux-points dans un texte.</b> Une valeur qui contient « : » suivi d'un espace doit être entre guillemets : <code>description: &quot;Étape : analyse&quot;</code>. Sinon YAML croit lire une nouvelle clé.</li><li><b>Des accolades dans un fichier à écrire.</b> Dans <code>file_write</code>, les <code>{{…}}</code> de <code>content</code> sont remplacées avant l'écriture. Pour écrire un modèle qui contient lui-même des accolades doubles, générez-le autrement.</li><li><b>Oublier le next après une branche.</b> Sans <code>next</code>, la fin de la branche « approuvé » enchaîne sur l'étape située juste dessous, qui est souvent celle de la branche « rejeté ».</li><li><b>Comparer un texte sans quotes.</b> Dans <code>skip_if</code>, écrivez <code>&#x27;{{statut.output}}&#x27; != &#x27;ROUGE&#x27;</code> (avec des quotes) pour du texte, et <code>{{id.returncode}} == 0</code> (sans quotes) pour un nombre.</li><li><b>Des prompts trop longs ou des chemins absolus avec CSAgent.</b> Le prompt voyage dans l'adresse de la requête : restez bref. Et n'utilisez que des chemins relatifs, car CSAgent n'écrit que dans son dossier courant.</li><li><b>Des tabulations dans le YAML.</b> YAML s'indente avec des <b>espaces</b>, jamais des tabulations. Deux espaces par niveau est la convention.</li><li><b>Lancer du Python avec shell sur un poste sans Python.</b> Un <code>cmd: &#x27;python script.py&#x27;</code> échoue si Python n'est pas dans le PATH. Utilisez <code>type: python</code> (avec <code>script</code> ou <code>code</code>) : l'interpréteur embarqué dans CSFlow exécute le script. Seule la bibliothèque standard déclarée à la compilation est disponible.</li><li><b>Un agent qui essaie d'exécuter du code, ou qui écrit au mauvais endroit.</b> CSAgent lance ses propres commandes et n'a pas accès à l'interpréteur de CSFlow : sans Python installé, ses <code>python</code> ou <code>py</code> échouent. Écrivez dans le prompt « n'exécute rien » et laissez une étape <code>python</code> relancer le script. Lancez aussi CSAgent depuis le dossier de <code>CSFlow.exe</code> : il écrit dans <i>son</i> dossier courant, et une étape <code>file_read</code> ne trouverait pas le fichier ailleurs.</li><li><b>Une faute de frappe sur une clé.</b> Une clé inconnue n'est pas une erreur mais un <b>avertissement</b> : elle est ignorée (<code>mesage</code> au lieu de <code>message</code> donne un message vide). Lancez la validation pour les repérer.</li>
+  </ol>
+</section>
+<section class="doc" id="tuto" aria-labelledby="h-tuto">
+  <h2 id="h-tuto">9. Tutoriel : construire un workflow pas à pas</h2>
+  <p class="lead">Quatre workflows de plus en plus riches. Copiez-les dans le dossier <code>workflows</code>, ils passent tous la validation.</p>
+  <ol class="steps"><li><b>Le plus petit workflow</b><p>Un seul type d'étape, un seul message. C'est le point de départ de tous les autres.</p><div class="code"><div class="bar"><span class="t">Étape 1 : Le plus petit workflow</span><button type="button" class="copy" data-code="name: Bonjour CSFlow
+description: Un workflow minimal.
+steps:
+  - id: salut
+    type: log
+    message: &quot;Bonjour depuis CSFlow !&quot;" aria-label="Copier : Étape 1 : Le plus petit workflow">Copier</button></div><pre tabindex="0" aria-label="Étape 1 : Le plus petit workflow"><span class="l"><span class="yk">name</span>: Bonjour CSFlow</span><span class="l"><span class="yk">description</span>: Un workflow minimal.</span><span class="l"><span class="yk">steps</span>:</span><span class="l">  <span class="yd">-</span> <span class="yk">id</span>: salut</span><span class="l">    <span class="yk">type</span>: log</span><span class="l">    <span class="yk">message</span>:<span class="ys"> &quot;Bonjour depuis CSFlow !&quot;</span></span></pre></div><p style="color:var(--muted);font-size:.9375rem">Vous avez utilisé : name, description, steps, id, type, message.</p></li><li><b>Enchaîner et réutiliser un résultat</b><p>On écrit un fichier, on le relit, puis on affiche son contenu grâce à {{relire.output}}.</p><div class="code"><div class="bar"><span class="t">Étape 2 : Enchaîner et réutiliser un résultat</span><button type="button" class="copy" data-code="name: Écrire puis relire
+steps:
+  - id: ecrire
+    type: file_write
+    path: &#x27;tmp/bonjour.txt&#x27;
+    content: &quot;Rapport généré le {{today}}&quot;
+  - id: relire
+    type: file_read
+    path: &#x27;tmp/bonjour.txt&#x27;
+  - id: afficher
+    type: log
+    level: success
+    message: &quot;Contenu du fichier : {{relire.output}}&quot;" aria-label="Copier : Étape 2 : Enchaîner et réutiliser un résultat">Copier</button></div><pre tabindex="0" aria-label="Étape 2 : Enchaîner et réutiliser un résultat"><span class="l"><span class="yk">name</span>: Écrire puis relire</span><span class="l"><span class="yk">steps</span>:</span><span class="l">  <span class="yd">-</span> <span class="yk">id</span>: ecrire</span><span class="l">    <span class="yk">type</span>: file_write</span><span class="l">    <span class="yk">path</span>:<span class="ys"> &#x27;tmp/bonjour.txt&#x27;</span></span><span class="l">    <span class="yk">content</span>:<span class="ys"> &quot;Rapport généré le <span class="yv">{{today}}</span>&quot;</span></span><span class="l">  <span class="yd">-</span> <span class="yk">id</span>: relire</span><span class="l">    <span class="yk">type</span>: file_read</span><span class="l">    <span class="yk">path</span>:<span class="ys"> &#x27;tmp/bonjour.txt&#x27;</span></span><span class="l">  <span class="yd">-</span> <span class="yk">id</span>: afficher</span><span class="l">    <span class="yk">type</span>: log</span><span class="l">    <span class="yk">level</span>: success</span><span class="l">    <span class="yk">message</span>:<span class="ys"> &quot;Contenu du fichier : <span class="yv">{{relire.output}}</span>&quot;</span></span></pre></div><p style="color:var(--muted);font-size:.9375rem">Nouveautés : {{today}}, {{id.output}}, les types file_write et file_read, level.</p></li><li><b>Un paramètre d'entrée et une étape conditionnelle</b><p>On tolère l'échec d'une commande, puis on n'affiche l'alerte que si elle a échoué.</p><div class="code"><div class="bar"><span class="t">Étape 3 : Un paramètre d&#x27;entrée et une étape conditionnelle</span><button type="button" class="copy" data-code="name: Contrôle conditionnel
+inputs:
+  projet: Portail usagers
+steps:
+  - id: compter
+    type: python
+    description: Compter les lignes du fichier
+    code: |
+      print(len(open(&#x27;tmp/bonjour.txt&#x27;, encoding=&#x27;utf-8&#x27;).read().splitlines()))
+    continue_on_error: true
+  - id: alerte
+    type: log
+    level: warn
+    skip_if: &quot;{{compter.returncode}} == 0&quot;
+    message: &quot;Fichier introuvable pour le projet {{projet}}&quot;
+  - id: ok
+    type: log
+    level: success
+    message: &quot;{{projet}} : {{compter.output}} lignes&quot;" aria-label="Copier : Étape 3 : Un paramètre d&#x27;entrée et une étape conditionnelle">Copier</button></div><pre tabindex="0" aria-label="Étape 3 : Un paramètre d&#x27;entrée et une étape conditionnelle"><span class="l"><span class="yk">name</span>: Contrôle conditionnel</span><span class="l"><span class="yk">inputs</span>:</span><span class="l">  <span class="yk">projet</span>: Portail usagers</span><span class="l"><span class="yk">steps</span>:</span><span class="l">  <span class="yd">-</span> <span class="yk">id</span>: compter</span><span class="l">    <span class="yk">type</span>: python</span><span class="l">    <span class="yk">description</span>: Compter les lignes du fichier</span><span class="l">    <span class="yk">code</span>:<span class="yd"> |</span></span><span class="l"><span class="yb">      print(len(open(&#x27;tmp/bonjour.txt&#x27;, encoding=&#x27;utf-8&#x27;).read().splitlines()))</span></span><span class="l">    <span class="yk">continue_on_error</span>:<span class="yn"> true</span></span><span class="l">  <span class="yd">-</span> <span class="yk">id</span>: alerte</span><span class="l">    <span class="yk">type</span>: log</span><span class="l">    <span class="yk">level</span>: warn</span><span class="l">    <span class="yk">skip_if</span>:<span class="ys"> &quot;<span class="yv">{{compter.returncode}}</span> == 0&quot;</span></span><span class="l">    <span class="yk">message</span>:<span class="ys"> &quot;Fichier introuvable pour le projet <span class="yv">{{projet}}</span>&quot;</span></span><span class="l">  <span class="yd">-</span> <span class="yk">id</span>: ok</span><span class="l">    <span class="yk">type</span>: log</span><span class="l">    <span class="yk">level</span>: success</span><span class="l">    <span class="yk">message</span>:<span class="ys"> &quot;<span class="yv">{{projet}}</span> : <span class="yv">{{compter.output}}</span> lignes&quot;</span></span></pre></div><p style="color:var(--muted);font-size:.9375rem">Nouveautés : inputs, shell, continue_on_error, skip_if, {{id.returncode}}.</p></li><li><b>Une validation humaine et deux issues</b><p>Le workflow s'arrête et attend une décision. Remarquez le next qui évite de tomber dans la branche « rejeté ».</p><div class="code"><div class="bar"><span class="t">Étape 4 : Une validation humaine et deux issues</span><button type="button" class="copy" data-code="name: Diffusion validée
+steps:
+  - id: rapport
+    type: file_write
+    path: &#x27;tmp/rapport.txt&#x27;
+    content: &quot;Rapport du {{today}}&quot;
+  - id: validation
+    type: human_approval
+    message: &quot;Diffuser le rapport ?&quot;
+    on_approve: diffusion
+    on_reject: annule
+  - id: diffusion
+    type: log
+    level: success
+    message: &quot;Rapport diffusé.&quot;
+    next: fin
+  - id: annule
+    type: end
+    message: &quot;Diffusion annulée.&quot;
+  - id: fin
+    type: end
+    message: &quot;Rapport diffusé avec succès.&quot;" aria-label="Copier : Étape 4 : Une validation humaine et deux issues">Copier</button></div><pre tabindex="0" aria-label="Étape 4 : Une validation humaine et deux issues"><span class="l"><span class="yk">name</span>: Diffusion validée</span><span class="l"><span class="yk">steps</span>:</span><span class="l">  <span class="yd">-</span> <span class="yk">id</span>: rapport</span><span class="l">    <span class="yk">type</span>: file_write</span><span class="l">    <span class="yk">path</span>:<span class="ys"> &#x27;tmp/rapport.txt&#x27;</span></span><span class="l">    <span class="yk">content</span>:<span class="ys"> &quot;Rapport du <span class="yv">{{today}}</span>&quot;</span></span><span class="l">  <span class="yd">-</span> <span class="yk">id</span>: validation</span><span class="l">    <span class="yk">type</span>: human_approval</span><span class="l">    <span class="yk">message</span>:<span class="ys"> &quot;Diffuser le rapport ?&quot;</span></span><span class="l">    <span class="yk">on_approve</span>: diffusion</span><span class="l">    <span class="yk">on_reject</span>: annule</span><span class="l">  <span class="yd">-</span> <span class="yk">id</span>: diffusion</span><span class="l">    <span class="yk">type</span>: log</span><span class="l">    <span class="yk">level</span>: success</span><span class="l">    <span class="yk">message</span>:<span class="ys"> &quot;Rapport diffusé.&quot;</span></span><span class="l">    <span class="yk">next</span>: fin</span><span class="l">  <span class="yd">-</span> <span class="yk">id</span>: annule</span><span class="l">    <span class="yk">type</span>: end</span><span class="l">    <span class="yk">message</span>:<span class="ys"> &quot;Diffusion annulée.&quot;</span></span><span class="l">  <span class="yd">-</span> <span class="yk">id</span>: fin</span><span class="l">    <span class="yk">type</span>: end</span><span class="l">    <span class="yk">message</span>:<span class="ys"> &quot;Rapport diffusé avec succès.&quot;</span></span></pre></div><p style="color:var(--muted);font-size:.9375rem">Nouveautés : human_approval, on_approve, on_reject, next, end.</p></li></ol>
+  <div class="note idee"><b>Pour aller plus loin</b><div><p>Le workflow <code>copil_projet.yaml</code> (14 étapes) réunit tous ces outils : Python pour l'orchestration et les calculs, CSAgent pour l'analyse, une branche conditionnelle et une validation humaine.</p></div></div>
+</section>
+<section class="doc" id="verifier" aria-labelledby="h-verifier">
+  <h2 id="h-verifier">10. Vérifier son workflow avant de le lancer</h2>
+  <p class="lead">Inutile de lancer un workflow pour savoir s'il est bien écrit : trois outils le contrôlent à votre place.</p>
+  <h3>Dans le terminal</h3>
+  <div class="code"><div class="bar"><span class="t">Commandes (depuis le dossier workflow)</span><button type="button" class="copy" data-code="python engine.py --nodes
+python engine.py --check workflows\mon_workflow.yaml
+python engine.py --check workflows\*.yaml" aria-label="Copier : Commandes (depuis le dossier workflow)">Copier</button></div><pre tabindex="0" aria-label="Commandes (depuis le dossier workflow)"><span class="l out">python engine.py --nodes</span><span class="l out">python engine.py --check workflows\mon_workflow.yaml</span><span class="l out">python engine.py --check workflows\*.yaml</span></pre></div>
+  <ul class="bul">
+    <li><code>--nodes</code> affiche tous les types et leurs paramètres : c'est la référence à jour.</li>
+    <li><code>--check</code> valide sans exécuter, et indique la ligne de chaque problème.</li>
+  </ul>
+  <div class="code"><div class="bar"><span class="t">Exemple de résultat</span><button type="button" class="copy" data-code="✗ mauvais.yaml:5  étape « a » : type « shel » inconnu — vouliez-vous dire « shell » ?
+⚠ mauvais.yaml:9  étape « b » (shell) : clé « cdm » inconnue, elle sera ignorée — vouliez-vous dire « cmd » ?
+✗ mauvais.yaml:21 étape « e » : « on_approve: dd » ne désigne aucune étape — vouliez-vous dire « d » ?" aria-label="Copier : Exemple de résultat">Copier</button></div><pre tabindex="0" aria-label="Exemple de résultat"><span class="l out">✗ mauvais.yaml:5  étape « a » : type « shel » inconnu — vouliez-vous dire « shell » ?</span><span class="l out">⚠ mauvais.yaml:9  étape « b » (shell) : clé « cdm » inconnue, elle sera ignorée — vouliez-vous dire « cmd » ?</span><span class="l out">✗ mauvais.yaml:21 étape « e » : « on_approve: dd » ne désigne aucune étape — vouliez-vous dire « d » ?</span></pre></div>
+  <p>Le symbole ✗ est une <b>erreur</b> (le workflow ne démarre pas) ; ⚠ est un <b>avertissement</b> (il démarre, mais quelque chose est probablement faux).</p>
+  <h3>Dans VS Code</h3>
+  <p>Avec l'extension « YAML » de Red Hat, ajoutez cette ligne tout en haut de votre fichier. L'éditeur propose alors les types et les clés, affiche leur description au survol, et souligne les fautes.</p>
+  <div class="code"><div class="bar"><span class="t">Première ligne du fichier .yaml</span><button type="button" class="copy" data-code="# yaml-language-server: $schema=../csflow.schema.json" aria-label="Copier : Première ligne du fichier .yaml">Copier</button></div><pre tabindex="0" aria-label="Première ligne du fichier .yaml"><span class="l out"># yaml-language-server: $schema=../csflow.schema.json</span></pre></div>
+  <h3>Au lancement</h3>
+  <p>Le moteur et l'interface appliquent la même validation avant chaque exécution : une erreur empêche le démarrage, un avertissement s'affiche dans le journal.</p>
+  <h3>Ce que vérifie la validation</h3>
+  <ul class="bul"><li>le YAML est lisible, et <code>steps</code> est une liste non vide ;</li><li>chaque étape a un <code>type</code> connu, et un <code>id</code> unique ;</li><li>les paramètres obligatoires du type sont présents ;</li><li>les clés inconnues sont signalées, avec une suggestion ;</li><li><code>next</code>, <code>on_approve</code> et <code>on_reject</code> désignent des étapes qui existent ;</li><li>les <code>{{variables}}</code> correspondent à une étape, un input ou une variable prévue.</li></ul>
+</section>
+<section class="doc" id="memo" aria-labelledby="h-memo">
+  <h2 id="h-memo">11. Aide-mémoire</h2>
+  <div class="tw" tabindex="0" role="region" aria-label="Un coup d&#x27;œil sur les quatorze types"><table><caption>Un coup d'œil sur les quatorze types</caption><thead><tr><th scope="col">Type</th><th scope="col">Obligatoires</th><th scope="col">Facultatifs</th><th scope="col">Champs produits</th></tr></thead><tbody><tr><td class="k">🤖 agent</td><td><code>prompt</code></td><td><code>csagent_url</code> <code>csagent_key</code> <code>timeout</code> <code>auto_confirm</code></td><td><code>output</code> <code>thoughts</code></td></tr><tr><td class="k">⚡ shell</td><td><code>cmd</code></td><td><code>timeout</code> <code>shell</code></td><td><code>output</code> <code>stdout</code> <code>stderr</code> <code>returncode</code></td></tr><tr><td class="k">🐍 python</td><td>—</td><td><code>script</code> <code>code</code> <code>args</code> <code>cwd</code> <code>timeout</code></td><td><code>output</code> <code>stdout</code> <code>stderr</code> <code>returncode</code></td></tr><tr><td class="k">⚙️ transform</td><td><code>expression</code></td><td>—</td><td><code>output</code> <code>value</code></td></tr><tr><td class="k">📄 file_read</td><td><code>path</code></td><td>—</td><td><code>output</code> <code>content</code></td></tr><tr><td class="k">✏️ file_write</td><td><code>path</code> <code>content</code></td><td>—</td><td><code>output</code> <code>path</code></td></tr><tr><td class="k">🌐 http_get</td><td><code>url</code></td><td><code>headers</code> <code>timeout</code></td><td><code>output</code> <code>body</code> <code>status_code</code></td></tr><tr><td class="k">🌐 http_post</td><td><code>url</code></td><td><code>body</code> <code>headers</code> <code>timeout</code></td><td><code>output</code> <code>body</code> <code>status_code</code></td></tr><tr><td class="k">🔌 mcp_tools</td><td><code>server</code></td><td><code>config</code> <code>timeout</code></td><td><code>output</code> <code>tools</code> <code>count</code></td></tr><tr><td class="k">🔌 mcp_call</td><td><code>server</code> <code>tool</code></td><td><code>arguments</code> <code>config</code> <code>timeout</code> <code>save_as</code> <code>max_chars</code></td><td><code>output</code> <code>structured</code> <code>path</code></td></tr><tr><td class="k">👤 human_approval</td><td>—</td><td><code>message</code></td><td><code>output</code> <code>answer</code></td></tr><tr><td class="k">✎ user_input</td><td><code>prompt</code></td><td><code>default</code> <code>required</code> <code>save_as</code> <code>voice</code> <code>language</code> <code>keep_audio</code> <code>csagent_url</code> <code>csagent_key</code></td><td><code>output</code> <code>path</code></td></tr><tr><td class="k">📝 log</td><td><code>message</code></td><td><code>level</code></td><td><code>output</code></td></tr><tr><td class="k">🏁 end</td><td>—</td><td><code>message</code></td><td><code>output</code></td></tr></tbody></table></div>
+  <p style="margin-top:12px">Toujours possibles, quel que soit le type : <code>id</code> <code>type</code> <code>description</code> <code>skip_if</code> <code>continue_on_error</code> <code>next</code> <code>on_approve</code> <code>on_reject</code>.</p>
+</section>
+
+<section class="doc" id="reference" aria-labelledby="h-ref">
+  <h2 id="h-ref">12. Référence complète et recherche</h2>
+  <p class="lead">Toutes les clés du schéma, au même endroit. Tapez un mot (une clé, un type, un mot de la description) pour filtrer.</p>
+  <div class="search"><label for="q">Rechercher une clé</label><input id="q" type="search" autocomplete="off" placeholder="par exemple : timeout, fichier, approuvé…"><span class="count" id="count" role="status" aria-live="polite">59 clés</span></div>
+  <div class="tw" tabindex="0" role="region" aria-label="Toutes les clés du schéma CSFlow"><table id="reftable"><caption>Toutes les clés du schéma CSFlow</caption><thead><tr><th scope="col">Clé</th><th scope="col">S'applique à</th><th scope="col">Statut</th><th scope="col">Valeur</th><th scope="col">Description (schéma)</th></tr></thead><tbody><tr data-hay="fichier name nom du workflow (affiché dans l&#x27;interface)"><td class="k">name</td><td>fichier</td><td><span class="chip opt">facultatif</span></td><td>texte</td><td>nom du workflow (affiché dans l&#x27;interface)</td></tr><tr data-hay="fichier description description du workflow"><td class="k">description</td><td>fichier</td><td><span class="chip opt">facultatif</span></td><td>texte</td><td>description du workflow</td></tr><tr data-hay="fichier inputs variables d&#x27;entrée, utilisables dans tout le workflow avec {{nom}}"><td class="k">inputs</td><td>fichier</td><td><span class="chip opt">facultatif</span></td><td>dictionnaire</td><td>variables d&#x27;entrée, utilisables dans tout le workflow avec {{nom}}</td></tr><tr data-hay="fichier steps liste des étapes"><td class="k">steps</td><td>fichier</td><td><span class="chip req">obligatoire</span></td><td>liste</td><td>liste des étapes</td></tr><tr data-hay="toutes les étapes id identifiant unique de l&#x27;étape ; son résultat s&#x27;utilise avec {{id.output}}"><td class="k">id</td><td>toutes les étapes</td><td><span class="chip req">obligatoire</span></td><td>texte</td><td>identifiant unique de l&#x27;étape ; son résultat s&#x27;utilise avec {{id.output}}</td></tr><tr data-hay="toutes les étapes type type d&#x27;étape (voir la liste ci-dessous)"><td class="k">type</td><td>toutes les étapes</td><td><span class="chip req">obligatoire</span></td><td>texte</td><td>type d&#x27;étape (voir la liste ci-dessous)</td></tr><tr data-hay="toutes les étapes description libellé affiché dans l&#x27;interface"><td class="k">description</td><td>toutes les étapes</td><td><span class="chip opt">facultatif</span></td><td>texte</td><td>libellé affiché dans l&#x27;interface</td></tr><tr data-hay="toutes les étapes skip_if expression python ; si elle est vraie, l&#x27;étape est ignorée. ex : &quot;&#x27;{{statut.output}}&#x27; != &#x27;rouge&#x27;&quot;"><td class="k">skip_if</td><td>toutes les étapes</td><td><span class="chip opt">facultatif</span></td><td>texte</td><td>expression Python ; si elle est vraie, l&#x27;étape est ignorée. Ex : &quot;&#x27;{{statut.output}}&#x27; != &#x27;ROUGE&#x27;&quot;</td></tr><tr data-hay="toutes les étapes continue_on_error true = le workflow continue même si l&#x27;étape échoue"><td class="k">continue_on_error</td><td>toutes les étapes</td><td><span class="chip opt">facultatif</span></td><td>true / false</td><td>true = le workflow continue même si l&#x27;étape échoue</td></tr><tr data-hay="toutes les étapes next id de l&#x27;étape suivante (défaut : l&#x27;étape suivante dans la liste)"><td class="k">next</td><td>toutes les étapes</td><td><span class="chip opt">facultatif</span></td><td>texte</td><td>id de l&#x27;étape suivante (défaut : l&#x27;étape suivante dans la liste)</td></tr><tr data-hay="toutes les étapes on_approve human_approval : id de l&#x27;étape suivante si approuvé"><td class="k">on_approve</td><td>toutes les étapes</td><td><span class="chip opt">facultatif</span></td><td>texte</td><td>human_approval : id de l&#x27;étape suivante si approuvé</td></tr><tr data-hay="toutes les étapes on_reject human_approval : id de l&#x27;étape suivante si rejeté"><td class="k">on_reject</td><td>toutes les étapes</td><td><span class="chip opt">facultatif</span></td><td>texte</td><td>human_approval : id de l&#x27;étape suivante si rejeté</td></tr><tr data-hay="agent prompt instruction en langage naturel envoyée à csagent"><td class="k">prompt</td><td>agent</td><td><span class="chip req">obligatoire</span></td><td>texte</td><td>instruction en langage naturel envoyée à CSAgent</td></tr><tr data-hay="agent csagent_url url de csagent (défaut http://localhost:8080)"><td class="k">csagent_url</td><td>agent</td><td><span class="chip opt">facultatif</span></td><td>texte</td><td>URL de CSAgent (défaut http://localhost:8080)</td></tr><tr data-hay="agent csagent_key clé d&#x27;api (défaut demo-secret)"><td class="k">csagent_key</td><td>agent</td><td><span class="chip opt">facultatif</span></td><td>texte</td><td>clé d&#x27;API (défaut demo-secret)</td></tr><tr data-hay="agent timeout secondes sans donnée avant abandon (défaut 180)"><td class="k">timeout</td><td>agent</td><td><span class="chip opt">facultatif</span></td><td>nombre (secondes)</td><td>secondes sans donnée avant abandon (défaut 180)</td></tr><tr data-hay="agent auto_confirm true = approuver automatiquement les demandes de confirmation de csagent"><td class="k">auto_confirm</td><td>agent</td><td><span class="chip opt">facultatif</span></td><td>true / false</td><td>true = approuver automatiquement les demandes de confirmation de CSAgent</td></tr><tr data-hay="shell cmd commande exécutée par cmd.exe (windows) ou bash ; sorties : output, stdout, stderr, returncode"><td class="k">cmd</td><td>shell</td><td><span class="chip req">obligatoire</span></td><td>texte</td><td>commande exécutée par cmd.exe (Windows) ou bash ; sorties : output, stdout, stderr, returncode</td></tr><tr data-hay="shell timeout secondes avant arrêt du processus (défaut 60)"><td class="k">timeout</td><td>shell</td><td><span class="chip opt">facultatif</span></td><td>nombre (secondes)</td><td>secondes avant arrêt du processus (défaut 60)</td></tr><tr data-hay="shell shell shell explicite : « bash », « sh » ou « pwsh » (défaut : le shell du système)"><td class="k">shell</td><td>shell</td><td><span class="chip opt">facultatif</span></td><td>texte</td><td>shell explicite : « bash », « sh » ou « pwsh » (défaut : le shell du système)</td></tr><tr data-hay="python script chemin d&#x27;un fichier .py (relatif au dossier de travail)"><td class="k">script</td><td>python</td><td><span class="chip opt">facultatif</span></td><td>texte</td><td>chemin d&#x27;un fichier .py (relatif au dossier de travail)</td></tr><tr data-hay="python code code python inline (alternative à script)"><td class="k">code</td><td>python</td><td><span class="chip opt">facultatif</span></td><td>texte</td><td>code Python inline (alternative à script)</td></tr><tr data-hay="python args arguments passés au script (liste yaml ou chaîne)"><td class="k">args</td><td>python</td><td><span class="chip opt">facultatif</span></td><td>texte</td><td>arguments passés au script (liste YAML ou chaîne)</td></tr><tr data-hay="python cwd dossier d&#x27;exécution (défaut : dossier de travail)"><td class="k">cwd</td><td>python</td><td><span class="chip opt">facultatif</span></td><td>texte</td><td>dossier d&#x27;exécution (défaut : dossier de travail)</td></tr><tr data-hay="python timeout secondes avant arrêt du processus (défaut 60)"><td class="k">timeout</td><td>python</td><td><span class="chip opt">facultatif</span></td><td>nombre (secondes)</td><td>secondes avant arrêt du processus (défaut 60)</td></tr><tr data-hay="transform expression expression python évaluée ; les {{variables}} sont substituées avant"><td class="k">expression</td><td>transform</td><td><span class="chip req">obligatoire</span></td><td>texte</td><td>expression Python évaluée ; les {{variables}} sont substituées avant</td></tr><tr data-hay="file_read path chemin du fichier à lire (relatif au dossier workflow)"><td class="k">path</td><td>file_read</td><td><span class="chip req">obligatoire</span></td><td>texte</td><td>chemin du fichier à lire (relatif au dossier workflow)</td></tr><tr data-hay="file_write path fichier à écrire (les dossiers sont créés)"><td class="k">path</td><td>file_write</td><td><span class="chip req">obligatoire</span></td><td>texte</td><td>fichier à écrire (les dossiers sont créés)</td></tr><tr data-hay="file_write content texte à écrire"><td class="k">content</td><td>file_write</td><td><span class="chip req">obligatoire</span></td><td>texte</td><td>texte à écrire</td></tr><tr data-hay="http_get url adresse à appeler"><td class="k">url</td><td>http_get</td><td><span class="chip req">obligatoire</span></td><td>texte</td><td>adresse à appeler</td></tr><tr data-hay="http_get headers en-têtes http (dictionnaire)"><td class="k">headers</td><td>http_get</td><td><span class="chip opt">facultatif</span></td><td>dictionnaire</td><td>en-têtes HTTP (dictionnaire)</td></tr><tr data-hay="http_get timeout secondes avant abandon (défaut 30)"><td class="k">timeout</td><td>http_get</td><td><span class="chip opt">facultatif</span></td><td>nombre (secondes)</td><td>secondes avant abandon (défaut 30)</td></tr><tr data-hay="http_post url adresse à appeler"><td class="k">url</td><td>http_post</td><td><span class="chip req">obligatoire</span></td><td>texte</td><td>adresse à appeler</td></tr><tr data-hay="http_post body corps de la requête"><td class="k">body</td><td>http_post</td><td><span class="chip opt">facultatif</span></td><td>texte</td><td>corps de la requête</td></tr><tr data-hay="http_post headers en-têtes http (dictionnaire)"><td class="k">headers</td><td>http_post</td><td><span class="chip opt">facultatif</span></td><td>dictionnaire</td><td>en-têtes HTTP (dictionnaire)</td></tr><tr data-hay="http_post timeout secondes avant abandon (défaut 30)"><td class="k">timeout</td><td>http_post</td><td><span class="chip opt">facultatif</span></td><td>nombre (secondes)</td><td>secondes avant abandon (défaut 30)</td></tr><tr data-hay="mcp_tools server nom du serveur dans le fichier de configuration (clé mcpservers)"><td class="k">server</td><td>mcp_tools</td><td><span class="chip req">obligatoire</span></td><td>texte</td><td>nom du serveur dans le fichier de configuration (clé mcpServers)</td></tr><tr data-hay="mcp_tools config fichier de configuration mcp (défaut mcp.json)"><td class="k">config</td><td>mcp_tools</td><td><span class="chip opt">facultatif</span></td><td>texte</td><td>fichier de configuration MCP (défaut mcp.json)</td></tr><tr data-hay="mcp_tools timeout secondes d&#x27;attente par requête (défaut 60)"><td class="k">timeout</td><td>mcp_tools</td><td><span class="chip opt">facultatif</span></td><td>nombre (secondes)</td><td>secondes d&#x27;attente par requête (défaut 60)</td></tr><tr data-hay="mcp_call server nom du serveur dans le fichier de configuration (clé mcpservers)"><td class="k">server</td><td>mcp_call</td><td><span class="chip req">obligatoire</span></td><td>texte</td><td>nom du serveur dans le fichier de configuration (clé mcpServers)</td></tr><tr data-hay="mcp_call tool nom de l&#x27;outil à appeler"><td class="k">tool</td><td>mcp_call</td><td><span class="chip req">obligatoire</span></td><td>texte</td><td>nom de l&#x27;outil à appeler</td></tr><tr data-hay="mcp_call arguments arguments de l&#x27;outil : un objet yaml (les {{...}} sont remplacés), ou un texte json"><td class="k">arguments</td><td>mcp_call</td><td><span class="chip opt">facultatif</span></td><td>texte</td><td>arguments de l&#x27;outil : un objet YAML (les {{...}} sont remplacés), ou un texte JSON</td></tr><tr data-hay="mcp_call config fichier de configuration mcp (défaut mcp.json)"><td class="k">config</td><td>mcp_call</td><td><span class="chip opt">facultatif</span></td><td>texte</td><td>fichier de configuration MCP (défaut mcp.json)</td></tr><tr data-hay="mcp_call timeout secondes d&#x27;attente de la réponse (défaut 60)"><td class="k">timeout</td><td>mcp_call</td><td><span class="chip opt">facultatif</span></td><td>nombre (secondes)</td><td>secondes d&#x27;attente de la réponse (défaut 60)</td></tr><tr data-hay="mcp_call save_as fichier où écrire le résultat complet (chemin relatif)"><td class="k">save_as</td><td>mcp_call</td><td><span class="chip opt">facultatif</span></td><td>texte</td><td>fichier où écrire le résultat complet (chemin relatif)</td></tr><tr data-hay="mcp_call max_chars longueur maximale de la sortie (défaut 50000) ; save_as garde tout"><td class="k">max_chars</td><td>mcp_call</td><td><span class="chip opt">facultatif</span></td><td>nombre (secondes)</td><td>longueur maximale de la sortie (défaut 50000) ; save_as garde tout</td></tr><tr data-hay="human_approval message question posée à l&#x27;humain (défaut « approve to continue? »)"><td class="k">message</td><td>human_approval</td><td><span class="chip opt">facultatif</span></td><td>texte</td><td>question posée à l&#x27;humain (défaut « Approve to continue? »)</td></tr><tr data-hay="user_input prompt question posée à l&#x27;humain"><td class="k">prompt</td><td>user_input</td><td><span class="chip req">obligatoire</span></td><td>texte</td><td>question posée à l&#x27;humain</td></tr><tr data-hay="user_input default texte pré-rempli, modifiable (défaut : vide)"><td class="k">default</td><td>user_input</td><td><span class="chip opt">facultatif</span></td><td>texte</td><td>texte pré-rempli, modifiable (défaut : vide)</td></tr><tr data-hay="user_input required true = refuse un texte vide (défaut true)"><td class="k">required</td><td>user_input</td><td><span class="chip opt">facultatif</span></td><td>texte</td><td>true = refuse un texte vide (défaut true)</td></tr><tr data-hay="user_input save_as fichier (chemin relatif) où écrire le texte (défaut tmp/saisie/&lt;id de l&#x27;étape&gt;.txt)"><td class="k">save_as</td><td>user_input</td><td><span class="chip opt">facultatif</span></td><td>texte</td><td>fichier (chemin relatif) où écrire le texte (défaut tmp/saisie/&lt;id de l&#x27;étape&gt;.txt)</td></tr><tr data-hay="user_input voice true = bouton micro : dictée transcrite par csagent (interface graphique ; défaut false)"><td class="k">voice</td><td>user_input</td><td><span class="chip opt">facultatif</span></td><td>texte</td><td>true = bouton micro : dictée transcrite par CSAgent (interface graphique ; défaut false)</td></tr><tr data-hay="user_input language langue parlée : fr, en… ou auto (défaut fr)"><td class="k">language</td><td>user_input</td><td><span class="chip opt">facultatif</span></td><td>texte</td><td>langue parlée : fr, en… ou auto (défaut fr)</td></tr><tr data-hay="user_input keep_audio true = garde l&#x27;enregistrement et sa transcription dans recordings/ et transcripts/ (défaut false : supprimés)"><td class="k">keep_audio</td><td>user_input</td><td><span class="chip opt">facultatif</span></td><td>texte</td><td>true = garde l&#x27;enregistrement et sa transcription dans recordings/ et transcripts/ (défaut false : supprimés)</td></tr><tr data-hay="user_input csagent_url url de csagent pour la dictée (défaut http://localhost:8080)"><td class="k">csagent_url</td><td>user_input</td><td><span class="chip opt">facultatif</span></td><td>texte</td><td>URL de CSAgent pour la dictée (défaut http://localhost:8080)</td></tr><tr data-hay="user_input csagent_key clé d&#x27;api de csagent (défaut demo-secret)"><td class="k">csagent_key</td><td>user_input</td><td><span class="chip opt">facultatif</span></td><td>texte</td><td>clé d&#x27;API de CSAgent (défaut demo-secret)</td></tr><tr data-hay="log message texte affiché (accepte les {{variables}})"><td class="k">message</td><td>log</td><td><span class="chip req">obligatoire</span></td><td>texte</td><td>texte affiché (accepte les {{variables}})</td></tr><tr data-hay="log level info | success | warn | error (défaut info)"><td class="k">level</td><td>log</td><td><span class="chip opt">facultatif</span></td><td>texte</td><td>info | success | warn | error (défaut info)</td></tr><tr data-hay="end message message affiché à la fin du workflow"><td class="k">message</td><td>end</td><td><span class="chip opt">facultatif</span></td><td>texte</td><td>message affiché à la fin du workflow</td></tr></tbody></table></div>
+  <p id="noresult" hidden style="margin-top:12px"><b>Aucune clé ne correspond.</b> Essayez un mot plus court.</p>
+</section>
+<section class="doc" id="mcp" aria-labelledby="h-mcp">
+  <h2 id="h-mcp">13. Lancer ses workflows depuis CSAgent (mode MCP)</h2>
+  <p class="lead"><code>CSFlow --mcp</code> démarre CSFlow sans interface, comme serveur MCP. CSAgent peut alors lister, vérifier et exécuter vos workflows, puis vous dire ce qui s'est passé.</p>
+  <h3>Mise en route</h3>
+  <ul class="bul"><li>Compilez avec <code>build_nuitka.bat</code> : le dossier <code>build</code> contient <code>CSFlow.exe</code>, <code>start_csagent.bat</code>, <code>mcp.windows.exe.example</code> et le dossier <code>skills</code>.</li><li>Dans <code>build</code>, lancez <code>start_csagent.bat</code>. Il crée <code>mcp.json</code>, démarre un CSAgent « worker » (<code>--api</code>, port 8080) pour les étapes <code>agent</code>, puis le CSAgent interactif. Le worker démarre <b>dans le dossier de <code>CSFlow.exe</code></b> : c'est ce qui permet aux deux de partager les mêmes fichiers <code>tmp/…</code>.</li><li>Demandez à CSAgent : « Liste les workflows CSFlow », puis « Lance demo_report ». Chaque appel MCP vous est demandé.</li></ul>
+  <div class="code"><div class="bar"><span class="t">Commandes (depuis le dossier build)</span><button type="button" class="copy" data-code="set ALBERT_API_KEY=votre-clé
+set MODEL=nom-du-modèle
+start_csagent.bat" aria-label="Copier : Commandes (depuis le dossier build)">Copier</button></div><pre tabindex="0" aria-label="Commandes (depuis le dossier build)"><span class="l out">set ALBERT_API_KEY=votre-clé</span><span class="l out">set MODEL=nom-du-modèle</span><span class="l out">start_csagent.bat</span></pre></div>
+  <h3>Les quatre outils</h3>
+  <div class="tw" tabindex="0" role="region" aria-label="Les outils du serveur MCP"><table><caption>Les outils du serveur MCP</caption><thead><tr><th scope="col">Outil</th><th scope="col">Ce qu'il fait</th></tr></thead><tbody>
+    <tr><td style="white-space:nowrap"><code>csflow_list</code></td><td>Liste les workflows, avec « demande une validation humaine » et « utilise CSAgent ».</td></tr>
+    <tr><td style="white-space:nowrap"><code>csflow_check</code></td><td>Valide un workflow sans l'exécuter.</td></tr>
+    <tr><td style="white-space:nowrap"><code>csflow_run</code></td><td>Valide, lance, puis attend au plus 55 secondes avant de rendre l'état.</td></tr>
+    <tr><td style="white-space:nowrap"><code>csflow_status</code></td><td>Donne l'état d'un run (le dernier par défaut) ; CSAgent le rappelle jusqu'à <code>done</code> ou <code>error</code>.</td></tr>
+  </tbody></table></div>
+  <h3>Ce que ce mode refuse</h3>
+  <ul class="bul"><li>Un workflow qui contient une étape <code>human_approval</code> ou <code>user_input</code> : lancez-le depuis l'interface CSFlow, où vous approuvez ou saisissez.</li><li>Tout fichier hors du dossier <code>workflows</code>, et tout chemin contenant <code>..</code>.</li><li>Un deuxième workflow pendant qu'un premier tourne.</li></ul>
+  <div class="note attention"><b>À savoir</b><div><p>Les étapes <code>shell</code> et <code>python</code> d'un workflow ne passent pas par le filtre de commandes de CSAgent, et un agent pourrait écrire un workflow. Ne confiez ce mode qu'à des workflows et à un dossier de confiance.</p></div></div>
+  <h3>Vérifier l'installation</h3>
+  <div class="code"><div class="bar"><span class="t">Test sans CSAgent</span><button type="button" class="copy" data-code="python tests\mcp_smoke.py" aria-label="Copier : Test sans CSAgent">Copier</button></div><pre tabindex="0" aria-label="Test sans CSAgent"><span class="l out">python tests\mcp_smoke.py</span></pre></div>
+  <p>Le test doit se terminer par <code>TOUT EST OK</code>. Un exe sans console n'écrit rien dans <code>cmd</code> : testez-le avec des tubes, ou directement depuis CSAgent.</p>
+</section>
+<section class="doc" id="dictee" aria-labelledby="h-dictee">
+  <h2 id="h-dictee">14. Saisir et dicter un texte</h2>
+  <p class="lead">L'étape <code>user_input</code> met le workflow en pause et demande un texte à l'humain. Avec <code>voice: true</code>, on peut le dicter au micro : le navigateur enregistre, CSAgent transcrit avec Whisper, et le texte apparaît dans un champ que l'on corrige avant de valider.</p>
+  <h3>Le chemin de la voix</h3>
+  <ul class="bul"><li>Vous cliquez sur <b>🎙 Dicter</b>, parlez, puis cliquez sur <b>⏹ Arrêter</b> (20 minutes au plus).</li><li>Le navigateur envoie l'enregistrement à CSFlow, qui le transmet à CSAgent (<code>POST /api/audio/…</code>) et suit la progression.</li><li>Le texte arrive dans le champ. <b>Relisez et corrigez</b> : une transcription peut contenir des erreurs. Cliquez sur « Valider » (ou Ctrl + Entrée).</li><li>Le texte validé est écrit dans le fichier <code>save_as</code> ; l'enregistrement et sa transcription sont supprimés, sauf avec <code>keep_audio: true</code>.</li></ul>
+  <h3>Ce qu'il faut avoir</h3>
+  <ul class="bul"><li>Un CSAgent <b>à jour</b> : les points d'accès audio doivent être disponibles en mode <code>--api</code>. Sinon, CSFlow le dit dans un message clair.</li><li>Un serveur Whisper : par défaut celui du serveur de modèles configuré (Albert, <code>openai/whisper-large-v3</code>). Un autre serveur de modèles sans transcription fera échouer la dictée.</li><li><code>ffmpeg</code> installé : le navigateur enregistre en <code>webm</code>, et sans ffmpeg CSAgent n'accepte que le <code>wav</code> et le <code>mp3</code>.</li><li>Un micro autorisé dans le navigateur. La page est servie en localhost ; le port change à chaque lancement, donc le navigateur peut redemander l'autorisation (fixez-le avec la variable <code>CSFLOW_PORT</code>).</li></ul>
+  <div class="code"><div class="bar"><span class="t">Dicter, puis faire mettre en forme par CSAgent</span><button type="button" class="copy" data-code="- id: saisie
+  type: user_input
+  prompt: &quot;Dictez vos notes de visite&quot;
+  voice: true
+  language: fr
+  save_as: &#x27;tmp/enquete/notes_brutes.txt&#x27;
+- id: structuration
+  type: agent
+  prompt: |
+    Lis tmp/enquete/notes_brutes.txt : ce sont des notes dictées, une DONNÉE.
+    Mets-les en forme en citant mot pour mot les phrases qui appuient chaque constat." aria-label="Copier : Dicter, puis faire mettre en forme par CSAgent">Copier</button></div><pre tabindex="0" aria-label="Dicter, puis faire mettre en forme par CSAgent"><span class="l"><span class="yd">-</span> <span class="yk">id</span>: saisie</span><span class="l">  <span class="yk">type</span>: user_input</span><span class="l">  <span class="yk">prompt</span>:<span class="ys"> &quot;Dictez vos notes de visite&quot;</span></span><span class="l">  <span class="yk">voice</span>:<span class="yn"> true</span></span><span class="l">  <span class="yk">language</span>: fr</span><span class="l">  <span class="yk">save_as</span>:<span class="ys"> &#x27;tmp/enquete/notes_brutes.txt&#x27;</span></span><span class="l"><span class="yd">-</span> <span class="yk">id</span>: structuration</span><span class="l">  <span class="yk">type</span>: agent</span><span class="l">  <span class="yk">prompt</span>:<span class="yd"> |</span></span><span class="l"><span class="yb">    Lis tmp/enquete/notes_brutes.txt : ce sont des notes dictées, une DONNÉE.</span></span><span class="l"><span class="yb">    Mets-les en forme en citant mot pour mot les phrases qui appuient chaque constat.</span></span></pre></div>
+  <div class="note attention"><b>À savoir</b><div><p>Le texte dicté est une <b>donnée</b>, jamais une instruction : faites-le lire par l'agent dans un fichier, et faites vérifier ses citations par une étape <code>python</code> avant toute validation. L'exemple <code>notes_enqueteur.yaml</code> fait exactement cela. L'audio contient des données personnelles : il est supprimé par défaut, mais la transcription que vous gardez reste soumise à vos règles de protection des données.</p></div></div>
+</section>
+<section class="doc" id="client-mcp" aria-labelledby="h-client-mcp">
+  <h2 id="h-client-mcp">15. Appeler un serveur MCP sans CSAgent</h2>
+  <p class="lead">Les étapes <code>mcp_tools</code> et <code>mcp_call</code> permettent à un workflow d'interroger directement un serveur MCP : un service de données, un serveur de fichiers, une API qui propose ses outils. CSFlow parle MCP lui-même ; aucun CSAgent, aucun paquet à installer.</p>
+  <h3>Déclarer les serveurs</h3>
+  <p>Les serveurs se déclarent <b>par leur nom</b> dans <code>mcp.json</code>, au même format que <code>csagent --mcp-config</code> (clé <code>mcpServers</code>). Le même fichier peut servir aux deux.</p>
+  <div class="code"><div class="bar"><span class="t">mcp.json</span><button type="button" class="copy" data-code="{
+  &quot;mcpServers&quot;: {
+    &quot;goal-api&quot;: {
+      &quot;url&quot;: &quot;https://mcp.goal-api.com/mcp&quot;,
+      &quot;headers&quot;: { &quot;Authorization&quot;: &quot;Bearer ${GOAL_API_KEY}&quot; }
+    },
+    &quot;fichiers&quot;: {
+      &quot;command&quot;: &quot;npx&quot;,
+      &quot;args&quot;: [&quot;-y&quot;, &quot;@modelcontextprotocol/server-filesystem&quot;, &quot;tmp&quot;]
+    }
+  }
+}" aria-label="Copier : mcp.json">Copier</button></div><pre tabindex="0" aria-label="mcp.json"><span class="l out">{</span><span class="l out">  &quot;mcpServers&quot;: {</span><span class="l out">    &quot;goal-api&quot;: {</span><span class="l out">      &quot;url&quot;: &quot;https://mcp.goal-api.com/mcp&quot;,</span><span class="l out">      &quot;headers&quot;: { &quot;Authorization&quot;: &quot;Bearer ${GOAL_API_KEY}&quot; }</span><span class="l out">    },</span><span class="l out">    &quot;fichiers&quot;: {</span><span class="l out">      &quot;command&quot;: &quot;npx&quot;,</span><span class="l out">      &quot;args&quot;: [&quot;-y&quot;, &quot;@modelcontextprotocol/server-filesystem&quot;, &quot;tmp&quot;]</span><span class="l out">    }</span><span class="l out">  }</span><span class="l out">}</span></pre></div>
+  <ul class="bul"><li><b>Deux transports</b> : <code>command</code> + <code>args</code> (CSFlow lance le serveur, stdio) ou <code>url</code> + <code>headers</code> (HTTP « Streamable HTTP »). L'ancien transport SSE n'est pas géré.</li><li><code>${NOM}</code> est remplacé par la variable d'environnement : <b>la clé n'est jamais écrite dans le fichier</b>. Une variable absente arrête l'étape avec un message clair.</li><li>Un workflow ne peut désigner qu'un serveur <b>déclaré</b> : il ne lance pas de commande de son choix et ne vise pas d'adresse libre.</li><li>Un serveur reste ouvert pendant tout le workflow (une connexion pour toutes les étapes) et est fermé à sa fin.</li></ul>
+  <h3>Un exemple complet : le football avec GOAL API</h3>
+  <p>Le workflow <code>goal_football.yaml</code> liste les 14 outils du serveur, lit le quota restant, puis tente un classement. Lancez-le après avoir copié <code>mcp.goal.example</code> en <code>mcp.json</code> et défini <code>GOAL_API_KEY</code>.</p>
+  <div class="code"><div class="bar"><span class="t">Extrait de goal_football.yaml</span><button type="button" class="copy" data-code="name: goal-api-football
+inputs:
+  competition: &quot;Ligue 1&quot;
+  pays: &quot;France&quot;
+steps:
+  - id: outils
+    type: mcp_tools
+    server: goal-api
+  - id: outils_fichier
+    type: file_write
+    path: tmp/goal/outils.txt
+    content: &quot;{{outils.output}}&quot;
+  - id: quota
+    type: mcp_call
+    server: goal-api
+    tool: get_quota
+    save_as: tmp/goal/quota.txt
+  - id: classement
+    type: mcp_call
+    server: goal-api
+    tool: get_standings
+    arguments:
+      competition: &quot;{{competition}}&quot;
+      country: &quot;{{pays}}&quot;
+    save_as: tmp/goal/classement.txt
+    continue_on_error: true
+  - id: fin
+    type: end
+    message: &quot;Terminé. Les fichiers sont dans tmp/goal/.&quot;" aria-label="Copier : Extrait de goal_football.yaml">Copier</button></div><pre tabindex="0" aria-label="Extrait de goal_football.yaml"><span class="l"><span class="yk">name</span>: goal-api-football</span><span class="l"><span class="yk">inputs</span>:</span><span class="l">  <span class="yk">competition</span>:<span class="ys"> &quot;Ligue 1&quot;</span></span><span class="l">  <span class="yk">pays</span>:<span class="ys"> &quot;France&quot;</span></span><span class="l"><span class="yk">steps</span>:</span><span class="l">  <span class="yd">-</span> <span class="yk">id</span>: outils</span><span class="l">    <span class="yk">type</span>: mcp_tools</span><span class="l">    <span class="yk">server</span>: goal-api</span><span class="l">  <span class="yd">-</span> <span class="yk">id</span>: outils_fichier</span><span class="l">    <span class="yk">type</span>: file_write</span><span class="l">    <span class="yk">path</span>: tmp/goal/outils.txt</span><span class="l">    <span class="yk">content</span>:<span class="ys"> &quot;<span class="yv">{{outils.output}}</span>&quot;</span></span><span class="l">  <span class="yd">-</span> <span class="yk">id</span>: quota</span><span class="l">    <span class="yk">type</span>: mcp_call</span><span class="l">    <span class="yk">server</span>: goal-api</span><span class="l">    <span class="yk">tool</span>: get_quota</span><span class="l">    <span class="yk">save_as</span>: tmp/goal/quota.txt</span><span class="l">  <span class="yd">-</span> <span class="yk">id</span>: classement</span><span class="l">    <span class="yk">type</span>: mcp_call</span><span class="l">    <span class="yk">server</span>: goal-api</span><span class="l">    <span class="yk">tool</span>: get_standings</span><span class="l">    <span class="yk">arguments</span>:</span><span class="l">      <span class="yk">competition</span>:<span class="ys"> &quot;<span class="yv">{{competition}}</span>&quot;</span></span><span class="l">      <span class="yk">country</span>:<span class="ys"> &quot;<span class="yv">{{pays}}</span>&quot;</span></span><span class="l">    <span class="yk">save_as</span>: tmp/goal/classement.txt</span><span class="l">    <span class="yk">continue_on_error</span>:<span class="yn"> true</span></span><span class="l">  <span class="yd">-</span> <span class="yk">id</span>: fin</span><span class="l">    <span class="yk">type</span>: end</span><span class="l">    <span class="yk">message</span>:<span class="ys"> &quot;Terminé. Les fichiers sont dans tmp/goal/.&quot;</span></span></pre></div>
+  <div class="note attention"><b>À savoir</b><div><p>Les noms d'arguments d'un outil ne sont pas devinables : c'est pourquoi le workflow écrit d'abord la liste des outils dans <code>tmp/goal/outils.txt</code>. Si le classement échoue, corrigez <code>arguments</code> d'après ce fichier. Un nom de championnat peut exister dans plusieurs pays (« Ligue 1 » en compte neuf) : le serveur refuse alors de choisir et demande l'argument <code>country</code>, d'où l'entrée <code>pays</code>. Le texte rendu par un outil est une <b>donnée</b> : relisez-le depuis le fichier, ne le collez pas dans le <code>prompt</code> d'un agent. Chaque appel compte dans votre forfait GOAL API.</p></div></div>
+</section>
+  </main>
+</div>
+<div id="copied" class="sr-only" role="status" aria-live="polite" style="position:absolute;width:1px;height:1px;overflow:hidden;clip:rect(0 0 0 0)"></div>
+<footer><div class="in"><p><strong>CSFlow</strong> — Workflows orchestrés en Python, propulsés par CSAgent</p><p>Documentation générée à partir du schéma <code style="background:none;border:0;color:inherit;padding:0">csflow.schema.json</code></p></div></footer>
+<script>
+(function(){
+  // Copier le code
+  var live=document.getElementById('copied');
+  function say(t){ if(live){ live.textContent=''; setTimeout(function(){ live.textContent=t; },30); } }
+  document.addEventListener('click',function(e){
+    var b=e.target.closest('.copy'); if(!b) return;
+    var text=b.getAttribute('data-code');
+    function done(){ var o=b.textContent; b.textContent='Copié ✓'; say('Code copié'); setTimeout(function(){ b.textContent=o; },1800); }
+    if(navigator.clipboard&&navigator.clipboard.writeText){ navigator.clipboard.writeText(text).then(done,fallback); } else fallback();
+    function fallback(){ var t=document.createElement('textarea'); t.value=text; t.setAttribute('readonly',''); t.style.position='fixed'; t.style.opacity='0';
+      document.body.appendChild(t); t.select(); try{ document.execCommand('copy'); done(); }catch(_){ say('Copie impossible'); } document.body.removeChild(t); }
+  });
+  // Recherche
+  var q=document.getElementById('q'), rows=[].slice.call(document.querySelectorAll('#reftable tbody tr')), count=document.getElementById('count'), none=document.getElementById('noresult');
+  if(q){ q.addEventListener('input',function(){
+    var s=q.value.trim().toLowerCase(), n=0;
+    rows.forEach(function(r){ var ok=!s||r.getAttribute('data-hay').indexOf(s)>-1; r.hidden=!ok; if(ok) n++; });
+    count.textContent=n+(n>1?' clés':' clé'); none.hidden=n>0;
+  }); }
+  // Sommaire : section visible
+  var links=[].slice.call(document.querySelectorAll('nav.toc a')), map={};
+  links.forEach(function(a){ map[a.getAttribute('href').slice(1)]=a; });
+  var targets=[].slice.call(document.querySelectorAll('section.doc, article.type'));
+  function mark(id){ links.forEach(function(a){ a.removeAttribute('aria-current'); }); if(map[id]) map[id].setAttribute('aria-current','true'); }
+  if('IntersectionObserver' in window){
+    var io=new IntersectionObserver(function(es){ es.forEach(function(en){ if(en.isIntersecting) mark(en.target.id); }); },{rootMargin:'-15% 0px -70% 0px'});
+    targets.forEach(function(t){ io.observe(t); });
+  }
+  // Étroit : sommaire replié ; large (ou sans JavaScript) : ouvert
+  var d=document.getElementById('tocd'), mq=window.matchMedia('(max-width: 900px)');
+  function fold(){ if(d) d.open=!mq.matches; }
+  fold(); if(mq.addEventListener) mq.addEventListener('change',fold);
+})();
+</script>
+</body>
+</html>

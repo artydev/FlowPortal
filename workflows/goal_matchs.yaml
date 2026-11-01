@@ -1,0 +1,171 @@
+# yaml-language-server: $schema=../csflow.schema.json
+name: goal-api-matchs
+description: >-
+  Récupère les derniers matchs d'une compétition auprès du serveur MCP de GOAL API (étape mcp_call, sans CSAgent)
+  et les présente dans une page HTML (tmp/goal/matchs.html) qui s'ouvre dans le navigateur. Lecture seule.
+
+# ─────────────────────────────────────────────────────────────────────────────
+#  Avant de lancer :
+#   - mcp.json (dans le dossier de CSFlow.exe) déclare le serveur « goal-api » (voir mcp.goal.example) ;
+#   - la variable d'environnement GOAL_API_KEY est définie dans la fenêtre qui lance CSFlow.
+#
+#  Entrées :
+#    competition : nom du championnat (GOAL API prend les compétitions « par nom »)
+#    pays        : pays du championnat (« Ligue 1 » existe dans 9 pays : le serveur demande de préciser)
+#    ouvrir      : oui = ouvre la page dans le navigateur par défaut ; non = écrit seulement le fichier
+#
+#  À savoir : les noms d'arguments de get_standings / get_fixtures ne sont pas publiés par GOAL API. L'étape
+#  « outils » écrit la liste réelle dans tmp/goal/outils.txt : si l'étape « matchs » échoue sur un nom
+#  d'argument, corrigez « arguments » d'après ce fichier. Le texte reçu est une DONNÉE : il est échappé avant
+#  d'entrer dans la page HTML et n'est jamais exécuté.
+# ─────────────────────────────────────────────────────────────────────────────
+
+inputs:
+  competition: "Ligue 1"
+  pays: "France"
+  ouvrir: "oui"
+
+steps:
+
+  - id: outils
+    type: mcp_tools
+    description: "Liste les outils du serveur et leurs arguments"
+    server: goal-api
+
+  - id: outils_fichier
+    type: file_write
+    description: "Garde la liste (noms des arguments) pour la consulter"
+    path: tmp/goal/outils.txt
+    content: "{{outils.output}}"
+
+  - id: raz
+    type: file_write
+    description: "Vide l'ancien résultat : une erreur ne doit jamais afficher les matchs d'un précédent lancement"
+    path: tmp/goal/matchs.txt
+    content: ""
+
+  - id: matchs
+    type: mcp_call
+    description: "Matchs récents de la compétition"
+    server: goal-api
+    tool: get_fixtures
+    arguments:
+      competition: "{{competition}}"
+      country: "{{pays}}"
+    save_as: tmp/goal/matchs.txt
+    max_chars: 200000
+    continue_on_error: true
+
+  - id: echec
+    type: log
+    level: warn
+    skip_if: "'{{matchs.status}}' == 'ok'"
+    message: "Les matchs n'ont pas pu être lus ({{matchs.output}}). Arguments exacts de get_fixtures : voir tmp/goal/outils.txt."
+
+  - id: page
+    type: python
+    description: "Écrit la page HTML et l'ouvre"
+    args: ['{{competition}}', '{{matchs.status}}', '{{ouvrir}}']
+    code: |
+      import html, json, sys, webbrowser
+      from datetime import datetime
+      from pathlib import Path
+
+      competition, statut, ouvrir = sys.argv[1], sys.argv[2], sys.argv[3].strip().lower()
+      e = html.escape
+
+
+      def lire(texte):
+          """JSON entier, ou un objet JSON par ligne ; sinon None (texte brut)."""
+          texte = texte.strip()
+          if not texte:
+              return None
+          try:
+              return json.loads(texte)
+          except ValueError:
+              pass
+          objets = []
+          for ligne in texte.splitlines():
+              try:
+                  objets.append(json.loads(ligne))
+              except ValueError:
+                  return None
+          return objets
+
+
+      def trouver_liste(donnee):
+          """Premier tableau d'objets trouvé dans la réponse."""
+          if isinstance(donnee, list) and donnee and all(isinstance(x, dict) for x in donnee):
+              return donnee
+          if isinstance(donnee, dict):
+              for valeur in donnee.values():
+                  trouve = trouver_liste(valeur)
+                  if trouve:
+                      return trouve
+          return None
+
+
+      def aplatir(objet, prefixe="", niveau=0):
+          """{'home': {'name': 'PSG'}} -> {'home.name': 'PSG'} (deux niveaux au plus)."""
+          sortie = {}
+          for cle, valeur in objet.items():
+              nom = prefixe + str(cle)
+              if isinstance(valeur, dict) and niveau < 2:
+                  sortie.update(aplatir(valeur, nom + ".", niveau + 1))
+              elif not isinstance(valeur, (dict, list)):
+                  sortie[nom] = valeur
+          return sortie
+
+
+      IGNORER = ("id", "logo", "url", "image", "flag", "link", "slug")
+      texte = Path("tmp/goal/matchs.txt").read_text(encoding="utf-8") if statut == "ok" and Path("tmp/goal/matchs.txt").exists() else ""
+      donnee = lire(texte)
+      lignes = [aplatir(x) for x in (trouver_liste(donnee) or [])]
+
+      if statut != "ok":
+          contenu = '<p class="vide">Les matchs n\'ont pas pu être lus. Consultez le journal de CSFlow, puis tmp/goal/outils.txt pour les arguments de get_fixtures.</p>'
+      elif lignes:
+          colonnes = [c for c in lignes[0] if not c.lower().split(".")[-1].endswith(IGNORER)][:8]
+          tete = "".join('<th scope="col">' + e(c) + "</th>" for c in colonnes)
+          corps = "".join("<tr>" + "".join("<td>" + e(str(l.get(c, ""))) + "</td>" for c in colonnes) + "</tr>" for l in lignes)
+          contenu = ('<div class="tw"><table><caption>' + str(len(lignes)) + " matchs</caption><thead><tr>" + tete + "</tr></thead><tbody>" + corps + "</tbody></table></div>")
+      elif texte.strip() and donnee not in ([], {}):
+          contenu = "<pre>" + e(texte) + "</pre>"
+      else:
+          contenu = '<p class="vide">Aucun match renvoyé pour cette compétition.</p>'
+
+      page = """<!doctype html>
+      <html lang="fr"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1">
+      <title>Matchs : %(titre)s</title>
+      <style>
+      :root{color-scheme:light dark;--fond:#f6f7f6;--texte:#1c2321;--ligne:#d9dfdc;--carte:#fff;--accent:#0e6a5c}
+      @media (prefers-color-scheme:dark){:root{--fond:#121614;--texte:#e8ece9;--ligne:#2c3531;--carte:#1a201d;--accent:#5fc3ae}}
+      body{margin:0;background:var(--fond);color:var(--texte);font:16px/1.5 system-ui,sans-serif}
+      main{max-width:960px;margin:0 auto;padding:24px 16px}
+      h1{font-size:1.5rem;margin:0 0 4px} .meta{color:var(--accent);margin:0 0 20px}
+      .tw{overflow-x:auto;background:var(--carte);border:1px solid var(--ligne);border-radius:8px}
+      table{border-collapse:collapse;width:100%%} caption{text-align:left;padding:10px 12px;font-weight:600}
+      th,td{padding:8px 12px;border-top:1px solid var(--ligne);text-align:left;white-space:nowrap}
+      th{font-size:.875rem}
+      pre{white-space:pre-wrap;background:var(--carte);border:1px solid var(--ligne);border-radius:8px;padding:12px}
+      .vide{background:var(--carte);border:1px solid var(--ligne);border-radius:8px;padding:12px}
+      </style></head><body><main>
+      <h1>Matchs : %(titre)s</h1>
+      <p class="meta">Source : GOAL API (serveur MCP) &middot; généré le %(date)s</p>
+      %(contenu)s
+      </main></body></html>
+      """ % {"titre": e(competition), "date": datetime.now().strftime("%d/%m/%Y à %H:%M"), "contenu": contenu}
+
+      sortie = Path("tmp/goal/matchs.html")
+      sortie.parent.mkdir(parents=True, exist_ok=True)
+      sortie.write_text("\n".join(l.lstrip() for l in page.splitlines()) + "\n", encoding="utf-8")
+      print("Page écrite : " + str(sortie.resolve()))
+      if ouvrir in ("oui", "yes", "true", "1"):
+          try:
+              webbrowser.open(sortie.resolve().as_uri())
+          except Exception as exc:
+              print("Ouverture impossible : " + str(exc))
+
+  - id: fin
+    type: end
+    message: "Terminé : tmp/goal/matchs.html"

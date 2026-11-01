@@ -1,0 +1,283 @@
+<!doctype html>
+<html lang="fr">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<meta name="color-scheme" content="light">
+<title>CSFlow — Démonstration : préparation d'un COPIL</title>
+<meta name="description" content="Vidéo de démonstration de CSFlow : un workflow qui prépare un COPIL, avec Python pour l’orchestration, CSAgent pour la lecture et la rédaction, et une validation humaine.">
+<style>
+/* Mêmes couleurs, polices et contrastes (WCAG AA) que l'application CSFlow.
+   Tailles en rem : elles suivent la taille de texte du navigateur. */
+:root {
+  color-scheme: light;
+  --bg: #f1f5f9; --surface: #ffffff; --surface-2: #f8fafc;
+  --line: #cbd5e1; --line-ui: #64748b;
+  --text: #0f172a; --muted: #475569;
+  --brand: #1d4ed8; --brand-soft: #dbeafe; --brand-deep: #1e3a8a;
+  --head: #0f172a; --head-text: #f8fafc; --head-muted: #cbd5e1;
+  --dark: #0b1220; --dark-line: #2a3a58; --dark-text: #e2e8f0; --dark-muted: #a5b4cc;
+
+  --py: #1e3a8a;  --py-bg: #dbeafe;  --py-line: #2563eb;
+  --ia: #6b21a8;  --ia-bg: #f3e8ff;  --ia-line: #9333ea;
+  --hu: #854d0e;  --hu-bg: #fef3c7;  --hu-line: #d97706;
+  --ok: #166534;  --ok-bg: #dcfce7;  --ok-line: #16a34a;
+  --err: #991b1b; --err-bg: #fee2e2; --err-line: #dc2626;
+
+  --focus: #1d4ed8; --focus-dark: #93c5fd;
+  --font: "Segoe UI", system-ui, -apple-system, "Helvetica Neue", Arial, sans-serif;
+  --mono: "Cascadia Code", "Cascadia Mono", Consolas, "SF Mono", Menlo, monospace;
+  --r: 14px;
+}
+* { box-sizing: border-box; }
+html { font-size: 100%; scroll-behavior: smooth; }
+body { margin: 0; background: var(--bg); color: var(--text); font: 1.0625rem/1.6 var(--font); }
+h1, h2, h3, p, ul, ol { margin: 0; }
+ul, ol { padding: 0; list-style: none; }
+:focus-visible { outline: 3px solid var(--focus); outline-offset: 3px; border-radius: 6px; }
+header :focus-visible, .video-card :focus-visible { outline-color: var(--focus-dark); }
+
+.skip { position: absolute; left: 12px; top: -64px; z-index: 10; background: #fff; color: var(--text);
+        padding: 8px 14px; border-radius: 8px; border: 2px solid var(--brand); font-weight: 600; }
+.skip:focus { top: 12px; }
+.wrap { width: min(1120px, 100% - 40px); margin-inline: auto; }
+
+/* ── En-tête sombre, comme l'application ──────────────────────────────────── */
+header.top { background: var(--head); color: var(--head-text); }
+header.top .wrap { display: flex; align-items: center; gap: 16px; padding: 14px 0; flex-wrap: wrap; }
+.mark { flex: none; width: 44px; height: 44px; border-radius: 12px; color: #fff; font-weight: 800; font-size: 1.125rem;
+        background: linear-gradient(135deg, #2563eb, #7c3aed); display: grid; place-items: center; letter-spacing: -.02em; }
+.brand { display: flex; flex-direction: column; min-width: 0; }
+.brand .name { font-size: 1.5rem; font-weight: 700; line-height: 1.2; }
+.brand .name span { color: var(--focus-dark); }
+.brand .tag { font-size: 0.9375rem; color: var(--head-muted); }
+.top .spacer { flex: 1; }
+.toplinks { display: flex; gap: 6px; flex-wrap: wrap; }
+.toplinks a { color: #e2e8f0; text-decoration: none; padding: 8px 12px; border-radius: 8px; font-size: 1rem; }
+.toplinks a:hover { background: #1e293b; color: #fff; }
+.pill { display: inline-flex; align-items: center; gap: 8px; border: 1px solid #93c5fd; border-radius: 999px;
+        padding: 6px 16px; font-size: 0.9375rem; font-weight: 600; background: #1e3a8a; color: #dbeafe; }
+.pill i { width: 10px; height: 10px; border-radius: 50%; background: currentColor; }
+
+/* ── Présentation ─────────────────────────────────────────────────────────── */
+.hero { padding: 40px 0 24px; }
+.eyebrow { font-size: 0.9375rem; font-weight: 700; color: var(--brand); }
+.hero h1 { font-size: clamp(1.75rem, 3.4vw, 2.5rem); line-height: 1.2; margin: 6px 0 12px; letter-spacing: -.01em; }
+.hero p.lead { font-size: 1.25rem; color: var(--muted); max-width: 52rem; }
+.facts { display: flex; flex-wrap: wrap; gap: 10px; margin-top: 20px; }
+.fact { background: var(--surface); border: 1px solid var(--line); border-radius: 999px; padding: 6px 16px; font-size: 0.9375rem; font-weight: 600; }
+
+/* ── Vidéo ────────────────────────────────────────────────────────────────── */
+.video-card { background: var(--dark); border: 1px solid var(--dark-line); border-radius: var(--r); overflow: hidden;
+              box-shadow: 0 10px 30px rgba(15, 23, 42, .25); }
+.video-card .bar { display: flex; align-items: center; gap: 10px; padding: 10px 16px; border-bottom: 1px solid var(--dark-line);
+                   background: #111c30; color: var(--dark-text); font-weight: 600; font-size: 0.9375rem; }
+.video-card .bar .dots { display: inline-flex; gap: 6px; }
+.video-card .bar .dots i { width: 11px; height: 11px; border-radius: 50%; background: #64748b; }
+.video-card video { display: block; width: 100%; aspect-ratio: 16 / 9; background: #000; }
+.video-hint { display: none; padding: 14px 16px; background: #78350f; color: #fef3c7; font-size: 0.9375rem; }
+.video-hint.show { display: block; }
+.video-hint code { font-family: var(--mono); background: rgba(0,0,0,.25); padding: 1px 6px; border-radius: 4px; }
+.video-note { margin-top: 12px; color: var(--muted); font-size: 0.9375rem; }
+
+/* ── Les quatre messages ──────────────────────────────────────────────────── */
+section { padding: 28px 0 8px; }
+section > .wrap > h2 { font-size: 1.5rem; line-height: 1.3; margin-bottom: 16px; }
+.cards { display: grid; gap: 16px; grid-template-columns: repeat(2, minmax(0, 1fr)); }
+.card { background: var(--surface); border: 1px solid var(--line); border-radius: var(--r); padding: 20px 22px;
+        box-shadow: 0 1px 2px rgba(15, 23, 42, .06); border-top: 5px solid var(--line-ui); }
+.card.py { border-top-color: var(--py-line); }
+.card.ia { border-top-color: var(--ia-line); }
+.card.hu { border-top-color: var(--hu-line); }
+.card h3 { display: flex; align-items: center; gap: 12px; font-size: 1.25rem; line-height: 1.3; margin-bottom: 10px; }
+.num { flex: none; width: 34px; height: 34px; border-radius: 50%; display: grid; place-items: center; font-size: 1rem; font-weight: 800;
+       background: var(--head); color: #fff; }
+.card p + p { margin-top: 10px; }
+.chip { display: inline-flex; align-items: center; gap: 6px; padding: 2px 12px; border-radius: 999px; font-size: 0.875rem; font-weight: 700; border: 1px solid; white-space: nowrap; }
+.chip.py { background: var(--py-bg); color: var(--py); border-color: var(--py-line); }
+.chip.ia { background: var(--ia-bg); color: var(--ia); border-color: var(--ia-line); }
+.chip.hu { background: var(--hu-bg); color: var(--hu); border-color: var(--hu-line); }
+.example { margin-top: 12px; padding: 12px 14px; border-radius: 10px; background: var(--ia-bg); border: 1px solid var(--ia-line); color: #3b0764; font-size: 1rem; }
+.example b { display: block; font-size: 0.875rem; color: var(--ia); margin-bottom: 2px; }
+
+/* ── Le déroulé du workflow ───────────────────────────────────────────────── */
+.flow { display: grid; gap: 14px; grid-template-columns: repeat(5, minmax(0, 1fr)); counter-reset: ph; }
+.phase { position: relative; background: var(--surface); border: 2px solid var(--line-ui); border-radius: var(--r); padding: 14px 14px 16px; }
+.phase.py { border-color: var(--py-line); background: #f5f9ff; }
+.phase.ia { border-color: var(--ia-line); background: #fbf7ff; }
+.phase.hu { border-color: var(--hu-line); background: #fffbeb; }
+.phase h3 { font-size: 1.0625rem; line-height: 1.3; margin: 8px 0 8px; }
+.phase li { font-size: 0.9375rem; line-height: 1.45; padding: 3px 0 3px 14px; position: relative; color: var(--text); }
+.phase li::before { content: ""; position: absolute; left: 0; top: .8em; width: 6px; height: 6px; border-radius: 50%; background: var(--muted); }
+.phase li small { display: block; font-size: 0.875rem; color: var(--muted); }
+.flow-note { margin-top: 14px; color: var(--muted); font-size: 0.9375rem; }
+
+/* ── Pied de page ─────────────────────────────────────────────────────────── */
+footer { margin-top: 40px; background: var(--head); color: var(--head-muted); padding: 22px 0; font-size: 0.9375rem; }
+footer .wrap { display: flex; gap: 12px 24px; justify-content: space-between; flex-wrap: wrap; }
+footer strong { color: var(--head-text); }
+
+@media (max-width: 1000px) {
+  .flow { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+}
+@media (max-width: 760px) {
+  .cards, .flow { grid-template-columns: minmax(0, 1fr); }
+  .hero { padding-top: 28px; }
+  .pill { display: none; }
+}
+@media (prefers-reduced-motion: reduce) { html { scroll-behavior: auto; } }
+@media print { header.top, footer { background: #fff; color: #000; } .video-card { display: none; } }
+</style>
+</head>
+<body>
+<a class="skip" href="#contenu">Aller au contenu</a>
+
+<header class="top">
+  <div class="wrap">
+    <div class="mark" aria-hidden="true">CS</div>
+    <div class="brand">
+      <p class="name">CS<span>Flow</span></p>
+      <p class="tag">Workflows orchestrés en Python, propulsés par CSAgent</p>
+    </div>
+    <div class="spacer"></div>
+    <nav class="toplinks" aria-label="Pages du site"><a href="index.html">Accueil</a><a href="documentation_csflow.html">Documentation</a></nav>
+    <p class="pill"><i aria-hidden="true"></i>Démonstration · projet COPIL</p>
+  </div>
+</header>
+
+<main id="contenu">
+  <div class="wrap hero">
+    <p class="eyebrow">Vidéo de démonstration</p>
+    <h1>Préparer un COPIL avec CSFlow</h1>
+    <p class="lead">Un workflow enchaîne les étapes : il prépare un plan de projet et des notes de réunion, calcule les indicateurs, fait rédiger le rapport pour la direction, et attend la validation du chef de projet avant toute diffusion.</p>
+    <ul class="facts" aria-label="Le cas de démonstration">
+      <li class="fact">Projet fictif « Refonte du portail usagers »</li>
+      <li class="fact">10 tâches et une réunion hebdomadaire</li>
+      <li class="fact">COPIL dans 6 jours</li>
+      <li class="fact">Mise en production promise au 15/12/2026</li>
+    </ul>
+  </div>
+
+  <!-- ── La vidéo ──────────────────────────────────────────────────────────── -->
+  <div class="wrap">
+    <div class="video-card">
+      <div class="bar"><span class="dots" aria-hidden="true"><i></i><i></i><i></i></span>CSFlow — Préparation du COPIL</div>
+
+      <!-- Placez votre vidéo à côté de ce fichier et adaptez le nom ci-dessous si besoin.
+           Pour une image de couverture : ajoutez  poster="couverture.jpg"  sur la balise video.
+           Pour des sous-titres :         ajoutez  <track kind="captions" src="sous-titres.vtt" srclang="fr" label="Français" default>  -->
+      <video id="demo" controls preload="metadata" playsinline aria-label="Vidéo de démonstration de CSFlow : préparation d'un COPIL">
+        <source id="demo-src" src="csflow-copil.webm" type="video/webm">
+        <p>Votre navigateur ne sait pas lire cette vidéo.
+           <a href="csflow-copil.webm">Télécharger la vidéo</a>.</p>
+      </video>
+      <p class="video-hint" id="video-hint" role="status">Vidéo introuvable : placez le fichier <code>csflow-copil.mp4</code> dans le même dossier que cette page.</p>
+    </div>
+    <p class="video-note">La vidéo montre l'exécution complète du workflow « Préparation du COPIL » dans l'interface CSFlow : le graphe se colore étape par étape et le journal d'exécution s'affiche en direct.</p>
+  </div>
+
+  <!-- ── Les quatre messages ───────────────────────────────────────────────── -->
+  <section aria-labelledby="h-messages">
+    <div class="wrap">
+      <h2 id="h-messages">L'essentiel en quatre points</h2>
+      <div class="cards">
+
+        <article class="card">
+          <h3><span class="num" aria-hidden="true">1</span>Le but du workflow</h3>
+          <p>Ce workflow prépare automatiquement le COPIL d'un projet : Python enchaîne les étapes, CSAgent analyse les notes de réunion et rédige le rapport de synthèse.</p>
+          <p><strong>Rien n'est diffusé sans l'accord du chef de projet.</strong></p>
+        </article>
+
+        <article class="card py">
+          <h3><span class="num" aria-hidden="true">2</span>Le rôle de Python <span class="chip py">⚡ Orchestration</span></h3>
+          <p>Python orchestre le workflow : il enchaîne les étapes, lance les scripts, écrit les fichiers et choisit la suite selon le statut du projet.</p>
+          <p>Il calcule aussi les indicateurs (valeur acquise, indice de performance des coûts, retards, dérive) : ces chiffres viennent du code, pas d'une IA, donc ils sont exacts et reproductibles.</p>
+        </article>
+
+        <article class="card ia">
+          <h3><span class="num" aria-hidden="true">3</span>Le rôle de CSAgent <span class="chip ia">🤖 Lecture et rédaction</span></h3>
+          <p>CSAgent, l'agent IA, lit les notes de réunion écrites en texte libre. Il en tire les risques, les actions à mener et les décisions prises, puis rédige le rapport pour la direction.</p>
+          <p>Si le statut du projet est ROUGE, il prépare aussi une note d'escalade.</p>
+          <div class="example"><b>Exemple</b>Dans les notes, quelqu'un a écrit : « le prestataire n'a pas livré, on risque de décaler la mise en production ». CSAgent le repère et en fait un risque dans le rapport.</div>
+        </article>
+
+        <article class="card hu">
+          <h3><span class="num" aria-hidden="true">4</span>Conclusion <span class="chip hu">👤 Décision humaine</span></h3>
+          <p>Chaque outil fait ce qu'il fait le mieux : le code pour les chiffres, l'IA pour la lecture et la rédaction.</p>
+          <p>Le chef de projet garde la décision finale, et chaque étape reste tracée et vérifiable.</p>
+        </article>
+
+      </div>
+    </div>
+  </section>
+
+  <!-- ── Le déroulé ────────────────────────────────────────────────────────── -->
+  <section aria-labelledby="h-flow">
+    <div class="wrap">
+      <h2 id="h-flow">Ce que vous verrez dans la vidéo</h2>
+      <ol class="flow">
+        <li class="phase py">
+          <span class="chip py">⚡ Python</span>
+          <h3>1. Les données</h3>
+          <ul>
+            <li>Plan de projet</li>
+            <li>Notes de la réunion hebdomadaire</li>
+            <li>Calculateur d'indicateurs</li>
+          </ul>
+        </li>
+        <li class="phase py">
+          <span class="chip py">⚡ Python</span>
+          <h3>2. Les indicateurs</h3>
+          <ul>
+            <li>Indicateurs de pilotage</li>
+            <li>Statut global (vert, orange ou rouge)</li>
+          </ul>
+        </li>
+        <li class="phase ia">
+          <span class="chip ia">🤖 CSAgent</span>
+          <h3>3. L'analyse</h3>
+          <ul>
+            <li>Analyse des risques</li>
+            <li>Actions et décisions</li>
+            <li>Rapport de synthèse COPIL</li>
+            <li>Note d'escalade au sponsor <small>uniquement si le statut est ROUGE</small></li>
+          </ul>
+        </li>
+        <li class="phase hu">
+          <span class="chip hu">👤 Humain</span>
+          <h3>4. La validation</h3>
+          <ul>
+            <li>Le chef de projet approuve ou rejette</li>
+            <li>S'il rejette, la diffusion est annulée</li>
+          </ul>
+        </li>
+        <li class="phase">
+          <span class="chip" style="background:var(--ok-bg);color:var(--ok);border-color:var(--ok-line)">✓ Résultat</span>
+          <h3>5. La diffusion</h3>
+          <ul>
+            <li>Relecture du rapport</li>
+            <li>Diffusion au COPIL</li>
+          </ul>
+        </li>
+      </ol>
+      <p class="flow-note">Le workflow complet compte 14 étapes dans un seul fichier YAML, relu et validé automatiquement avant chaque exécution.</p>
+    </div>
+  </section>
+</main>
+
+<footer>
+  <div class="wrap">
+    <p><strong>CSFlow</strong> — Workflows orchestrés en Python, propulsés par CSAgent</p>
+    <p>Démonstration sur un projet fictif</p>
+  </div>
+</footer>
+
+<script>
+// Si la vidéo est introuvable, on l'indique clairement au présentateur.
+(function () {
+  var src = document.getElementById('demo-src'), hint = document.getElementById('video-hint');
+  if (src && hint) src.addEventListener('error', function () { hint.classList.add('show'); });
+})();
+</script>
+</body>
+</html>

@@ -1,0 +1,1399 @@
+<!doctype html>
+<html lang="fr">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<meta name="color-scheme" content="light">
+<title>CSFlow — workflows orchestrés en Python</title>
+<style>
+/* ── Jetons de design ──────────────────────────────────────────────────────────
+   Contrastes vérifiés (WCAG AA : 4,5:1 pour le texte, 3:1 pour les bordures de
+   composants) par t/contrast_check.py. Tailles en rem : elles suivent le réglage
+   de taille de texte du navigateur. Minimum 13 px (0,8125 rem), corps 15 px. */
+:root {
+  color-scheme: light;
+
+  --bg:        #f1f5f9;
+  --surface:   #ffffff;
+  --surface-2: #f8fafc;
+  --line:      #cbd5e1;      /* séparateurs décoratifs */
+  --line-ui:   #64748b;      /* bordures de contrôles (>= 3:1) */
+  --text:      #0f172a;
+  --muted:     #475569;
+
+  --brand:      #1d4ed8;
+  --brand-ink:  #ffffff;
+  --brand-soft: #dbeafe;
+  --brand-deep: #1e3a8a;
+
+  --head:       #0f172a;
+  --head-text:  #f8fafc;
+  --head-muted: #cbd5e1;
+
+  --dark:       #0b1220;
+  --dark-2:     #111c30;
+  --dark-line:  #2a3a58;
+  --dark-text:  #e2e8f0;
+  --dark-muted: #a5b4cc;
+  --dark-num:   #8fa0bd;
+
+  --ok:   #166534; --ok-bg:   #dcfce7; --ok-line:   #16a34a;
+  --run:  #1e3a8a; --run-bg:  #dbeafe; --run-line:  #2563eb;
+  --err:  #991b1b; --err-bg:  #fee2e2; --err-line:  #dc2626;
+  --skip: #854d0e; --skip-bg: #fef3c7; --skip-line: #d97706;
+  --wait: #475569; --wait-bg: #f1f5f9; --wait-line: #64748b;
+  --branch: #6b21a8; --branch-bg: #f3e8ff; --branch-line: #9333ea;
+
+  --focus:      #1d4ed8;
+  --focus-dark: #93c5fd;
+
+  --font: "Segoe UI", system-ui, -apple-system, "Helvetica Neue", Arial, sans-serif;
+  --mono: "Cascadia Code", "Cascadia Mono", Consolas, "SF Mono", Menlo, monospace;
+  --r: 12px;
+}
+
+* { box-sizing: border-box; }
+html { font-size: 100%; }
+html, body { height: 100%; margin: 0; }
+body {
+  background: var(--bg); color: var(--text);
+  font: 0.9375rem/1.5 var(--font);
+  overflow: auto;
+}
+button { font: inherit; color: inherit; cursor: pointer; }
+button:disabled { cursor: not-allowed; }
+ul, ol { list-style: none; margin: 0; padding: 0; }
+h1, h2, h3, p { margin: 0; }
+
+:focus-visible { outline: 3px solid var(--focus); outline-offset: 2px; border-radius: 6px; }
+.top :focus-visible, .dark :focus-visible, .approval :focus-visible { outline-color: var(--focus-dark); }
+.approval :focus-visible { outline-color: #0f172a; }
+
+.sr-only { position: absolute; width: 1px; height: 1px; overflow: hidden; clip: rect(0 0 0 0); white-space: nowrap; }
+.skip { position: absolute; left: 8px; top: -60px; z-index: 10; background: #fff; color: var(--text);
+        padding: 8px 14px; border-radius: 8px; border: 2px solid var(--brand); font-weight: 600; }
+.skip:focus { top: 8px; }
+
+#app { height: 100vh; display: flex; flex-direction: column; }
+
+/* ── En-tête sombre ────────────────────────────────────────────────────────── */
+.top {
+  background: var(--head); color: var(--head-text);
+  display: flex; align-items: center; gap: 16px;
+  padding: 10px 20px; min-height: 64px; flex: none;
+}
+.mark {
+  flex: none; width: 38px; height: 38px; border-radius: 11px;
+  background: linear-gradient(135deg, #2563eb, #7c3aed); color: #fff;
+  display: grid; place-items: center; font-weight: 800; font-size: 1rem; letter-spacing: -.02em;
+}
+.top h1 { font-size: 1.25rem; line-height: 1.2; font-weight: 700; }
+.top h1 span { color: var(--focus-dark); }
+.tagline { font-size: 0.875rem; color: var(--head-muted); }
+.top .brand { display: flex; flex-direction: column; min-width: 0; }
+.top .spacer { flex: 1; }
+
+.pill {
+  display: inline-flex; align-items: center; gap: 8px; white-space: nowrap;
+  border: 1px solid #64748b; border-radius: 999px; padding: 6px 14px;
+  font-size: 0.875rem; font-weight: 600; color: var(--dark-text); background: #1e293b;
+}
+.pill .dot { width: 10px; height: 10px; border-radius: 50%; background: currentColor; }
+.pill.running { background: #1e3a8a; color: #dbeafe; border-color: #93c5fd; }
+.pill.running .dot { animation: pulse 1.2s ease-in-out infinite; }
+.pill.waiting { background: #78350f; color: #fef3c7; border-color: #fcd34d; }
+.pill.done    { background: #14532d; color: #dcfce7; border-color: #86efac; }
+.pill.error   { background: #7f1d1d; color: #fee2e2; border-color: #fca5a5; }
+@keyframes pulse { 50% { opacity: .35; } }
+
+.btn-primary {
+  min-height: 42px; padding: 0 20px; border-radius: 9px; border: 2px solid transparent;
+  background: #2563eb; color: #fff; font-size: 1rem; font-weight: 600;
+}
+.btn-primary:hover:not(:disabled) { background: #1d4ed8; }
+.btn-primary:disabled { background: #334155; color: #cbd5e1; }
+
+/* ── Bandeau d'approbation ─────────────────────────────────────────────────── */
+.approval {
+  flex: none; display: flex; align-items: center; gap: 16px; flex-wrap: wrap;
+  background: #fef3c7; color: #78350f; padding: 12px 20px;
+  border-bottom: 3px solid #d97706;
+}
+.approval .msg { flex: 1; min-width: 240px; font-size: 1rem; font-weight: 600; }
+.userinput {
+  flex: none; display: flex; flex-direction: column; gap: 10px;
+  background: #e0f2fe; color: #0c4a6e; padding: 12px 20px; border-bottom: 3px solid #0284c7;
+}
+.userinput .msg { font-size: 1rem; font-weight: 600; }
+.userinput textarea {
+  width: 100%; resize: vertical; min-height: 5.5rem; padding: 10px 12px; font: inherit; line-height: 1.5;
+  color: #0f172a; background: #fff; border: 2px solid #0369a1; border-radius: 8px;
+}
+.userinput .voice { display: flex; align-items: center; gap: 12px; flex-wrap: wrap; }
+.btn-mic { background: #0369a1; } .btn-mic:hover:not(:disabled) { background: #075985; }
+.btn-mic.rec { background: #991b1b; }
+.btn-mic:disabled { background: #475569; color: #e2e8f0; cursor: not-allowed; }
+.userinput .voice-status { color: #075985; font-size: .95rem; }
+.userinput .voice-err { color: #7f1d1d; background: #fee2e2; border: 1px solid #fca5a5; border-radius: 6px; padding: 4px 10px; font-size: .95rem; }
+.userinput .actions { display: flex; align-items: center; gap: 12px; flex-wrap: wrap; }
+.userinput .hint { color: #075985; font-size: .9rem; }
+.userinput .btn:disabled { background: #475569; color: #e2e8f0; cursor: not-allowed; }
+.userinput :focus-visible { outline-color: #0f172a; }
+.btn { min-height: 42px; padding: 0 20px; border-radius: 9px; border: 2px solid transparent; font-weight: 700; color: #fff; }
+.btn-approve { background: #166534; } .btn-approve:hover { background: #14532d; }
+.btn-reject  { background: #991b1b; } .btn-reject:hover  { background: #7f1d1d; }
+
+/* ── Grille principale ─────────────────────────────────────────────────────── */
+.grid {
+  flex: 1; min-height: 0; display: grid; gap: 12px; padding: 12px;
+  grid-template-columns: 16.25rem minmax(26rem, 1fr) 21.25rem;
+  grid-template-rows: minmax(0, var(--r1, 56.5fr)) minmax(0, var(--r2, 43.5fr));
+}
+.side   { grid-column: 1; grid-row: 1 / 3; }
+.graph  { grid-column: 2; grid-row: 1; }
+.bottom { grid-column: 2; grid-row: 2; display: grid; gap: 12px; min-height: 0; min-width: 0;
+          grid-template-columns: minmax(0, var(--c1, 45.5fr)) minmax(0, var(--c2, 54.5fr)); }
+.p-yaml   { grid-column: 1; grid-row: 1; }
+.p-events { grid-column: 2; grid-row: 1; }
+.detail { grid-column: 3; grid-row: 1 / 3; }
+.bottom-tabs { display: none; }
+main.grid.no-detail { grid-template-columns: 16.25rem minmax(0, 1fr); }
+main.grid.no-detail .detail { display: none; }
+.icon-top { flex: none; width: 44px; min-height: 44px; display: inline-flex; align-items: center; justify-content: center;
+            background: #1e293b; border: 1px solid #64748b; border-radius: 10px; color: #e2e8f0; }
+.icon-top:hover { background: #334155; }
+.icon-top[aria-pressed="true"] { background: #e2e8f0; color: #0f172a; border-color: #e2e8f0; }
+
+.card {
+  background: var(--surface); border: 1px solid var(--line); border-radius: var(--r);
+  display: flex; flex-direction: column; min-height: 0; min-width: 0; overflow: hidden;
+  box-shadow: 0 1px 2px rgba(15, 23, 42, .06);
+}
+.card-head {
+  flex: none; display: flex; align-items: center; gap: 10px; flex-wrap: wrap;
+  padding: 8px 14px; min-height: 48px; border-bottom: 1px solid var(--line);
+}
+.card-head h2 { font-size: 1rem; font-weight: 700; line-height: 1.3; }
+.card-head .grow { flex: 1; }
+.card.dark { background: var(--dark); border-color: var(--dark-line); color: var(--dark-text); }
+.card.dark .card-head { border-bottom-color: var(--dark-line); background: var(--dark-2); }
+.empty { padding: 16px; color: var(--muted); font-size: 0.9375rem; }
+.dark .empty { color: var(--dark-muted); }
+
+.chip-btn {
+  min-height: 34px; padding: 0 12px; border-radius: 8px; font-size: 0.875rem; font-weight: 600;
+  background: var(--surface); border: 1px solid var(--line-ui); color: var(--text);
+}
+.chip-btn:hover:not(:disabled):not([aria-pressed="true"]):not([aria-selected="true"]) { background: var(--brand-soft); }
+.chip-btn[aria-pressed="true"], .chip-btn[aria-selected="true"] { background: var(--brand-deep); border-color: var(--brand-deep); color: #fff; }
+.dark .chip-btn[aria-selected="true"] { background: var(--brand-deep); border-color: #93c5fd; color: #fff; }
+.dark .chip-btn { background: transparent; border-color: #8fa0bd; color: var(--dark-text); }
+.dark .chip-btn:hover:not(:disabled) { background: #1e2d49; }
+
+/* ── Barre latérale ────────────────────────────────────────────────────────── */
+.side .sec-title { padding: 12px 14px 6px; font-size: 0.875rem; font-weight: 700; color: var(--muted); }
+.wf-list { padding: 0 8px 8px; display: flex; flex-direction: column; gap: 4px; max-height: 38%; overflow: auto; flex: none; }
+.wf-btn {
+  width: 100%; text-align: left; background: transparent; border: 1px solid transparent;
+  border-radius: 9px; padding: 8px 10px; display: flex; flex-direction: column; gap: 1px;
+}
+.wf-btn .n { font-weight: 600; overflow-wrap: anywhere; }
+.wf-btn .f { font-size: 0.8125rem; color: var(--muted); overflow-wrap: anywhere; }
+.wf-btn:hover:not(:disabled) { background: #eaf0f7; }
+.wf-btn[aria-current="true"] { background: var(--brand-soft); border-color: var(--brand); color: var(--brand-deep); }
+.wf-btn:disabled { color: var(--muted); }
+.side hr { border: 0; border-top: 1px solid var(--line); margin: 4px 0 0; width: 100%; flex: none; }
+.step-list { padding: 0 8px 10px; overflow: auto; flex: 1; min-height: 0; display: flex; flex-direction: column; gap: 2px; }
+.step-btn {
+  width: 100%; text-align: left; background: transparent; border: 1px solid transparent;
+  border-radius: 9px; padding: 6px 8px; display: flex; align-items: center; gap: 10px; min-height: 48px;
+}
+.step-btn:hover { background: #eaf0f7; }
+.step-btn[aria-current="true"] { background: var(--brand-soft); border-color: var(--brand); }
+.step-btn .tx { min-width: 0; flex: 1; }
+.step-btn .nm { display: block; font-weight: 600; overflow-wrap: anywhere; line-height: 1.3; }
+.step-btn .st { display: block; font-size: 0.8125rem; color: var(--muted); }
+
+/* pastille d'état : glyphe + couleur (jamais la couleur seule) */
+.mk {
+  flex: none; width: 28px; height: 28px; border-radius: 50%; display: grid; place-items: center;
+  font-weight: 800; font-size: 0.875rem; line-height: 1; border: 2px solid var(--wait-line);
+  background: var(--wait-bg); color: var(--wait);
+}
+.mk.pending { border-style: dashed; }
+.mk.running { border-color: var(--run-line); background: var(--run-bg); color: var(--run); }
+.mk.ok      { border-color: var(--ok-line);  background: var(--ok-bg);  color: var(--ok); }
+.mk.error   { border-color: var(--err-line); background: var(--err-bg); color: var(--err); }
+.mk.skipped { border-color: var(--skip-line); background: var(--skip-bg); color: var(--skip); }
+.mk.running { animation: pulse 1.2s ease-in-out infinite; }
+
+/* ── Graphe ────────────────────────────────────────────────────────────────── */
+.legend { display: flex; gap: 6px 18px; flex-wrap: wrap; font-size: 0.8125rem; color: var(--muted); }
+.legend-bar { flex: none; padding: 6px 14px; border-top: 1px solid var(--line); background: var(--surface); }
+.legend span { display: inline-flex; align-items: center; gap: 6px; }
+.legend i { width: 16px; height: 16px; border-radius: 5px; border: 2px solid var(--wait-line); background: #fff; display: inline-block; }
+.legend i.ok      { border-color: var(--ok-line);   background: var(--ok-bg); }
+.legend i.running { border-color: var(--run-line);  background: var(--run-bg); }
+.legend i.pending { border-style: dashed; }
+.legend i.branch  { border-color: var(--branch-line); background: var(--branch-bg); border-radius: 50%; }
+.graph-body {
+  position: relative; flex: 1; min-height: 0; overflow: auto; background-color: var(--surface-2);
+  background-image: radial-gradient(#cbd5e1 1px, transparent 1px); background-size: 20px 20px;
+}
+.canvas { position: relative; margin: 0 auto; }
+.edges { position: absolute; left: 0; top: 0; pointer-events: none; }
+.node {
+  position: absolute; border-radius: 12px; text-align: left;
+  border: 2px solid var(--wait-line); background: #fff; color: var(--text);
+  display: flex; align-items: center; gap: 10px; padding: 0 12px;
+  box-shadow: 0 1px 3px rgba(15, 23, 42, .12);
+}
+.node:hover { box-shadow: 0 3px 10px rgba(15, 23, 42, .2); }
+.node .ic { flex: none; width: 2.125rem; height: 2.125rem; border-radius: 50%; display: grid; place-items: center; background: var(--wait-bg); font-size: 1rem; }
+.node .tx { min-width: 0; flex: 1; }
+.node .s { display: block; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.node .t { display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; overflow: hidden; font-weight: 700; line-height: 1.3; overflow-wrap: anywhere; }
+.node .s { font-size: 0.8125rem; color: var(--muted); }
+.node.pending { border-style: dashed; }
+.node.running { border-color: var(--run-line); background: var(--run-bg); }
+.node.ok      { border-color: var(--ok-line);  background: var(--ok-bg); }
+.node.error   { border-color: var(--err-line); background: var(--err-bg); }
+.node.skipped { border-color: var(--skip-line); background: var(--skip-bg); }
+.node.running .ic, .node.ok .ic, .node.error .ic, .node.skipped .ic { background: rgba(255, 255, 255, .75); }
+.node.is-approval { border-radius: 34px; }
+.node.is-approval .ic { background: var(--branch-bg); }
+.node.is-end { border-radius: 34px; }
+.node[aria-current="true"] { box-shadow: 0 0 0 3px #fff, 0 0 0 6px var(--brand); }
+.node:focus-visible { outline: 3px solid #0f172a; outline-offset: 8px; border-radius: 12px; }
+.node.is-approval:focus-visible, .node.is-end:focus-visible { border-radius: 34px; }
+.elabel {
+  position: absolute; transform: translate(-50%, -50%); font-size: 0.8125rem; font-weight: 700;
+  padding: 1px 9px; border-radius: 999px; background: #fff; border: 2px solid; white-space: nowrap;
+}
+.elabel.approve { color: #166534; border-color: #16a34a; }
+.elabel.reject  { color: #991b1b; border-color: #dc2626; }
+
+/* ── Détail de l'étape ─────────────────────────────────────────────────────── */
+.detail .head { padding: 12px 16px 10px; border-bottom: 1px solid var(--line); flex: none; }
+.detail .head h2 { font-size: 1.125rem; line-height: 1.3; overflow-wrap: anywhere; }
+.detail .head p  { color: var(--muted); font-size: 0.9375rem; overflow-wrap: anywhere; }
+.tabs { flex: none; display: flex; padding: 0 8px; border-bottom: 1px solid var(--line); }
+.tab {
+  background: none; border: 0; border-bottom: 3px solid transparent; min-height: 44px;
+  padding: 8px 12px; font-weight: 600; color: var(--muted);
+}
+.tab { white-space: nowrap; }
+.tab:hover { color: var(--text); }
+.tab[aria-selected="true"] { color: var(--brand); border-bottom-color: var(--brand); }
+.panel { flex: 1; min-height: 0; overflow: auto; padding: 14px 16px 18px; }
+.panel h3 { font-size: 1rem; font-weight: 700; margin: 0 0 10px; }
+.panel section + section { margin-top: 20px; }
+.kv { display: grid; grid-template-columns: 112px minmax(0, 1fr); gap: 8px 12px; margin: 0; }
+.kv dt { color: var(--muted); font-size: 0.875rem; padding-top: 1px; }
+.kv dd { margin: 0; overflow-wrap: anywhere; }
+.mono { font-family: var(--mono); font-size: 0.875rem; }
+.badge {
+  display: inline-flex; align-items: center; gap: 6px; padding: 2px 10px; border-radius: 999px;
+  font-size: 0.8125rem; font-weight: 700; border: 1px solid var(--wait-line); background: var(--wait-bg); color: var(--wait);
+}
+.badge.running { border-color: var(--run-line); background: var(--run-bg); color: var(--run); }
+.badge.ok      { border-color: var(--ok-line);  background: var(--ok-bg);  color: var(--ok); }
+.badge.error   { border-color: var(--err-line); background: var(--err-bg); color: var(--err); }
+.badge.skipped { border-color: var(--skip-line); background: var(--skip-bg); color: var(--skip); }
+.badge.type    { border-color: var(--branch-line); background: var(--branch-bg); color: var(--branch); }
+pre.block.short { max-height: 150px; }
+pre.block {
+  margin: 0; padding: 10px 12px; background: var(--surface-2); border: 1px solid var(--line-ui); border-radius: 9px;
+  font: 0.875rem/1.55 var(--mono); white-space: pre-wrap; overflow-wrap: anywhere; max-height: 260px; overflow: auto;
+}
+.lbl { display: block; font-size: 0.875rem; color: var(--muted); margin: 10px 0 4px; }
+.links { display: flex; gap: 8px; flex-wrap: wrap; }
+.link-btn {
+  min-height: 34px; padding: 0 12px; border-radius: 8px; background: var(--brand-soft);
+  border: 1px solid var(--brand); color: var(--brand-deep); font-weight: 600; font-size: 0.875rem;
+}
+.link-btn:hover { background: #bfdbfe; }
+.hist li { display: flex; gap: 10px; padding: 6px 0; border-bottom: 1px solid var(--line); }
+.hist .ts { flex: none; font: 0.8125rem/1.6 var(--mono); color: var(--muted); }
+.hist .tx { min-width: 0; overflow-wrap: anywhere; }
+
+/* ── YAML ──────────────────────────────────────────────────────────────────── */
+.yaml { margin: 0; flex: 1; min-height: 0; overflow: auto; padding: 8px 0 10px; background: var(--dark);
+        font: 0.875rem/1.65 var(--mono); color: var(--dark-text); tab-size: 2; }
+.yaml .l { display: block; white-space: pre; padding-right: 16px; border-left: 3px solid transparent; }
+.yaml .l.sel { background: rgba(59, 130, 246, .22); border-left-color: #60a5fa; }
+.yaml .n { display: inline-block; width: 3.4em; padding-right: 12px; text-align: right; color: var(--dark-num); user-select: none; }
+.yk { color: #93c5fd; } .ys { color: #86efac; } .yn { color: #fcd34d; } .yd { color: #fbbf24; }
+.yc { color: #a5b4cc; font-style: italic; } .yb { color: #cbd5e1; }
+.sync { font-size: 0.8125rem; color: #86efac; font-weight: 600; }
+
+/* ── Événements ────────────────────────────────────────────────────────────── */
+.log { flex: 1; min-height: 0; overflow: auto; padding: 8px 14px 12px; background: var(--dark); }
+.log-line { display: flex; gap: 10px; align-items: flex-start; padding: 3px 0; font: 0.875rem/1.6 var(--mono); }
+.log-ts { flex: none; color: var(--dark-num); font-size: 0.8125rem; padding-top: 1px; }
+.log-tag { flex: none; min-width: 4.4rem; text-align: center; font-size: 0.8125rem; font-weight: 700; padding: 0 8px; border-radius: 6px; }
+.tag-wf    { background: #1e3a8a; color: #dbeafe; }
+.tag-step  { background: #14532d; color: #bbf7d0; }
+.tag-agent { background: #4c1d95; color: #ede9fe; }
+.tag-tool  { background: #7c2d12; color: #fed7aa; }
+.tag-err   { background: #7f1d1d; color: #fecaca; }
+.log-main { min-width: 0; flex: 1; }
+.log-msg { display: block; white-space: pre-wrap; overflow-wrap: anywhere; color: var(--dark-text); }
+.log-msg.collapsed { max-height: 6.6em; overflow: hidden; }
+.log-toggle {
+  margin-top: 2px; padding: 2px 4px; background: none; border: 0; color: #93c5fd; font-size: 0.8125rem;
+  font-weight: 600; text-decoration: underline;
+}
+
+/* ── Poignées de redimensionnement et panneau agrandi ──────────────────────── */
+.split { position: relative; z-index: 5; display: flex; align-items: center; justify-content: center;
+         touch-action: none; border-radius: 6px; }
+.split .grip { background: var(--line-ui); border-radius: 3px; transition: background .15s; }
+.split:hover .grip, .split.drag .grip, .split:focus-visible .grip { background: var(--brand); }
+.split-h { grid-column: 2; grid-row: 1; align-self: end; height: 12px; transform: translateY(12px); cursor: row-resize; }
+.split-h .grip { width: 56px; height: 4px; }
+.split-v { grid-column: 1; grid-row: 1; justify-self: end; width: 12px; transform: translateX(12px); cursor: col-resize; }
+.split-v .grip { width: 4px; height: 56px; }
+.split:focus-visible { outline: 3px solid var(--focus); outline-offset: 0; }
+.icon-btn { width: 36px; min-height: 36px; padding: 0; display: inline-flex; align-items: center; justify-content: center; flex: none; }
+.icon-btn svg { display: block; pointer-events: none; }
+body.dragging { user-select: none; -webkit-user-select: none; }
+
+.grid.mx-graph .bottom, .grid[class*="mx-"] .split-h { display: none; }
+.grid.mx-graph .graph { grid-row: 1 / 3; }
+.grid.mx-yaml .graph, .grid.mx-events .graph { display: none; }
+.grid.mx-yaml .bottom, .grid.mx-events .bottom { grid-row: 1 / 3; grid-template-columns: minmax(0, 1fr); grid-template-rows: minmax(0, 1fr); }
+.grid.mx-yaml .bottom-tabs, .grid.mx-events .bottom-tabs, .grid[class*="mx-"] .split-v { display: none; }
+.grid.mx-yaml .p-events, .grid.mx-events .p-yaml { display: none; }
+.grid.mx-yaml .p-yaml, .grid.mx-events .p-events { grid-column: 1; grid-row: 1; }
+
+/* ── Écrans moyens : YAML et événements en onglets ─────────────────────────── */
+@media (max-width: 1399px) {
+  .grid { grid-template-columns: 15.5rem minmax(26rem, 1fr) 20.5rem; }
+  main.grid.no-detail { grid-template-columns: 15.5rem minmax(0, 1fr); }
+  .bottom { grid-template-columns: minmax(0, 1fr); grid-template-rows: auto minmax(0, 1fr); gap: 8px; }
+  .bottom-tabs { display: flex; gap: 6px; }
+  .p-yaml, .p-events { grid-column: auto; grid-row: auto; }
+  .split-v { display: none; }
+  .bottom[data-tab="yaml"]   .p-events { display: none; }
+  .bottom[data-tab="events"] .p-yaml   { display: none; }
+}
+@media (max-width: 1180px) {
+  .grid { grid-template-columns: 14.25rem minmax(24rem, 1fr) 18.75rem; }
+  main.grid.no-detail { grid-template-columns: 14.25rem minmax(0, 1fr); }
+  .tagline { display: none; }
+  .tab { padding: 8px 8px; font-size: 0.875rem; }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  *, *::before, *::after { animation: none !important; transition: none !important; scroll-behavior: auto !important; }
+}
+@media (forced-colors: active) {
+  .node, .mk, .badge, .elabel { border: 2px solid CanvasText; }
+  .node[aria-current="true"] { outline: 3px solid Highlight; }
+}
+</style>
+</head>
+<body>
+<div id="root"></div>
+
+<!-- Pont EEL (servi automatiquement par EEL sur localhost) -->
+<script type="text/javascript" src="/eel.js"></script>
+
+<!-- Umai 0.6.0 (dist/umai.min.js, fichier officiel npm, embarqué : aucun CDN) -->
+<script>
+!function(e,l){"object"==typeof exports&&"undefined"!=typeof module?l(exports):"function"==typeof define&&define.amd?define(["exports"],l):l(e.umai={})}(this,(function(e){let l=void 0,n=[],t={},f=Array.isArray,r=e=>"string"==typeof e,i=e=>"function"==typeof e,o=e=>null!==e&&!f(e)&&"object"==typeof e,u=e=>null==e?e:e.key,s=(e,n,t,f)=>{if("dom"===n);else if(n in e&&"list"!==n&&"form"!==n&&"style"!==n){if("o"===n[0]&&"n"===n[1]){let e,n=t;t=t=>(e=n(t))instanceof Promise?e.finally(n=>(f(),e=l)):(f(),e=l)}e[n]=t}else null==t||!1===t?e.removeAttribute(n):e.setAttribute(n,"style"===n&&o(t)?(r=t,Object.entries(r).map(([e,l])=>e.replace(/[A-Z]/g,e=>"-"+e.toLowerCase())+":"+l).join(";")):t);var r},p=e=>!0!==e&&!1!==e&&e?e:{type:3,tag:""},c=(e,n)=>{let f,r=e.tag.memo,o=n?n.l:l,u=e.l;return f=o&&r&&!((e,l)=>{for(let n in e)if(e[n]!==l[n])return!0;for(let n in l)if(e[n]!==l[n])return!0})(o,u)?n.t:e.tag({...u,children:e.children},o||t),"="===f.tag?f=n.t:i(f)&&(e.type=4,f.memo=r,f={...e,type:2,tag:f}),f.key=e.key,f},y=(e,n)=>{if(2===e.type||4===e.type)return e.i=((e,l)=>y(e.t=c(e),l))(e,n);let t,f=e.l,r=3===e.type?document.createTextNode(e.tag):document.createElement(e.tag);for(t in f)s(r,t,f[t],n);if(1===e.type)for(t=0;t<e.children.length;t++)r.appendChild(y(e.children[t]=p(e.children[t]),n));return e.rm=f?i(f.dom)&&f.dom(r):l,e.i=r},d=(e,n=[])=>{if(e.children!==l)for(let l=0;l<e.children.length;l++)d(e.children[l],n);if(e.t!==l)d(e.t,n);else if(i(e.rm)){let l=e.rm(e.i);l&&i(l.then)&&(n.o=!0),n.push(l)}return n},a=(e,l)=>{let n=n=>e.removeChild(l.i),t=d(l);t.o?Promise.all(t).finally(n):n()},m=(e,l,n,t,f)=>{if(null!=n&&n.tag===t.tag&&(t.rm=n.rm),n===t);else if(null!=n&&3===n.type&&3===t.type)n.tag!==t.tag&&(l.nodeValue=t.tag);else if(null==n||n.tag!==t.tag)l=e.insertBefore(y(t=p(t),f),l),null!=n&&a(e,n);else if(4===n.type&&n.tag===t.tag)t.type=4,t.t={...n.t,l:t.l,children:t.children},m(e,l,n.t,t.t,f);else if(2===n.type&&n.tag===t.tag)t.t=c(t,n),m(e,l,n.t,t.t,f);else{let e,r,i,o,c=n.l,d=t.l,g=n.children,h=t.children,b=0,j=0,k=g.length-1,v=h.length-1;for(let e in{...c,...d})("value"===e||"selected"===e||"checked"===e?l[e]:c[e])!==d[e]&&s(l,e,d[e],f);for(;j<=v&&b<=k&&null!=(i=u(g[b]))&&i===u(h[j]);)m(l,g[b].i,g[b],h[j]=p(h[j++],g[b++]),f);for(;j<=v&&b<=k&&null!=(i=u(g[k]))&&i===u(h[v]);)m(l,g[k].i,g[k],h[v]=p(h[v--],g[k--]),f);if(b>k)for(;j<=v;)l.insertBefore(y(h[j]=p(h[j++]),f),(r=g[b])&&r.i);else if(j>v)for(;b<=k;)a(l,g[b++]);else{let n={},t={};for(let e=b;e<=k;e++)null!=(i=u(g[e]))&&(n[i]=g[e]);for(;j<=v;)i=u(r=g[b]),o=u(h[j]=p(h[j])),t[i]||null!=o&&o===u(g[b+1])?(null==i&&a(l,r),b++):null==o?(null==i&&(m(l,r&&r.i,r,h[j],f),j++),b++):(i===o?(m(l,r.i,r,h[j],f),t[o]=!0,b++):null!=(e=n[o])?(m(l,l.insertBefore(e.i,r&&r.i),e,h[j],f),t[o]=!0):m(l,r&&r.i,null,h[j],f),j++);for(;b<=k;)null==u(r=g[b++])&&a(l,r);for(let e in n)null==t[e]&&a(l,n[e])}}return t.i=l},g=(e,l)=>{if(f(e))for(let n=0;n<e.length;n++)g(e[n],l);else r(e)||"number"==typeof e?l.push({type:3,tag:e}):l.push(e)};function h(e,...l){let n,t,u,s,p={},c=[],y=l[0],d=i(e)?2:1;if(null==y&&l.shift(),l.length>0&&o(y)&&!f(y.children)&&([{key:n,...p},...l]=l),r(e)){if(p.className&&(p.class=p.className),[e,...s]=e.split("."),s=s.join(" "),o(u=p.class))for(t in u)u[t]&&(s&&(s+=" "),s+=t);r(u)&&(s+=s?u?" "+u:"":u),s&&(p.class=s)}return g(l,c),"["===e?c:{type:d,tag:e,key:n,l:p,children:c}}h.retain=e=>h("="),h.Fragment="[",e.m=h,e.memo=e=>(e.memo=1)&&e,e.mount=function(e,l){e.innerHTML="<a></a>";let t={type:1,i:e=e.lastChild},f=n=>e=m(e.parentNode,e,t,t=l(),r),r=e=>requestAnimationFrame(f);return n.push(r),r()&&r},e.redraw=e=>n.map(e=>e()),e.reset=e=>n=[]}));
+</script>
+
+<!-- Application CSFlow -->
+<script>
+const { m, mount, redraw } = umai;
+
+// ── Constantes d'affichage ────────────────────────────────────────────────────
+const ICONS = {
+  agent: '🤖', shell: '⚡', python: '🐍', file_read: '📄', file_write: '✏️',
+  log: '📝', transform: '⚙️', http_get: '🌐', http_post: '🌐',
+  human_approval: '👤', user_input: '✎', mcp_tools: '🔌', mcp_call: '🔌', end: '🏁'
+};
+const TYPE_LABEL = {
+  agent: 'Agent CSAgent', shell: 'Commande shell', python: 'Script Python', file_read: 'Lecture de fichier',
+  file_write: 'Écriture de fichier', log: 'Message', transform: 'Transformation',
+  http_get: 'Requête GET', http_post: 'Requête POST', human_approval: 'Validation humaine', user_input: 'Saisie de texte', mcp_tools: 'Outils MCP', mcp_call: 'Appel MCP', end: 'Fin'
+};
+// Chaque état a un libellé ET un glyphe : l'information ne repose jamais sur la couleur seule
+const STATUS = {
+  pending: { label: 'À venir',  glyph: '○' },
+  running: { label: 'En cours', glyph: '●' },
+  ok:      { label: 'Terminé',  glyph: '✓' },
+  error:   { label: 'Erreur',   glyph: '✕' },
+  skipped: { label: 'Ignorée',  glyph: '»' }
+};
+const LOG_CLS   = { wf: 'tag-wf', step: 'tag-step', agent: 'tag-agent', tool: 'tag-tool', err: 'tag-err' };
+const LOG_LABEL = { wf: 'wf', step: 'step', agent: 'agent', tool: 'tool', err: 'erreur' };
+const MAIN_PARAM = [['prompt', 'Prompt'], ['cmd', 'Commande'], ['script', 'Script'], ['message', 'Message'], ['path', 'Chemin'],
+                    ['url', 'URL'], ['expression', 'Expression']];
+
+const clip = (v, n) => { v = String(v == null ? '' : v); return v.length > n ? v.slice(0, n) + '…' : v; };
+// CSAgent envoie les arguments d'un appel d'outil comme une chaîne JSON : on la compacte
+const argsText = a => (typeof a === 'string' ? a : JSON.stringify(a || {})).replace(/\s+/g, ' ');
+const now = () => {
+  const d = new Date();
+  return [d.getHours(), d.getMinutes(), d.getSeconds()].map(n => String(n).padStart(2, '0')).join(':');
+};
+const esc = s => s.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
+
+// ── Graphe : positions des étapes et tracé des liens ─────────────────────────
+// Dimensions en px, proportionnelles à la taille de texte du navigateur (1 rem = 16 px par défaut)
+let NW = 264, NH = 84, GX = 48, GY = 44, PAD = 28, _scale = 1;
+function updateScale() {
+  const k = (parseFloat(getComputedStyle(document.documentElement).fontSize) || 16) / 16;
+  if (Math.abs(k - _scale) < 0.01) return false;
+  _scale = k;
+  NW = Math.round(264 * k); NH = Math.round(84 * k); GX = Math.round(48 * k); GY = Math.round(44 * k); PAD = Math.round(28 * k);
+  return true;
+}
+
+// Étapes suivantes d'une étape, comme le moteur les suit
+function successors(steps, i) {
+  const s = steps[i], ids = new Set(steps.map(x => x.id)), out = [];
+  if (s.type === 'end') return out;
+  if (s.type === 'human_approval') {
+    if (s.on_approve && ids.has(s.on_approve)) out.push({ to: s.on_approve, kind: 'approve' });
+    if (s.on_reject && ids.has(s.on_reject))   out.push({ to: s.on_reject,  kind: 'reject' });
+    return out;
+  }
+  const nx = s.next || (steps[i + 1] && steps[i + 1].id);
+  if (nx && ids.has(nx)) out.push({ to: nx, kind: 'next' });
+  return out;
+}
+
+function layoutGraph(steps) {
+  if (!steps.length) return null;
+  const idx = {}; steps.forEach((s, i) => { idx[s.id] = i; });
+  const out = {}; steps.forEach((s, i) => { out[s.id] = successors(steps, i); });
+
+  // parcours en profondeur : ordre topologique, retours en arrière ignorés
+  const state = {}, back = new Set(), order = [], roots = [];
+  const dfs = id => {
+    state[id] = 1;
+    out[id].forEach(e => {
+      if (state[e.to] === 1) back.add(e);
+      else if (!state[e.to]) dfs(e.to);
+    });
+    state[id] = 2; order.push(id);
+  };
+  steps.forEach(s => { if (!state[s.id]) { roots.push(s.id); dfs(s.id); } });
+
+  const level = {}; roots.forEach(r => { level[r] = 0; });
+  order.slice().reverse().forEach(id => {
+    out[id].forEach(e => {
+      if (!back.has(e)) level[e.to] = Math.max(level[e.to] || 0, (level[id] || 0) + 1);
+    });
+  });
+
+  // regroupe par niveau
+  const levels = [];
+  steps.forEach(s => { (levels[level[s.id]] = levels[level[s.id]] || []).push(s.id); });
+  const parents = {}; // id -> [{from, rank}]
+  steps.forEach(s => out[s.id].forEach(e => {
+    if (!back.has(e)) (parents[e.to] = parents[e.to] || []).push({ from: s.id, rank: { approve: 0, next: 1, reject: 2 }[e.kind] });
+  }));
+
+  const cx = {}; // centre x de chaque nœud
+  levels.forEach((ids, L) => {
+    if (!ids) return;
+    const bary = id => {
+      const ps = (parents[id] || []).filter(p => cx[p.from] != null);
+      return ps.length ? ps.reduce((a, p) => a + cx[p.from], 0) / ps.length : null;
+    };
+    const rank = id => Math.min(...((parents[id] || [{ rank: 1 }]).map(p => p.rank)));
+    ids.sort((a, b) => ((bary(a) ?? 0) - (bary(b) ?? 0)) || (rank(a) - rank(b)) || (idx[a] - idx[b]));
+    const want = ids.map((id, k) => bary(id) ?? (k * (NW + GX)));
+    const pos = [];
+    want.forEach((w, k) => { pos.push(k ? Math.max(w, pos[k - 1] + NW + GX) : w); });
+    const shift = (want.reduce((a, b) => a + b, 0) - pos.reduce((a, b) => a + b, 0)) / ids.length;
+    ids.forEach((id, k) => { cx[id] = pos[k] + shift; });
+    // jamais de chevauchement après le recentrage
+    for (let k = 1; k < ids.length; k++) {
+      if (cx[ids[k]] - cx[ids[k - 1]] < NW + GX) cx[ids[k]] = cx[ids[k - 1]] + NW + GX;
+    }
+  });
+
+  const minX = Math.min(...Object.values(cx)) - NW / 2;
+  const nodes = steps.map(s => ({ id: s.id, x: cx[s.id] - NW / 2 - minX + PAD, y: PAD + level[s.id] * (NH + GY) }));
+  const byId = {}; nodes.forEach(n => { byId[n.id] = n; });
+  const edges = [];
+  steps.forEach(s => out[s.id].forEach(e => edges.push({ from: s.id, to: e.to, kind: e.kind, back: back.has(e) })));
+  return {
+    nodes, byId, edges,
+    width:  Math.max(...nodes.map(n => n.x)) + NW + PAD,
+    height: Math.max(...nodes.map(n => n.y)) + NH + PAD
+  };
+}
+
+const EDGE_COLOR = { next: '#475569', approve: '#16a34a', reject: '#dc2626' };
+
+// Un lien : courbe de Bézier + position de son étiquette
+function edgeGeometry(g, e) {
+  const a = g.byId[e.from], b = g.byId[e.to];
+  const x1 = a.x + NW / 2, y1 = a.y + NH, x2 = b.x + NW / 2, y2 = b.y;
+  if (e.back || y2 <= y1) { // retour en arrière : on contourne par la droite
+    const ax = a.x + NW, ay = a.y + NH / 2, bx = b.x + NW, by = b.y + NH / 2, o = 56;
+    return { d: `M${ax},${ay} C${ax + o},${ay} ${bx + o},${by} ${bx + 8},${by}`, lx: Math.max(ax, bx) + o * .75, ly: (ay + by) / 2 };
+  }
+  const k = Math.max(26, (y2 - y1) / 2);
+  const t = 0.42, u = 1 - t;
+  const px = u * u * u * x1 + 3 * u * u * t * x1 + 3 * u * t * t * x2 + t * t * t * x2;
+  const py = u * u * u * y1 + 3 * u * u * t * (y1 + k) + 3 * u * t * t * (y2 - k) + t * t * t * y2;
+  return { d: `M${x1},${y1} C${x1},${y1 + k} ${x2},${y2 - k} ${x2},${y2 - 6}`, lx: px, ly: py };
+}
+
+function edgesSvg(g) {
+  const marks = Object.entries(EDGE_COLOR).map(([k, c]) =>
+    `<marker id="ah-${k}" viewBox="0 0 10 10" refX="8" refY="5" markerWidth="8" markerHeight="8" orient="auto-start-reverse">` +
+    `<path d="M0,0 L10,5 L0,10 z" fill="${c}"/></marker>`).join('');
+  const paths = g.edges.map(e => {
+    const { d } = edgeGeometry(g, e);
+    return `<path d="${d}" fill="none" stroke="${EDGE_COLOR[e.kind]}" stroke-width="2.2" marker-end="url(#ah-${e.kind})"/>`;
+  }).join('');
+  return `<svg width="${g.width}" height="${g.height}" viewBox="0 0 ${g.width} ${g.height}" aria-hidden="true" focusable="false">` +
+         `<defs>${marks}</defs>${paths}</svg>`;
+}
+
+// ── YAML : coloration simple, ligne par ligne ────────────────────────────────
+function yamlHtml(text, from, to) {
+  let blockCol = null;
+  return text.replace(/\r/g, '').split('\n').map((src, i) => {
+    const no = i + 1;
+    const cls = 'l' + (no >= from && no <= to && from > 0 ? ' sel' : '');
+    let html;
+    const indent = (src.match(/^ */) || [''])[0].length;
+    if (blockCol != null && (!src.trim() || indent > blockCol)) {
+      html = `<span class="yb">${esc(src)}</span>`;
+    } else {
+      blockCol = null;
+      const cm = /^(\s*)(#.*)$/.exec(src);
+      const kv = /^(\s*(?:-\s+)?)([A-Za-z_][\w.-]*)(:)(.*)$/.exec(src);
+      if (cm) {
+        html = esc(cm[1]) + `<span class="yc">${esc(cm[2])}</span>`;
+      } else if (kv) {
+        const lead = esc(kv[1]).replace('-', '<span class="yd">-</span>');
+        let rest = kv[4], r;
+        if (/^\s*[|>][-+]?\s*$/.test(rest)) { blockCol = kv[1].length; r = `<span class="yd">${esc(rest)}</span>`; }
+        else if (/^\s+(['"]).*\1\s*$/.test(rest)) r = `<span class="ys">${esc(rest)}</span>`;
+        else if (/^\s+(true|false|null|-?\d+(\.\d+)?)\s*$/.test(rest)) r = `<span class="yn">${esc(rest)}</span>`;
+        else r = esc(rest);
+        html = `${lead}<span class="yk">${esc(kv[2])}</span>${esc(kv[3])}${r}`;
+      } else {
+        html = src.trim().startsWith('-') ? esc(src).replace('-', '<span class="yd">-</span>') : esc(src);
+      }
+    }
+    return `<span class="${cls}"><span class="n">${no}</span>${html || ' '}</span>`;
+  }).join('');
+}
+
+// ── Store : un simple objet, chaque mutation est suivie de redraw() ──────────
+const store = {
+  workflows: [],
+  currentPath: null,
+  wfName: '',
+  steps: [],
+  yamlText: '',
+  statuses: {},          // { step_id: 'pending'|'running'|'ok'|'error'|'skipped' }
+  outputs: {},           // { step_id: {output, duration, returncode} }
+  history: {},           // { step_id: [{ts, text}] }
+  current: null,         // étape en cours d'exécution
+  selected: null,        // étape affichée dans le panneau de détail
+  follow: true,          // suit l'étape en cours pendant l'exécution
+  detailTab: 'details',
+  bottomTab: 'events',
+  hideDetail: false,     // panneau de détail (à droite) masqué
+  maxPane: null,         // null | 'graph' | 'yaml' | 'events' (panneau agrandi)
+  logLines: [],
+  running: false,
+  result: '',            // '' | 'done' | 'error'
+  approvalVisible: false,
+  approvalMsg: '',
+  inputVisible: false,
+  inputReq: null,
+  inputText: '',
+  voiceState: 'idle',
+  voiceMsg: '',
+  voiceErr: '',
+  voiceSecs: 0,
+  graph: null,
+
+  async init() {
+    try { devtoolsLocked = !(await eel.dev_mode()()); } catch (_) { /* ancien serveur : on reste verrouillé */ }
+    try {
+      store.workflows = (await eel.list_workflows()()) || [];
+    } catch (err) {
+      console.error('[CSFlow] init error:', err);
+      store.log('err', `Impossible de lister les workflows : ${err}`);
+    }
+    redraw();
+  },
+
+  async selectWorkflow(path) {
+    if (store.running) return;
+    store.currentPath = path;
+    redraw();
+    try {
+      const data = await eel.load_workflow(path)();
+      if (!data || !data.ok) {
+        store.log('err', 'Erreur chargement : ' + ((data && data.error) || '?'));
+        return;
+      }
+      store.steps = data.steps;
+      store.wfName = data.name;
+      store.yamlText = data.yaml || '';
+      updateScale();
+      store.graph = layoutGraph(data.steps);
+      store.resetRun();
+      store.result = '';
+      store.selected = data.steps.length ? data.steps[0].id : null;
+      if (store.selected) store.focusNode(store.selected);
+      store.logLines = [];
+      store.log('wf', `Workflow « ${data.name} » chargé — ${data.steps.length} étapes`);
+    } catch (err) {
+      console.error('[CSFlow] selectWorkflow error:', err);
+      store.log('err', `Chargement impossible : ${err}`);
+    }
+    redraw();
+  },
+
+  async run() {
+    if (!store.currentPath || store.running) return;
+    store.running = true;
+    store.result = '';
+    store.follow = true;
+    store.bottomTab = 'events';
+    store.approvalVisible = false;
+    store.inputVisible = false;
+    store.resetRun();
+    store.logLines = [];
+    store.log('wf', 'Démarrage…');
+    try {
+      await eel.run_workflow(store.currentPath)();
+    } catch (err) {
+      console.error('[CSFlow] run error:', err);
+      store.running = false;
+      store.result = 'error';
+      store.log('err', `Démarrage impossible : ${err}`);
+    }
+    redraw();
+  },
+
+  async resolveApproval(answer) {
+    store.approvalVisible = false;
+    redraw();
+    try {
+      await eel.resolve_approval(answer)();
+    } catch (err) {
+      console.error('[CSFlow] resolveApproval error:', err);
+    }
+    store.log('wf', answer === 'approved' ? '✓ Approuvé' : '✗ Rejeté');
+  },
+
+  async submitInput(cancelled) {
+    const text = store.inputText;
+    if (!cancelled && store.voiceState !== 'idle') return;          // dictée en cours : on attend la transcription
+    if (!cancelled && store.inputReq && store.inputReq.required && !text.trim()) return;
+    Voice.abort();
+    store.inputVisible = false;
+    redraw();
+    try {
+      await eel.submit_input(cancelled ? '' : text, !!cancelled)();
+    } catch (err) {
+      console.error('[CSFlow] submitInput error:', err);
+    }
+    store.log('wf', cancelled ? '✗ Saisie annulée' : '✓ Texte saisi');
+  },
+
+  resetRun() {
+    store.statuses = {}; store.outputs = {}; store.history = {}; store.current = null;
+    store.steps.forEach(s => { store.statuses[s.id] = 'pending'; });
+  },
+
+  select(id, manual) {
+    store.selected = id;
+    if (manual) store.follow = false;
+    redraw();
+    store.focusNode(id);
+  },
+
+  setStatus(id, status) { store.statuses[id] = status; },
+
+  note(id, text) {
+    if (!id) return;
+    (store.history[id] = store.history[id] || []).push({ ts: now(), text: String(text) });
+  },
+
+  // Fait défiler le graphe pour montrer l'étape (après le prochain dessin)
+  focusNode(id) {
+    requestAnimationFrame(() => requestAnimationFrame(() => {
+      const host = document.getElementById('graph-body');
+      const el = host && host.querySelector(`[data-node="${CSS.escape(id)}"]`);
+      if (!host || !el) return;
+      const h = host.getBoundingClientRect(), r = el.getBoundingClientRect();
+      host.scrollTo({ top: host.scrollTop + (r.top - h.top) - h.height / 2 + r.height / 2,
+                      left: host.scrollLeft + (r.left - h.left) - h.width / 2 + r.width / 2 });
+    }));
+  },
+
+  // Appelé par Python via eel.receiveEvent(ev)
+  receiveEvent(ev) {
+    if (!ev || ev.type === 'heartbeat') return;
+    const dur  = ev.duration != null ? `  (${ev.duration}s)` : '';
+    const code = ev.returncode != null ? `  [exit ${ev.returncode}]` : '';
+    const body = ev.output ? '\n' + ev.output : '';
+    const sid  = ev.step_id || store.current;
+    switch (ev.type) {
+      case 'workflow_start':
+        store.log('wf', `▶ ${ev.name || 'workflow'} démarré` + (ev.total ? ` — ${ev.total} étapes` : ''));
+        if (ev.description) store.log('wf', ev.description);
+        break;
+      case 'step_start':
+        store.current = ev.step_id;
+        store.setStatus(ev.step_id, 'running');
+        store.note(ev.step_id, 'Démarrée');
+        if (store.follow) { store.selected = ev.step_id; store.focusNode(ev.step_id); }
+        store.log('step', `→ [${ev.index || '?'}/${ev.total || '?'}] ${ev.step_id}` +
+                          (ev.step_type ? `  (${ev.step_type})` : ''));
+        break;
+      case 'step_done':
+        store.setStatus(ev.step_id, 'ok');
+        store.outputs[ev.step_id] = { output: ev.output || '', duration: ev.duration, returncode: ev.returncode };
+        store.note(ev.step_id, `Terminée${dur}${code}`);
+        store.log('step', `✓ ${ev.step_id}${dur}${code}${body}`);
+        break;
+      case 'step_error':
+        store.setStatus(ev.step_id, 'error');
+        store.outputs[ev.step_id] = { output: ev.output || ev.message || '', duration: ev.duration, returncode: ev.returncode };
+        store.note(ev.step_id, `Échec${dur}${code}`);
+        store.log('err', `✗ ${ev.step_id}${dur}${code}${body}`);
+        break;
+      case 'step_skip':
+        store.setStatus(ev.step_id, 'skipped');
+        store.note(ev.step_id, 'Ignorée' + (ev.reason ? ` (skip_if : ${ev.reason})` : ''));
+        store.log('step', `⏭ ${ev.step_id} ignoré` + (ev.reason ? ` (skip_if : ${ev.reason})` : ''));
+        break;
+      case 'agent_thought':
+        store.note(sid, `Réflexion : ${clip(ev.data, 240)}`);
+        store.log('agent', `💭 ${ev.data == null ? '' : ev.data}`);
+        break;
+      case 'agent_call':
+        store.note(sid, `Outil ${(ev.data && ev.data.n) || '?'}`);
+        store.log('tool', `🔧 ${(ev.data && ev.data.n) || '?'}  ${argsText(ev.data && ev.data.a)}`);
+        break;
+      case 'agent_result': {
+        const ok = !(ev.data && ev.data.ok === false);
+        store.note(sid, ok ? 'Résultat reçu' : 'Résultat en échec');
+        store.log(ok ? 'tool' : 'err', `${ok ? '↩' : '✗'} ${(ev.data && ev.data.output) || ''}`);
+        break;
+      }
+      case 'workflow_warning':
+        store.log('err', `⚠ ${ev.message || ''}`);
+        break;
+      case 'agent_warning':
+        store.log('agent', `⚠ ${ev.data == null ? '' : ev.data}`);
+        break;
+      case 'agent_model':
+        break;
+      case 'human_approval_required':
+        store.approvalMsg = ev.message || 'Approuver ?';
+        store.approvalVisible = true;
+        store.note(sid, `Approbation demandée : ${ev.message || ''}`);
+        store.log('wf', `Approbation requise : ${ev.message || ''}`);
+        // le bouton « Approuver » prend le focus clavier dès qu'il apparaît
+        requestAnimationFrame(() => requestAnimationFrame(() => {
+          const b = document.getElementById('btn-approve'); if (b) b.focus();
+        }));
+        break;
+      case 'user_input_required':
+        store.inputReq = { prompt: ev.prompt || 'Saisie demandée', required: ev.required !== false, voice: !!ev.voice };
+        store.inputText = ev.default || '';
+        store.voiceState = 'idle'; store.voiceMsg = ''; store.voiceErr = '';
+        store.inputVisible = true;
+        store.note(sid, `Saisie demandée : ${ev.prompt || ''}`);
+        store.log('wf', `Saisie requise : ${ev.prompt || ''}`);
+        requestAnimationFrame(() => requestAnimationFrame(() => {
+          const t = document.getElementById('input-text'); if (t) t.focus();
+        }));
+        break;
+      case 'user_input_progress':
+        store.voiceMsg = ev.total > 1 ? `Transcription… partie ${ev.part}/${ev.total}` : 'Transcription en cours…';
+        break;
+      case 'user_input_transcribed': {
+        const t = String(ev.text || '').trim();
+        store.voiceState = 'idle';
+        if (t) {
+          store.inputText = store.inputText.trim() ? store.inputText.replace(/\s+$/, '') + '\n' + t : t;
+          store.voiceMsg = 'Transcription terminée : relisez et corrigez le texte avant de valider.';
+        } else {
+          store.voiceMsg = '';
+          store.voiceErr = 'Aucune parole détectée.';
+        }
+        requestAnimationFrame(() => requestAnimationFrame(() => {
+          const t2 = document.getElementById('input-text'); if (t2) t2.focus();
+        }));
+        break;
+      }
+      case 'user_input_error':
+        store.voiceState = 'idle'; store.voiceMsg = '';
+        store.voiceErr = ev.message || 'Transcription impossible.';
+        break;
+      case 'workflow_done':
+        store.running = false; store.result = 'done'; store.current = null;
+        store.log('wf', '✅ Workflow terminé');
+        break;
+      case 'workflow_error':
+        store.running = false; store.result = 'error'; store.current = null;
+        store.log('err', '✗ ' + (ev.message || 'Erreur inconnue'));
+        break;
+    }
+    redraw();
+  },
+
+  log(tag, msg) {
+    store.logLines.push({ tag, msg: String(msg), ts: now(), open: false });
+    redraw();
+    // redraw() planifie le dessin sur la prochaine frame ; ce callback passe après
+    requestAnimationFrame(() => {
+      const el = document.getElementById('log-body');
+      if (el) el.scrollTop = el.scrollHeight;
+    });
+  }
+};
+
+// ── Composants ───────────────────────────────────────────────────────────────
+const stepOf = id => store.steps.find(s => s.id === id);
+const statusOf = id => store.statuses[id] || 'pending';
+
+const headerState = () =>
+  store.approvalVisible ? ['waiting', 'Approbation requise'] :
+  store.inputVisible    ? ['waiting', 'Saisie requise'] :
+  store.running         ? ['running', 'En cours'] :
+  store.result === 'done'  ? ['done', 'Terminé'] :
+  store.result === 'error' ? ['error', 'Échec'] :
+  store.currentPath        ? ['', 'Prêt'] : ['', 'Aucun workflow'];
+
+const ICON_PANEL = '<svg viewBox="0 0 24 24" width="22" height="22" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true" focusable="false"><rect x="3" y="4" width="18" height="16" rx="2"/><path d="M15 4v16"/></svg>';
+const Header = () => {
+  const [cls, label] = headerState();
+  return m('header.top',
+    m('div.mark', { 'aria-hidden': 'true' }, 'CS'),
+    m('div.brand',
+      m('h1', 'CS', m('span', 'Flow')),
+      m('p.tagline', 'Workflows orchestrés en Python, propulsés par CSAgent')),
+    m('div.spacer'),
+    m('button.icon-top', {
+      id: 'btn-detail', 'aria-pressed': store.hideDetail ? 'true' : 'false',
+      'aria-label': store.hideDetail ? 'Afficher le panneau de détail' : 'Masquer le panneau de détail',
+      title: store.hideDetail ? 'Afficher le détail de l’étape' : 'Masquer le détail de l’étape',
+      onclick: () => { store.hideDetail = !store.hideDetail; saveLayout(); redraw(); },
+      innerHTML: ICON_PANEL }),
+    m('div.pill', { role: 'status', class: cls },
+      m('span.dot', { 'aria-hidden': 'true' }), label),
+    m('button.btn-primary', {
+      id: 'btn-run', disabled: !store.currentPath || store.running,
+      title: store.currentPath ? '' : 'Sélectionnez d’abord un workflow',
+      onclick: () => store.run()
+    }, store.running ? 'Exécution…' : '▶ Lancer le workflow'));
+};
+
+const ApprovalBar = () =>
+  m('div.approval', { role: 'alert' },
+    m('div.msg', 'Votre validation est requise : ', store.approvalMsg),
+    m('button.btn.btn-approve', { id: 'btn-approve', onclick: () => store.resolveApproval('approved') }, '✓ Approuver'),
+    m('button.btn.btn-reject',  { id: 'btn-reject',  onclick: () => store.resolveApproval('rejected') }, '✕ Rejeter'));
+
+// ── Dictée : enregistrement dans le navigateur, transcription par CSAgent (côté Python) ──
+const VOICE_MAX_SECONDS = 20 * 60;
+const Voice = {
+  rec: null, stream: null, chunks: [], timer: null, t0: 0, discard: false,
+  supported() { return !!(navigator.mediaDevices && navigator.mediaDevices.getUserMedia && window.MediaRecorder); },
+  releaseStream() {
+    clearInterval(Voice.timer);
+    if (Voice.stream) { Voice.stream.getTracks().forEach(t => t.stop()); Voice.stream = null; }
+  },
+  async start() {
+    store.voiceErr = ''; store.voiceMsg = '';
+    if (!Voice.supported()) {
+      store.voiceErr = 'Le micro n’est pas disponible dans ce navigateur (la page doit être ouverte en localhost).';
+      redraw(); return;
+    }
+    try {
+      Voice.stream = await navigator.mediaDevices.getUserMedia({ audio: true });
+    } catch (err) {
+      store.voiceErr = 'Micro refusé ou introuvable (' + ((err && err.name) || err) + '). Autorisez le micro puis réessayez.';
+      redraw(); return;
+    }
+    const mime = ['audio/webm;codecs=opus', 'audio/webm', 'audio/ogg;codecs=opus', 'audio/mp4']
+      .find(t => window.MediaRecorder.isTypeSupported(t)) || '';
+    Voice.chunks = []; Voice.discard = false;
+    Voice.rec = new MediaRecorder(Voice.stream, mime ? { mimeType: mime } : undefined);
+    Voice.rec.ondataavailable = e => { if (e.data && e.data.size) Voice.chunks.push(e.data); };
+    Voice.rec.onstop = () => Voice.finish(Voice.rec.mimeType || mime || 'audio/webm');
+    Voice.rec.start(1000);
+    store.voiceState = 'recording'; store.voiceSecs = 0; Voice.t0 = Date.now();
+    Voice.timer = setInterval(() => {
+      store.voiceSecs = Math.floor((Date.now() - Voice.t0) / 1000);
+      if (store.voiceSecs >= VOICE_MAX_SECONDS) Voice.stop();
+      redraw();
+    }, 500);
+    redraw();
+  },
+  stop() {
+    if (Voice.rec && Voice.rec.state !== 'inactive') Voice.rec.stop();
+    Voice.releaseStream();
+  },
+  abort() {                                    // annulation / validation : on jette l'enregistrement en cours
+    Voice.discard = true;
+    if (Voice.rec && Voice.rec.state !== 'inactive') { try { Voice.rec.stop(); } catch (_) { /* déjà arrêté */ } }
+    Voice.releaseStream();
+    store.voiceState = 'idle';
+  },
+  async finish(mime) {
+    Voice.releaseStream();
+    if (Voice.discard) { store.voiceState = 'idle'; redraw(); return; }
+    const blob = new Blob(Voice.chunks, { type: mime });
+    store.voiceState = 'transcribing'; store.voiceMsg = 'Envoi de l’enregistrement…'; redraw();
+    const b64 = await new Promise(res => {
+      const fr = new FileReader();
+      fr.onloadend = () => res(String(fr.result).split(',')[1] || '');
+      fr.readAsDataURL(blob);
+    });
+    try {
+      const r = await eel.audio_upload(b64, mime)();
+      if (!r || !r.ok) { store.voiceState = 'idle'; store.voiceMsg = ''; store.voiceErr = (r && r.error) || 'Envoi impossible.'; }
+    } catch (err) {
+      store.voiceState = 'idle'; store.voiceMsg = ''; store.voiceErr = 'Envoi impossible : ' + err;
+    }
+    redraw();
+  }
+};
+const mmss = s => String(Math.floor(s / 60)).padStart(2, '0') + ':' + String(s % 60).padStart(2, '0');
+
+const InputBar = () =>
+  m('section.userinput', { 'aria-labelledby': 'input-label' },
+    m('label.msg', { id: 'input-label', for: 'input-text' }, store.inputReq.prompt),
+    m('textarea', {
+      id: 'input-text', rows: 4, value: store.inputText,
+      'aria-required': store.inputReq.required ? 'true' : 'false',
+      oninput: e => { store.inputText = e.target.value; },
+      onkeydown: e => { if (e.key === 'Enter' && (e.ctrlKey || e.metaKey)) { e.preventDefault(); store.submitInput(false); } }
+    }),
+    store.inputReq.voice ? m('div.voice',
+      m('button.btn.btn-mic', {
+        id: 'btn-mic', type: 'button', class: store.voiceState === 'recording' ? 'rec' : '',
+        'aria-pressed': store.voiceState === 'recording' ? 'true' : 'false',
+        disabled: store.voiceState === 'transcribing',
+        onclick: () => (store.voiceState === 'recording' ? Voice.stop() : Voice.start())
+      }, store.voiceState === 'recording' ? `⏹ Arrêter (${mmss(store.voiceSecs)})`
+        : store.voiceState === 'transcribing' ? '… Transcription' : '🎙 Dicter'),
+      m('span.voice-status', { id: 'voice-status', role: 'status', 'aria-live': 'polite' },
+        store.voiceState === 'recording' ? 'Enregistrement en cours… parlez, puis cliquez sur Arrêter.' : store.voiceMsg),
+      store.voiceErr ? m('span.voice-err', { id: 'voice-err', role: 'alert' }, store.voiceErr) : null) : null,
+    m('div.actions',
+      m('button.btn.btn-approve', { id: 'btn-input-ok', disabled: store.voiceState !== 'idle' || (store.inputReq.required && !store.inputText.trim()), onclick: () => store.submitInput(false) }, '✓ Valider'),
+      m('button.btn.btn-reject',  { id: 'btn-input-cancel', onclick: () => store.submitInput(true) }, '✕ Annuler'),
+      m('span.hint', 'Ctrl + Entrée pour valider')));
+
+const Mk = id => {
+  const s = statusOf(id);
+  return m('span.mk', { class: s, 'aria-hidden': 'true' }, STATUS[s].glyph);
+};
+
+const Sidebar = () =>
+  m('nav.card.side', { 'aria-label': 'Workflows et étapes' },
+    m('h2.sec-title', { id: 'h-wf' }, 'Workflow'),
+    m('ul.wf-list', { 'aria-labelledby': 'h-wf' },
+      store.workflows.length
+        ? store.workflows.map(wf =>
+            m('li', { key: wf.path },
+              m('button.wf-btn', {
+                'aria-current': store.currentPath === wf.path ? 'true' : null,
+                disabled: store.running && store.currentPath !== wf.path,
+                title: wf.description || wf.filename,
+                onclick: () => store.selectWorkflow(wf.path)
+              }, m('span.n', wf.name), m('span.f', wf.filename))))
+        : m('li.empty', 'Aucun fichier .yaml dans workflows\\')),
+    m('hr'),
+    m('h2.sec-title', { id: 'h-steps' }, 'Étapes du workflow'),
+    m('ol.step-list', { 'aria-labelledby': 'h-steps' },
+      store.steps.length
+        ? store.steps.map(s =>
+            m('li', { key: s.index + ':' + s.id },
+              m('button.step-btn', {
+                'aria-current': store.selected === s.id ? 'true' : null,
+                onclick: () => store.select(s.id, true)
+              },
+                Mk(s.id),
+                m('span.tx',
+                  m('span.nm', s.description || s.id),
+                  m('span.st', `${s.type} · ${STATUS[statusOf(s.id)].label}`)))))
+        : m('li.empty', 'Choisissez un workflow.')));
+
+const Legend = () =>
+  m('div.legend', { 'aria-label': 'Légende' },
+    m('span', m('i.ok', { 'aria-hidden': 'true' }), '✓ Terminé'),
+    m('span', m('i.running', { 'aria-hidden': 'true' }), '● En cours'),
+    m('span', m('i.pending', { 'aria-hidden': 'true' }), '○ À venir'),
+    m('span', m('i.branch', { 'aria-hidden': 'true' }), 'Branche'));
+
+const Node = (s, pos) => {
+  const st = statusOf(s.id);
+  return m('button.node', {
+    key: s.id, 'data-node': s.id, tabindex: -1,   // la liste des étapes (à gauche) est le chemin clavier
+    class: [st, s.type === 'human_approval' ? 'is-approval' : '', s.type === 'end' ? 'is-end' : ''].join(' '),
+    style: `left:${pos.x}px;top:${pos.y}px;width:${NW}px;height:${NH}px`,
+    'aria-current': store.selected === s.id ? 'true' : null,
+    'aria-label': `${s.description || s.id}, ${TYPE_LABEL[s.type] || s.type}, état : ${STATUS[st].label}`,
+    onclick: () => store.select(s.id, true)
+  },
+    m('span.ic', { 'aria-hidden': 'true' }, ICONS[s.type] || '⬡'),
+    m('span.tx', { 'aria-hidden': 'true' },
+      m('span.t', s.description || s.id),
+      m('span.s', `${s.id} · ${s.type}`)));
+};
+
+const Graph = () => {
+  const g = store.graph;
+  return m('section.card.graph', { 'aria-labelledby': 'h-graph' },
+    m('div.card-head',
+      m('h2', { id: 'h-graph' }, store.wfName ? `Graphe du workflow — ${store.wfName}` : 'Graphe du workflow'),
+      m('div.grow'),
+      m('button.chip-btn', {
+        'aria-pressed': store.follow ? 'true' : 'false',
+        title: 'Centre le graphe sur l’étape en cours pendant l’exécution',
+        onclick: () => { store.follow = !store.follow; redraw(); }
+      }, 'Suivre l’exécution'),
+      MaxBtn('graph')),
+    m('div.graph-body', { id: 'graph-body', tabindex: 0, role: 'group',
+                          'aria-label': 'Schéma des étapes (la liste des étapes à gauche en est l’équivalent textuel)' },
+      g
+        ? m('div.canvas', { style: `width:${g.width}px;height:${g.height}px` },
+            m('div.edges', { innerHTML: edgesSvg(g) }),
+            g.edges.filter(e => e.kind !== 'next').map(e => {
+              const p = edgeGeometry(g, e);
+              return m('span.elabel', { key: `${e.from}>${e.to}`, class: e.kind, 'aria-hidden': 'true',
+                                        style: `left:${p.lx}px;top:${p.ly}px` },
+                       e.kind === 'approve' ? '✓ Approuvé' : '✕ Rejeté');
+            }),
+            store.steps.map(s => Node(s, g.byId[s.id])))
+        : m('p.empty', 'Sélectionnez un workflow dans la liste pour afficher son graphe.')),
+    m('div.legend-bar', Legend()));
+};
+
+// ── Panneau de détail (3 onglets, navigation aux flèches) ────────────────────
+const TABS = [['details', 'Détails'], ['io', 'Entrées / Sorties'], ['history', 'Historique']];
+
+const tabKeys = (list, current, set, prefix) => ev => {
+  const i = list.findIndex(t => t[0] === current);
+  let j = i;
+  if (ev.key === 'ArrowRight') j = (i + 1) % list.length;
+  else if (ev.key === 'ArrowLeft') j = (i - 1 + list.length) % list.length;
+  else if (ev.key === 'Home') j = 0;
+  else if (ev.key === 'End') j = list.length - 1;
+  else return;
+  ev.preventDefault();
+  set(list[j][0]); redraw();
+  requestAnimationFrame(() => requestAnimationFrame(() => {
+    const el = document.getElementById(`${prefix}-${list[j][0]}`); if (el) el.focus();
+  }));
+};
+
+const Badge = id => {
+  const s = statusOf(id);
+  return m('span.badge', { class: s }, `${STATUS[s].glyph} ${STATUS[s].label}`);
+};
+
+const Block = (text, label) => [
+  label ? m('span.lbl', label) : null,
+  m('pre.block', { tabindex: 0 }, text)
+];
+
+const DetailsTab = s => {
+  const main = MAIN_PARAM.find(([k]) => s.params && s.params[k] != null && s.params[k] !== '');
+  const rest = Object.entries(s.params || {}).filter(([k]) => !main || k !== main[0]);
+  const idx = store.steps.findIndex(x => x.id === s.id);
+  const nexts = successors(store.steps, idx);
+  return [
+    m('section', { 'aria-labelledby': 'h-conf' },
+      m('h3', { id: 'h-conf' }, 'Configuration'),
+      m('dl.kv',
+        m('dt', 'Type'), m('dd', m('span.badge.type', `${ICONS[s.type] || ''} ${TYPE_LABEL[s.type] || s.type}`), ' ', m('span.mono', s.type)),
+        m('dt', 'ID'), m('dd.mono', s.id),
+        m('dt', 'Nom'), m('dd', s.description || '—'),
+        m('dt', 'État'), m('dd', Badge(s.id)),
+        s.skip_if ? [m('dt', 'skip_if'), m('dd.mono', s.skip_if)] : null,
+        s.continue_on_error ? [m('dt', 'Sur erreur'), m('dd', 'le workflow continue')] : null,
+        m('dt', 'Ensuite'),
+        m('dd',
+          nexts.length
+            ? m('div.links', nexts.map(n =>
+                m('button.link-btn', { key: n.to + n.kind, onclick: () => store.select(n.to, true) },
+                  (n.kind === 'approve' ? '✓ approuvé → ' : n.kind === 'reject' ? '✕ rejeté → ' : '→ ') + n.to)))
+            : (s.type === 'end' ? 'fin du workflow' : '—'))),
+      main ? Block(s.params[main[0]], main[1]) : null),
+    rest.length ? m('section', { 'aria-labelledby': 'h-par' },
+      m('h3', { id: 'h-par' }, 'Paramètres'),
+      rest.map(([k, v]) => [m('span.lbl.mono', { key: 'l' + k }, k), m('pre.block.short', { key: 'v' + k, tabindex: 0 }, clip(v, 1500))])) : null
+  ];
+};
+
+const IoTab = s => {
+  const o = store.outputs[s.id], st = statusOf(s.id);
+  const params = Object.entries(s.params || {});
+  return [
+    m('section', { 'aria-labelledby': 'h-in' },
+      m('h3', { id: 'h-in' }, 'Entrées'),
+      params.length ? params.map(([k, v]) => [m('span.lbl.mono', { key: 'l' + k }, k), m('pre.block', { key: 'v' + k, tabindex: 0 }, v)])
+                    : m('p', 'Cette étape n’a pas de paramètre.')),
+    m('section', { 'aria-labelledby': 'h-out' },
+      m('h3', { id: 'h-out' }, 'Sortie'),
+      o
+        ? [m('p', Badge(s.id), o.duration != null ? `  ${o.duration} s` : '', o.returncode != null ? `  ·  code de sortie ${o.returncode}` : ''),
+           o.output ? m('pre.block', { tabindex: 0 }, o.output) : m('p', 'Aucune sortie.')]
+        : m('p', st === 'running' ? 'En cours d’exécution…' : st === 'skipped' ? 'Étape ignorée : pas de sortie.' : 'Pas encore exécutée.'))
+  ];
+};
+
+const HistoryTab = s => {
+  const h = store.history[s.id] || [];
+  return m('section', { 'aria-labelledby': 'h-his' },
+    m('h3', { id: 'h-his' }, 'Historique de l’exécution'),
+    h.length
+      ? m('ol.hist', h.map((e, i) => m('li', { key: i }, m('span.ts', e.ts), m('span.tx', e.text))))
+      : m('p', 'Aucun évènement pour cette étape.'));
+};
+
+const Detail = () => {
+  const s = stepOf(store.selected);
+  return m('aside.card.detail', { 'aria-label': 'Détail de l’étape' },
+    s
+      ? [
+          m('div.head', m('h2', `Étape : ${s.id}`), m('p', s.description || TYPE_LABEL[s.type] || '')),
+          m('div.tabs', { role: 'tablist', 'aria-label': 'Sections du détail',
+                          onkeydown: tabKeys(TABS, store.detailTab, t => { store.detailTab = t; }, 'tab') },
+            TABS.map(([k, label]) =>
+              m('button.tab', { key: k, id: `tab-${k}`, role: 'tab', 'aria-selected': store.detailTab === k ? 'true' : 'false',
+                                'aria-controls': 'tabpanel', tabindex: store.detailTab === k ? 0 : -1,
+                                onclick: () => { store.detailTab = k; redraw(); } }, label))),
+          m('div.panel', { id: 'tabpanel', role: 'tabpanel', 'aria-labelledby': `tab-${store.detailTab}` },
+            store.detailTab === 'io' ? IoTab(s) : store.detailTab === 'history' ? HistoryTab(s) : DetailsTab(s))
+        ]
+      : [m('div.head', m('h2', 'Détail de l’étape')),
+         m('p.empty', 'Sélectionnez une étape dans le graphe ou dans la liste.')]);
+};
+
+// ── YAML et événements ───────────────────────────────────────────────────────
+const YamlPanel = () => {
+  const s = stepOf(store.selected);
+  return m('section.card.dark.p-yaml', { 'aria-labelledby': 'h-yaml' },
+    m('div.card-head',
+      m('h2', { id: 'h-yaml' }, 'Éditeur YAML'),
+      m('div.grow'),
+      s ? m('span.sync', '● Étape ' + s.id + ' surlignée') : null,
+      MaxBtn('yaml')),
+    store.yamlText
+      ? m('pre.yaml', { id: 'yaml-body', tabindex: 0, 'aria-label': 'Contenu du fichier YAML, en lecture seule',
+                        innerHTML: yamlHtml(store.yamlText, s ? s.line_start : 0, s ? s.line_end : 0) })
+      : m('p.empty', 'Aucun workflow sélectionné.'));
+};
+
+// Une ligne de log ; les messages longs (> 6 lignes ou > 600 car.) sont repliés
+const LogLine = (l, i) => {
+  const n = l.msg.split('\n').length;
+  const long = n > 6 || l.msg.length > 600;
+  const collapsed = long && !l.open;
+  return m('div.log-line', { key: i },
+    m('span.log-ts', l.ts),
+    m('span.log-tag', { class: LOG_CLS[l.tag] || 'tag-wf' }, LOG_LABEL[l.tag] || l.tag),
+    m('div.log-main',
+      m('span.log-msg', { class: collapsed ? 'collapsed' : '' }, l.msg),
+      long
+        ? m('button.log-toggle', { 'aria-expanded': collapsed ? 'false' : 'true', onclick: () => { l.open = !l.open; redraw(); } },
+            collapsed ? (n > 1 ? `▾ voir tout (${n} lignes)` : '▾ voir tout') : '▴ réduire')
+        : null));
+};
+
+const EventsPanel = () =>
+  m('section.card.dark.p-events', { 'aria-labelledby': 'h-ev' },
+    m('div.card-head',
+      m('h2', { id: 'h-ev' }, 'Événements'),
+      m('div.grow'),
+      m('button.chip-btn.icon-btn', { id: 'clear-log', onclick: () => { store.logLines = []; redraw(); },
+        'aria-label': 'Effacer tous les événements', title: 'Effacer tous les événements', innerHTML: ICON_TRASH }),
+      MaxBtn('events')),
+    m('div.log', { id: 'log-body', role: 'log', tabindex: 0, 'aria-label': 'Journal d’exécution' },
+      store.logLines.length ? store.logLines.map((l, i) => LogLine(l, i))
+                            : m('p.empty', 'Les événements d’exécution s’afficheront ici.')));
+
+
+// ── Console de développement du navigateur (F12, clic droit › Inspecter) : masquée ──
+// Confort d'usage, pas une protection. Pour la garder : définir CSFLOW_DEBUG=1 avant de lancer l'application.
+let devtoolsLocked = true;
+document.addEventListener('contextmenu', ev => { if (devtoolsLocked) ev.preventDefault(); });
+document.addEventListener('keydown', ev => {
+  if (!devtoolsLocked) return;
+  const k = (ev.key || '').toLowerCase(), ctrl = ev.ctrlKey || ev.metaKey;
+  const devKey = ev.key === 'F12'
+    || (ctrl && ev.shiftKey && (k === 'i' || k === 'j' || k === 'c'))    // Ctrl+Maj+I / J / C
+    || (ctrl && k === 'u')                                               // Ctrl+U : code source
+    || (ev.metaKey && ev.altKey && (k === 'i' || k === 'j' || k === 'c' || k === 'u'));   // macOS
+  if (devKey) { ev.preventDefault(); ev.stopPropagation(); }
+}, true);
+
+// ── Disposition : poignées de redimensionnement, agrandir, mémorisation ──────
+const LAYOUT_KEY = 'csflow.layout.v1';
+const L_DEF = { gr: 0.565, yf: 0.455 };                 // graphe / hauteur ; YAML / largeur
+const L_LIM = { gr: [0.25, 0.8], yf: [0.25, 0.75] };
+const layout = Object.assign({}, L_DEF);
+const clampL = (k, v) => Math.min(L_LIM[k][1], Math.max(L_LIM[k][0], v));
+try {
+  const saved = JSON.parse(localStorage.getItem(LAYOUT_KEY) || 'null');
+  if (saved && saved.hd === true) store.hideDetail = true;
+  if (saved) for (const k of ['gr', 'yf']) if (typeof saved[k] === 'number' && isFinite(saved[k])) layout[k] = clampL(k, saved[k]);
+} catch (_) { /* stockage indisponible : on garde la disposition par défaut */ }
+function saveLayout() { try { localStorage.setItem(LAYOUT_KEY, JSON.stringify(Object.assign({ hd: !!store.hideDetail }, layout))); } catch (_) {} }
+const fr = v => (Math.round(v * 1000) / 10) + 'fr';
+const rowsStyle = () => `--r1:${fr(layout.gr)};--r2:${fr(1 - layout.gr)}`;
+const colsStyle = () => `--c1:${fr(layout.yf)};--c2:${fr(1 - layout.yf)}`;
+const pct = k => Math.round(layout[k] * 100);
+
+// Position du pointeur → part de l'espace (0..1), comme pour une poignée classique
+function fracFromPointer(key, e) {
+  if (key === 'gr') {
+    const a = document.querySelector('.graph').getBoundingClientRect(), b = document.querySelector('.bottom').getBoundingClientRect();
+    const total = b.bottom - a.top - 12;
+    return total > 0 ? (e.clientY - a.top - 6) / total : layout.gr;
+  }
+  const b = document.querySelector('.bottom').getBoundingClientRect();
+  return b.width > 12 ? (e.clientX - b.left - 6) / (b.width - 12) : layout.yf;
+}
+function applyLayout() {                                  // mise à jour directe pendant le glisser (sans redessiner)
+  const g = document.querySelector('main.grid'), b = document.querySelector('.bottom');
+  if (g) g.style.cssText = rowsStyle();
+  if (b) b.style.cssText = colsStyle();
+  document.querySelectorAll('.split').forEach(el => {
+    const k = el.getAttribute('data-key'); el.setAttribute('aria-valuenow', String(pct(k)));
+    el.setAttribute('aria-valuetext', splitText(k));
+  });
+}
+const splitText = k => k === 'gr' ? `Graphe : ${pct(k)} % de la hauteur` : `Éditeur YAML : ${pct(k)} % de la largeur`;
+function startDrag(ev, key) {
+  if (ev.button !== 0) return;
+  ev.preventDefault();
+  const el = ev.currentTarget;
+  try { el.setPointerCapture(ev.pointerId); } catch (_) {}
+  el.classList.add('drag'); document.body.classList.add('dragging');
+  const move = e => { layout[key] = clampL(key, fracFromPointer(key, e)); applyLayout(); };
+  const up = () => {
+    el.removeEventListener('pointermove', move); el.removeEventListener('pointerup', up); el.removeEventListener('pointercancel', up);
+    el.classList.remove('drag'); document.body.classList.remove('dragging'); saveLayout(); redraw();
+  };
+  el.addEventListener('pointermove', move); el.addEventListener('pointerup', up); el.addEventListener('pointercancel', up);
+}
+// Clavier : flèches = 2 %, Maj + flèches = 10 %, Début/Fin = limites, Entrée ou double-clic = valeur par défaut
+function splitKeys(ev, key) {
+  const dec = key === 'gr' ? 'ArrowUp' : 'ArrowLeft', inc = key === 'gr' ? 'ArrowDown' : 'ArrowRight';
+  const step = ev.shiftKey ? 0.1 : 0.02;
+  let v = layout[key];
+  if (ev.key === dec) v -= step;
+  else if (ev.key === inc) v += step;
+  else if (ev.key === 'Home') v = L_LIM[key][0];
+  else if (ev.key === 'End') v = L_LIM[key][1];
+  else if (ev.key === 'Enter') v = L_DEF[key];
+  else return;
+  ev.preventDefault();
+  layout[key] = clampL(key, v); applyLayout(); saveLayout(); redraw();
+}
+const Splitter = (key, orient, label, cls) =>
+  m('div.split.' + cls, {
+    role: 'separator', tabindex: 0, 'data-key': key, 'aria-orientation': orient, 'aria-label': label,
+    'aria-valuemin': Math.round(L_LIM[key][0] * 100), 'aria-valuemax': Math.round(L_LIM[key][1] * 100),
+    'aria-valuenow': pct(key), 'aria-valuetext': splitText(key),
+    title: 'Glisser, ou flèches du clavier (Maj : par 10 %). Entrée ou double-clic : taille par défaut.',
+    onpointerdown: ev => startDrag(ev, key), onkeydown: ev => splitKeys(ev, key),
+    ondblclick: () => { layout[key] = L_DEF[key]; applyLayout(); saveLayout(); redraw(); }
+  }, m('span.grip', { 'aria-hidden': 'true' }));
+
+// Agrandir un panneau : il occupe toute la zone centrale ; Échap ou « Restaurer » revient
+const PANE_NAME = { graph: 'Graphe', yaml: 'Éditeur YAML', events: 'Événements' };
+function toggleMax(pane) {
+  store.maxPane = store.maxPane === pane ? null : pane;
+  if (store.maxPane === 'yaml' || store.maxPane === 'events') store.bottomTab = store.maxPane;
+  redraw();
+  requestAnimationFrame(() => requestAnimationFrame(() => { const b = document.getElementById('max-' + pane); if (b) b.focus(); }));
+}
+const ICON_OPEN  = '<svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true" focusable="false"><path d="M4 9V4h5M20 9V4h-5M4 15v5h5M20 15v5h-5"/></svg>';
+const ICON_CLOSE = '<svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true" focusable="false"><path d="M9 4v5H4M15 4v5h5M9 20v-5H4M15 20v-5h5"/></svg>';
+const ICON_TRASH = '<svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true" focusable="false"><path d="M4 7h16M10 11v6M14 11v6M6 7l1 13h10l1-13M9 7V4h6v3"/></svg>';
+const MaxBtn = pane => {
+  const on = store.maxPane === pane;
+  return m('button.chip-btn.icon-btn', { id: 'max-' + pane, onclick: () => toggleMax(pane),
+    'aria-label': on ? 'Restaurer la disposition' : `Agrandir le panneau ${PANE_NAME[pane]}`,
+    title: on ? 'Restaurer la disposition (Échap)' : `Agrandir : ${PANE_NAME[pane]}`,
+    innerHTML: on ? ICON_CLOSE : ICON_OPEN });
+};
+document.addEventListener('keydown', ev => {
+  if (ev.key === 'Escape' && store.maxPane) { const p = store.maxPane; toggleMax(p); }
+});
+
+const BOTTOM_TABS = [['yaml', 'Éditeur YAML'], ['events', 'Événements']];
+const Bottom = () =>
+  m('div.bottom', { 'data-tab': store.bottomTab, style: colsStyle() },
+    m('div.bottom-tabs', { role: 'tablist', 'aria-label': 'Panneau du bas',
+                           onkeydown: tabKeys(BOTTOM_TABS, store.bottomTab, t => { store.bottomTab = t; }, 'btab') },
+      BOTTOM_TABS.map(([k, label]) =>
+        m('button.chip-btn', { key: k, id: `btab-${k}`, role: 'tab', 'aria-selected': store.bottomTab === k ? 'true' : 'false',
+                               tabindex: store.bottomTab === k ? 0 : -1,
+                               onclick: () => { store.bottomTab = k; redraw(); } }, label))),
+    YamlPanel(),
+    EventsPanel(),
+    Splitter('yf', 'vertical', 'Redimensionner la largeur de l’éditeur YAML', 'split-v'));
+
+const App = () =>
+  m('div', { id: 'app' },
+    m('a.skip', { href: '#graph-body' }, 'Aller au graphe'),
+    Header(),
+    store.approvalVisible ? ApprovalBar() : null,
+    store.inputVisible ? InputBar() : null,
+    m('main.grid', { class: (store.maxPane ? 'mx-' + store.maxPane : '') + (store.hideDetail ? ' no-detail' : ''), style: rowsStyle() },
+      Sidebar(),
+      Graph(),
+      Splitter('gr', 'horizontal', 'Redimensionner la hauteur du graphe', 'split-h'),
+      Bottom(),
+      Detail()));
+
+// Le surlignage YAML suit la sélection : on amène la première ligne surlignée à l'écran
+let _lastSel = null;
+function syncYamlScroll() {
+  const host = document.getElementById('yaml-body');
+  const key = store.currentPath + '|' + store.selected;
+  if (!host || key === _lastSel) return;
+  const el = host.querySelector('.l.sel');
+  if (!el) return;
+  _lastSel = key;
+  const h = host.getBoundingClientRect(), r = el.getBoundingClientRect();
+  host.scrollTop = Math.max(0, host.scrollTop + (r.top - h.top) - 40);
+}
+setInterval(syncYamlScroll, 250);
+
+window.addEventListener('resize', () => {
+  if (store.steps.length && updateScale()) { store.graph = layoutGraph(store.steps); redraw(); }
+});
+
+// ── Pont EEL : Python appelle eel.receiveEvent(ev) ───────────────────────────
+function receiveEvent(ev) { store.receiveEvent(ev); }
+eel.expose(receiveEvent, 'receiveEvent');
+window.__store = store;
+
+// ── Boot ──────────────────────────────────────────────────────────────────────
+mount(document.getElementById('root'), App);
+store.init();
+</script>
+</body>
+</html>

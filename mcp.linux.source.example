@@ -1,0 +1,13 @@
+// Linux/WSL, depuis les sources (app.py a cote de ce fichier) : aucun executable a compiler.
+// Prerequis : python3 (3.10 ou plus recent) et PyYAML (sudo apt install python3-yaml).
+// Cree automatiquement par start_csagent.sh quand aucun binaire CSFlow n'est a cote.
+// CSAgent --mcp-config mcp.json
+{
+  "mcpServers": {
+    "csflow": {
+      "command": "python3",
+      "args": ["app.py", "--mcp"],
+      "cwd": "."
+    }
+  }
+}

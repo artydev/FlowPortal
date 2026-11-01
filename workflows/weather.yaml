@@ -1,0 +1,229 @@
+# yaml-language-server: $schema=../csflow.schema.json
+name: weather
+description: Récupère la météo de Paris, Cuvergnon, Bordeaux, Lyon, Lille et Marseille, génère une page HTML combinée au thème bleu "award‑winning" et l'ouvre dans le navigateur par défaut (Windows et Linux).
+
+steps:
+
+  # ── 1. météo de Paris ────────────────────────────────────────────────────────
+  - id: fetch_paris
+    type: http_get
+    description: Récupération météo Paris (Open‑Meteo)
+    url: 'https://api.open-meteo.com/v1/forecast?latitude=48.8566&longitude=2.3522&current_weather=true'
+    headers:
+      User-Agent: 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0 Safari/537.36'
+      Accept: 'application/json'
+    timeout: 30
+
+  - id: save_paris_json
+    type: file_write
+    description: Sauvegarde du JSON Paris
+    path: 'tmp/weather_paris.json'
+    content: '{{fetch_paris.body}}'
+
+  # ── 2. météo de Cuvergnon ───────────────────────────────────────────────────
+  - id: fetch_cuvergnon
+    type: http_get
+    description: Récupération météo Cuvergnon (Open‑Meteo)
+    url: 'https://api.open-meteo.com/v1/forecast?latitude=49.17432&longitude=2.98942&current_weather=true'
+    headers:
+      User-Agent: 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0 Safari/537.36'
+      Accept: 'application/json'
+    timeout: 30
+
+  - id: save_cuvergnon_json
+    type: file_write
+    description: Sauvegarde du JSON Cuvergnon
+    path: 'tmp/weather_cuvergnon.json'
+    content: '{{fetch_cuvergnon.body}}'
+
+  # ── 3. météo de Bordeaux ────────────────────────────────────────────────────
+  - id: fetch_bordeaux
+    type: http_get
+    description: Récupération météo Bordeaux (Open‑Meteo)
+    url: 'https://api.open-meteo.com/v1/forecast?latitude=44.84124&longitude=-0.58046&current_weather=true'
+    headers:
+      User-Agent: 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0 Safari/537.36'
+      Accept: 'application/json'
+    timeout: 30
+
+  - id: save_bordeaux_json
+    type: file_write
+    description: Sauvegarde du JSON Bordeaux
+    path: 'tmp/weather_bordeaux.json'
+    content: '{{fetch_bordeaux.body}}'
+
+  # ── 4. météo de Lyon ────────────────────────────────────────────────────────
+  - id: fetch_lyon
+    type: http_get
+    description: Récupération météo Lyon (Open‑Meteo)
+    url: 'https://api.open-meteo.com/v1/forecast?latitude=45.74906&longitude=4.84789&current_weather=true'
+    headers:
+      User-Agent: 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0 Safari/537.36'
+      Accept: 'application/json'
+    timeout: 30
+
+  - id: save_lyon_json
+    type: file_write
+    description: Sauvegarde du JSON Lyon
+    path: 'tmp/weather_lyon.json'
+    content: '{{fetch_lyon.body}}'
+
+  # ── 5. météo de Lille ───────────────────────────────────────────────────────
+  - id: fetch_lille
+    type: http_get
+    description: Récupération météo Lille (Open‑Meteo)
+    url: 'https://api.open-meteo.com/v1/forecast?latitude=50.63391&longitude=3.05512&current_weather=true'
+    headers:
+      User-Agent: 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0 Safari/537.36'
+      Accept: 'application/json'
+    timeout: 30
+
+  - id: save_lille_json
+    type: file_write
+    description: Sauvegarde du JSON Lille
+    path: 'tmp/weather_lille.json'
+    content: '{{fetch_lille.body}}'
+
+  # ── 6. météo de Marseille ───────────────────────────────────────────────────
+  - id: fetch_marseille
+    type: http_get
+    description: Récupération météo Marseille (Open‑Meteo)
+    url: 'https://api.open-meteo.com/v1/forecast?latitude=43.29695&longitude=5.38107&current_weather=true'
+    headers:
+      User-Agent: 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0 Safari/537.36'
+      Accept: 'application/json'
+    timeout: 30
+
+  - id: save_marseille_json
+    type: file_write
+    description: Sauvegarde du JSON Marseille
+    path: 'tmp/weather_marseille.json'
+    content: '{{fetch_marseille.body}}'
+
+  # ── 7. script de génération HTML combinée ───────────────────────────────────
+  - id: write_script
+    type: file_write
+    description: Écriture du script Python qui crée la page HTML combinée et imprime son chemin file://
+    path: 'tmp/paris_cuvergnon_to_html.py'
+    content: |
+      import json, pathlib
+
+      # ---------- Chargement des réponses JSON ----------
+      def load(name):
+          with open('tmp/weather_' + name + '.json', encoding='utf-8') as f:
+              return json.load(f)
+
+      cities = {
+          'Paris':     {'file': 'paris',     'zip': None},
+          'Cuvergnon': {'file': 'cuvergnon', 'zip': '60620 · Oise, France'},
+          'Bordeaux':  {'file': 'bordeaux',  'zip': None},
+          'Lyon':      {'file': 'lyon',      'zip': None},
+          'Lille':     {'file': 'lille',     'zip': None},
+          'Marseille': {'file': 'marseille', 'zip': None},
+      }
+
+      def extract(info):
+          cw = info.get('current_weather', {})
+          return {
+              'temp': cw.get('temperature', '?'),
+              'wind': cw.get('windspeed', '?'),
+              'wdir': cw.get('winddirection', '?'),
+              'code': cw.get('weathercode', 0),
+              'time': cw.get('time', '?')
+          }
+
+      # ---------- Mapping WMO → description + emoji (fr) ----------
+      codes = {
+          0: ('Ciel dégagé', '☀️'), 1: ('Plutôt dégagé', '🌤️'),
+          2: ('Partiellement nuageux', '⛅'), 3: ('Couvert', '☁️'),
+          45: ('Brouillard', '🌫️'), 48: ('Brouillard givrant', '🌫️'),
+          51: ('Bruine légère', '🌦️'), 53: ('Bruine', '🌦️'), 55: ('Bruine dense', '🌧️'),
+          61: ('Pluie légère', '🌧️'), 63: ('Pluie', '🌧️'), 65: ('Pluie forte', '🌧️'),
+          71: ('Neige légère', '🌨️'), 73: ('Neige', '🌨️'), 75: ('Neige forte', '❄️'),
+          80: ('Averses légères', '🌦️'), 81: ('Averses', '🌧️'), 82: ('Averses violentes', '⛈️'),
+          95: ('Orage', '⛈️'), 96: ('Orage avec grêle', '⛈️'), 99: ('Orage violent', '⛈️'),
+      }
+      def desc_icon(d):
+          return codes.get(d['code'], ('Conditions inconnues', '🌡️'))
+
+      # ---------- Cardinal direction ----------
+      dirs = ['N','NE','E','SE','S','SO','O','NO']
+      def wdir_name(d):
+          return dirs[int((d % 360) / 45)] if isinstance(d, (int,float)) else '?'
+
+      # ---------- Construction du HTML (grille 2D) ----------
+      html = []
+      html.append('<!DOCTYPE html>')
+      html.append('<html lang="fr"><head><meta charset="UTF-8">')
+      html.append('<meta name="viewport" content="width=device-width, initial-scale=1.0">')
+      html.append('<title>Météo France — 6 villes</title>')
+      html.append('<style>')
+      html.append('*{margin:0;padding:0;box-sizing:border-box;}')
+      html.append('body{font-family:"Segoe UI",system-ui,sans-serif;min-height:100vh;display:flex;align-items:center;justify-content:center;background:linear-gradient(135deg,#0d47a1,#1976d2,#42a5f5);color:#fff;padding:24px;}')
+      html.append('.grid{display:grid;grid-template-columns:repeat(3,minmax(320px,1fr));grid-auto-rows:minmax(320px,auto);gap:24px;justify-items:center;align-items:stretch;max-width:1200px;margin:0 auto;width:100%;}')
+      html.append('.card{background:rgba(255,255,255,0.10);backdrop-filter:blur(18px);border:1px solid rgba(255,255,255,0.20);border-radius:28px;padding:40px 44px;max-width:360px;min-width:320px;width:100%;text-align:center;box-shadow:0 30px 60px rgba(0,0,0,0.45);}')
+      html.append('.city{font-size:15px;letter-spacing:3px;text-transform:uppercase;opacity:0.75;margin-bottom:6px;}')
+      html.append('.zip{font-size:12px;letter-spacing:2px;opacity:0.55;margin-bottom:4px;}')
+      html.append('.icon{font-size:72px;line-height:1;margin:16px 0 6px;}')
+      html.append('.temp{font-size:72px;font-weight:700;line-height:1;}')
+      html.append('.temp span{font-size:34px;font-weight:400;opacity:0.8;}')
+      html.append('.desc{font-size:20px;margin-top:10px;opacity:0.95;}')
+      html.append('.meta{display:flex;justify-content:center;gap:24px;margin-top:24px;padding-top:20px;border-top:1px solid rgba(255,255,255,0.20);font-size:13px;opacity:0.85;}')
+      html.append('.meta div{display:flex;flex-direction:column;gap:4px;}')
+      html.append('.meta .label{font-size:10px;text-transform:uppercase;letter-spacing:1.5px;opacity:0.6;}')
+      html.append('.time{margin-top:20px;font-size:12px;opacity:0.55;}')
+      html.append('@media (max-width:1400px){.grid{grid-template-columns:repeat(3,minmax(320px,1fr));}}')
+      html.append('@media (max-width:1100px){.grid{grid-template-columns:repeat(2,minmax(320px,1fr));}}')
+      html.append('@media (max-width:700px){.grid{grid-template-columns:1fr;}.card{padding:28px 24px;}.icon{font-size:60px;}.temp{font-size:60px;}.temp span{font-size:28px;}}')
+      html.append('@media (max-width:400px){.meta{gap:16px;flex-wrap:wrap;}}')
+      html.append('</style></head><body>')
+      html.append('<div class="grid">')
+
+      for name, meta in cities.items():
+          data = extract(load(meta['file']))
+          desc, icon = desc_icon(data)
+          wdir = wdir_name(data['wdir'])
+          html.append('<div class="card">')
+          html.append('<div class="city">' + name + '</div>')
+          if meta['zip']:
+              html.append('<div class="zip">' + meta['zip'] + '</div>')
+          html.append('<div class="icon">' + icon + '</div>')
+          html.append('<div class="temp">' + str(data['temp']) + '<span>°C</span></div>')
+          html.append('<div class="desc">' + desc + '</div>')
+          html.append('<div class="meta">')
+          html.append('<div><span class="label">Vent</span><span>' + str(data['wind']) + ' km/h</span></div>')
+          html.append('<div><span class="label">Direction</span><span>' + wdir + '</span></div>')
+          html.append('<div><span class="label">Code</span><span>' + str(data['code']) + '</span></div>')
+          html.append('</div>')
+          html.append('<div class="time">Observé le ' + data['time'] + '</div>')
+          html.append('</div>')
+
+      html.append('</div>')
+      html.append('</body></html>')
+
+      out_path = pathlib.Path('tmp/weather_paris_cuvergnon.html')
+      out_path.write_text('\n'.join(html), encoding='utf-8')
+      # Imprime le chemin absolu file:// pour l'ouverture dans le navigateur
+      print(out_path.resolve().as_uri())
+
+  # ── 8. exécuter le script (génère le HTML et imprime le chemin file://) ─────
+  - id: generate_html
+    type: python
+    description: Génération de la page HTML combinée et impression du chemin file://
+    script: 'tmp/paris_cuvergnon_to_html.py'
+
+  # ── 9. ouvrir la page dans le navigateur par défaut (Windows et Linux) ──────
+  - id: open_html
+    type: python
+    description: Ouverture de la page combinée dans le navigateur par défaut
+    continue_on_error: true
+    code: |
+      import webbrowser
+      if not webbrowser.open("{{generate_html.output}}".strip()):
+          print("Aucun navigateur lancé : ouvrez tmp/weather_paris_cuvergnon.html")
+
+  # ── 10. fin ────────────────────────────────────────────────────────────────
+  - id: done
+    type: log
+    level: success
+    message: "Terminé : la page météo France (6 villes) est dans tmp/weather_paris_cuvergnon.html, ouverte dans le navigateur par défaut."

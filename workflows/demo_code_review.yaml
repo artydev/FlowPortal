@@ -1,0 +1,105 @@
+# yaml-language-server: $schema=../csflow.schema.json
+name: code_review
+description: Crée un mini-projet, l'inspecte, analyse les problèmes, demande validation humaine puis corrige ou s'arrête.
+
+# Le projet d'exemple est créé dans CSFlow/tmp/mon-projet (chemin RELATIF ; les « / »
+# fonctionnent sur Windows comme sur Linux).
+# CSAgent n'écrit que dans son dossier courant — lancez-le depuis ce dossier
+# (start_agent.sh / start_agent.bat).
+
+inputs:
+  repository: 'tmp/mon-projet'
+
+steps:
+
+  # ── 0. projet d'exemple avec quelques défauts volontaires ───────────────────
+  - id: create_app
+    type: file_write
+    description: Création du projet (app.py)
+    path: 'tmp/mon-projet/app.py'
+    content: |
+      import sqlite3
+      from config import DB_PATH, ADMIN_PASSWORD
+
+      def get_user(name):
+          conn = sqlite3.connect(DB_PATH)
+          # requête construite par concaténation
+          rows = conn.execute("SELECT * FROM users WHERE name = '" + name + "'").fetchall()
+          return rows
+
+      def login(name, password):
+          try:
+              if password == ADMIN_PASSWORD:
+                  return get_user(name)
+          except:
+              pass
+
+      if __name__ == "__main__":
+          print(login(input("name: "), input("password: ")))
+    next: create_config
+
+  - id: create_config
+    type: file_write
+    description: Création du projet (config.py)
+    path: 'tmp/mon-projet/config.py'
+    content: |
+      DB_PATH = "users.db"
+      ADMIN_PASSWORD = "admin123"
+      DEBUG = True
+    next: inspect
+
+  # ── 1. inspection ───────────────────────────────────────────────────────────
+  - id: inspect
+    type: agent
+    description: Inspection du projet
+    prompt: |
+      Inspecte le projet situé dans {{ repository }} (chemin relatif).
+      Liste les fichiers présents et donne un résumé rapide de la structure.
+      Utilise uniquement des chemins relatifs : tu ne peux lire et écrire que dans le dossier courant.
+    next: analyze
+
+  # ── 2. analyse ──────────────────────────────────────────────────────────────
+  - id: analyze
+    type: agent
+    description: Analyse des problèmes
+    prompt: |
+      Sur la base de l'inspection suivante :
+
+      {{ inspect.output }}
+
+      Analyse les problèmes potentiels (qualité du code, sécurité, performances)
+      dans les fichiers de {{ repository }}.
+      Produis une liste numérotée des problèmes trouvés, du plus critique au moins critique.
+    next: approval
+
+  # ── 3. validation humaine ───────────────────────────────────────────────────
+  - id: approval
+    type: human_approval
+    description: Validation humaine
+    message: "L'analyse est terminée. Approuver les corrections automatiques ?"
+    on_approve: fix
+    on_reject: stop
+
+  # ── 4a. correction ──────────────────────────────────────────────────────────
+  - id: fix
+    type: agent
+    description: Correction des problèmes
+    prompt: |
+      Les problèmes suivants ont été validés pour correction :
+
+      {{ analyze.output }}
+
+      Corrige chaque problème dans les fichiers de {{ repository }} (chemins relatifs uniquement).
+      Résume les changements effectués.
+    next: done
+
+  # ── 4b. arrêt ───────────────────────────────────────────────────────────────
+  - id: stop
+    type: end
+    description: Arrêt du workflow
+    message: "Workflow arrêté par l'utilisateur. Aucune modification effectuée."
+
+  - id: done
+    type: end
+    description: Fin du workflow
+    message: "Workflow terminé avec succès. Corrections appliquées."

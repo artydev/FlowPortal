@@ -1,0 +1,506 @@
+# yaml-language-server: $schema=../csflow.schema.json
+name: goal-api-football
+description: >-
+  Interroge le serveur MCP de GOAL API (football) directement depuis CSFlow, sans CSAgent : liste les outils
+  du serveur, lit le quota restant, puis tente un classement. Lecture seule, aucune validation humaine nécessaire.
+
+# ─────────────────────────────────────────────────────────────────────────────
+#  Avant de lancer :
+#   1. copier mcp.goal.example en mcp.json (ou ajouter le serveur « goal-api » à votre mcp.json) ;
+#   2. définir la variable d'environnement GOAL_API_KEY (la clé n'est jamais écrite dans le fichier) ;
+#   3. lancer. L'étape « outils » écrit la liste réelle des outils et de leurs arguments dans
+#      tmp/goal/outils.txt : si le classement échoue sur un nom d'argument, corrigez « arguments »
+#      de l'étape « classement » d'après ce fichier.
+#
+#  Entrées :
+#    competition : nom du championnat (GOAL API prend les compétitions « par nom »)
+#    pays        : pays du championnat. Obligatoire en pratique : « Ligue 1 » existe dans 9 pays (France, Tunisie,
+#                  Congo, Algérie…) et le serveur refuse de choisir à votre place
+#    zone_haut   : nombre de places qualificatives à surligner en bleu (0 = aucune ; à régler selon le championnat)
+#    zone_bas    : nombre de places de relégation à surligner en rouge (0 = aucune)
+#
+#  Garde-fous : les 14 outils de GOAL API sont en lecture seule ; chaque appel compte comme une requête de
+#  votre forfait ; le texte rendu est une DONNÉE, enregistrée dans tmp/goal/ pour être relue, jamais exécutée.
+# ─────────────────────────────────────────────────────────────────────────────
+
+inputs:
+  competition: "Ligue 1"
+  pays: "France"
+  zone_haut: "0"
+  zone_bas: "0"
+
+steps:
+
+  - id: outils
+    type: mcp_tools
+    description: "Liste les outils du serveur et leurs arguments"
+    server: goal-api
+
+  - id: outils_fichier
+    type: file_write
+    description: "Garde la liste (noms des arguments) pour la consulter"
+    path: tmp/goal/outils.txt
+    content: "{{outils.output}}"
+
+  - id: quota
+    type: mcp_call
+    description: "Requêtes restantes sur votre forfait"
+    server: goal-api
+    tool: get_quota
+    save_as: tmp/goal/quota.txt
+
+  - id: quota_info
+    type: log
+    message: "{{outils.count}} outils disponibles. Quota : {{quota.output}}"
+
+  - id: raz
+    type: file_write
+    description: "Vide l'ancien classement : une erreur ne doit jamais afficher les chiffres d'un précédent lancement"
+    path: tmp/goal/classement.txt
+    content: ""
+
+  - id: classement
+    type: mcp_call
+    description: "Classement du championnat choisi"
+    server: goal-api
+    tool: get_standings
+    arguments:
+      competition: "{{competition}}"
+      country: "{{pays}}"
+    save_as: tmp/goal/classement.txt
+    max_chars: 200000
+    continue_on_error: true
+
+  - id: classement_info
+    type: log
+    skip_if: "'{{classement.status}}' != 'ok'"
+    message: "Classement de {{competition}} enregistré dans {{classement.path}}"
+
+  - id: classement_echec
+    type: log
+    level: warn
+    skip_if: "'{{classement.status}}' == 'ok'"
+    message: "Le classement a échoué ({{classement.output}}). Les arguments exacts de get_standings sont dans tmp/goal/outils.txt."
+
+  # ── page HTML du classement ─────────────────────────────────────────────────
+  # Le script lit tmp/goal/classement.txt (JSON, un objet JSON par ligne, ou tableau de texte), repère tout seul
+  # les colonnes (rang, équipe, points, buts, forme…) et échappe tout le texte reçu : une donnée n'est jamais
+  # exécutée. Le nom de la compétition est passé en argument, jamais collé dans le code.
+  - id: page
+    type: python
+    description: "Génère la page HTML du classement"
+    args: ['{{competition}}', '{{classement.status}}', '{{zone_haut}}', '{{zone_bas}}']
+    code: |
+      import html, json, re, sys
+      from datetime import datetime
+      from pathlib import Path
+
+      competition = sys.argv[1]
+      statut = sys.argv[2]
+      zone_haut = int(re.sub(r"\D", "", sys.argv[3]) or 0) if len(sys.argv) > 3 else 0
+      zone_bas = int(re.sub(r"\D", "", sys.argv[4]) or 0) if len(sys.argv) > 4 else 0
+      e = html.escape
+
+
+      def lire_fichier(chemin):
+          try:
+              return Path(chemin).read_text(encoding="utf-8", errors="replace")
+          except OSError:
+              return ""
+
+
+      def lire_json(texte):
+          """JSON entier, ou un objet JSON par ligne ; sinon None (texte brut)."""
+          texte = texte.strip()
+          if not texte:
+              return None
+          try:
+              return json.loads(texte)
+          except ValueError:
+              pass
+          objets = []
+          for ligne in texte.splitlines():
+              try:
+                  objets.append(json.loads(ligne))
+              except ValueError:
+                  return None
+          return objets
+
+
+      def aplatir(objet, prefixe="", niveau=0):
+          sortie = {}
+          for cle, valeur in objet.items():
+              nom = prefixe + str(cle)
+              if isinstance(valeur, dict) and niveau < 2:
+                  sortie.update(aplatir(valeur, nom + ".", niveau + 1))
+              elif not isinstance(valeur, (dict, list)):
+                  sortie[nom] = valeur
+          return sortie
+
+
+      def listes(donnee):
+          """Tous les tableaux d'objets de la réponse."""
+          trouve = []
+          if isinstance(donnee, list):
+              if donnee and all(isinstance(x, dict) for x in donnee):
+                  trouve.append(donnee)
+              for x in donnee:
+                  trouve.extend(listes(x))
+          elif isinstance(donnee, dict):
+              for v in donnee.values():
+                  trouve.extend(listes(v))
+          return trouve
+
+
+      ALIAS = {
+          "rang": ["rank", "position", "pos", "place", "standing", "rang"],
+          "equipe": ["teamname", "clubname", "team", "club", "name", "equipe"],
+          "mj": ["played", "matchesplayed", "playedgames", "games", "gamesplayed", "mp", "matches", "mj"],
+          "g": ["won", "wins", "win", "w", "victoires", "g"],
+          "n": ["drawn", "draws", "draw", "d", "nuls", "n"],
+          "p": ["lost", "losses", "loss", "l", "defaites", "p"],
+          "bp": ["goalsfor", "goalsscored", "scored", "gf", "for", "bp"],
+          "bc": ["goalsagainst", "goalsconceded", "conceded", "ga", "against", "bc"],
+          "diff": ["goaldifference", "goaldiff", "gd", "diff", "difference"],
+          "pts": ["points", "pts", "point"],
+          "forme": ["form", "forme", "last5", "recentform"],
+          "logo": ["logo", "crest", "image", "badge", "logourl", "crestUrl"],
+          "zone": ["description", "zone", "note", "promotion", "status"],
+      }
+
+
+      def norm(cle):
+          return re.sub(r"[^a-z0-9]", "", cle.lower())
+
+
+      def colonne(plat, nom):
+          """Clé de la ligne qui correspond au rôle demandé (dernier segment ou clé entière)."""
+          index = {}
+          for cle in plat:
+              for morceau in (cle, cle.split(".")[-1]):
+                  index.setdefault(norm(morceau), cle)
+              if "." in cle:
+                  index.setdefault(norm(cle.replace(".", "")), cle)
+          for alias in ALIAS[nom]:
+              if norm(alias) in index:
+                  return index[norm(alias)]
+          return None
+
+
+      def nombre(v):
+          try:
+              f = float(str(v).replace(",", ".").replace("+", "").strip())
+              return int(f) if f == int(f) else f
+          except (ValueError, TypeError):
+              return None
+
+
+      texte = lire_fichier("tmp/goal/classement.txt") if statut == "ok" else ""
+      donnee = lire_json(texte)
+
+      # ── le meilleur tableau : celui dont les lignes ont des points et une équipe ──
+      meilleur, score_max = None, -1
+      for tableau in listes(donnee):
+          plat = aplatir(tableau[0])
+          score = (2 if colonne(plat, "pts") else 0) + (2 if colonne(plat, "equipe") else 0) + (1 if colonne(plat, "rang") else 0)
+          score = score * 1000 + len(tableau)
+          if score > score_max:
+              meilleur, score_max = tableau, score
+
+      lignes = []
+      if meilleur:
+          plat0 = aplatir(meilleur[0])
+          cols = {nom: colonne(plat0, nom) for nom in ALIAS}
+          if cols["pts"] and cols["equipe"]:
+              for i, brut in enumerate(meilleur):
+                  plat = aplatir(brut)
+                  ligne = {nom: plat.get(cle) if cle else None for nom, cle in cols.items()}
+                  ligne["rang"] = nombre(ligne["rang"]) or (i + 1)
+                  for k in ("mj", "g", "n", "p", "bp", "bc", "diff", "pts"):
+                      ligne[k] = nombre(ligne[k])
+                  if ligne["diff"] is None and ligne["bp"] is not None and ligne["bc"] is not None:
+                      ligne["diff"] = ligne["bp"] - ligne["bc"]
+                  ligne["equipe"] = str(ligne["equipe"])
+                  lignes.append(ligne)
+              lignes.sort(key=lambda l: l["rang"])
+
+
+      def initiales(nom):
+          mots = [m for m in re.split(r"[\s\-\.]+", nom) if m]
+          if len(mots) >= 2:
+              return (mots[0][0] + mots[1][0]).upper()
+          return nom[:2].upper() or "?"
+
+
+      def teinte(nom):
+          return sum(ord(c) * (i + 3) for i, c in enumerate(nom)) % 360
+
+
+      def ecusson(l, grand=False):
+          classe = "ecu grand" if grand else "ecu"
+          img = ""
+          logo = str(l.get("logo") or "")
+          if logo.lower().startswith("https://"):
+              img = '<img src="' + e(logo, quote=True) + '" alt="" loading="lazy" referrerpolicy="no-referrer" onload="this.style.opacity=1" onerror="this.remove()">'
+          return ('<span class="' + classe + '" style="--t:' + str(teinte(l["equipe"])) + '" aria-hidden="true"><b>'
+                  + e(initiales(l["equipe"])) + "</b>" + img + "</span>")
+
+
+      def forme(valeur):
+          if not valeur:
+              return ""
+          lettres = [c for c in str(valeur).upper() if c.isalpha()][-5:]
+          anglais = any(c in "WL" for c in lettres)
+          pastilles = []
+          for c in lettres:
+              if anglais:
+                  r = {"W": "v", "D": "n", "L": "d"}.get(c)
+              else:
+                  r = {"V": "v", "N": "n", "D": "d"}.get(c)
+              if r:
+                  pastilles.append('<i class="f ' + r + '" title="' + {"v": "Victoire", "n": "Nul", "d": "Défaite"}[r] + '">' + r.upper() + "</i>")
+          return "".join(pastilles)
+
+
+      def signe(v):
+          if v is None:
+              return "–"
+          return ("+" + str(v)) if v > 0 else str(v)
+
+
+      def cell(v):
+          return "–" if v is None else str(v)
+
+
+      # ── quota : jauge discrète ───────────────────────────────────────────────────
+      quota = lire_fichier("tmp/goal/quota.txt").strip()
+      m_limite = re.search(r'"(?:limit|quota|total)"\s*:\s*(\d+)', quota)
+      m_reste = re.search(r'"(?:remaining|left|restantes?)"\s*:\s*(\d+)', quota)
+      if m_limite and m_reste and int(m_limite.group(1)) > 0:
+          pct = max(0, min(100, round(int(m_reste.group(1)) * 100.0 / int(m_limite.group(1)))))
+          quota_html = ('<span class="quota"><span class="barre"><span style="width:' + str(pct) + '%"></span></span>'
+                        + m_reste.group(1) + " / " + m_limite.group(1) + " requêtes restantes</span>")
+      elif quota:
+          quota_html = '<span class="quota">Quota : ' + e(" ".join(quota.split())[:120]) + "</span>"
+      else:
+          quota_html = ""
+
+      # ── contenu ──────────────────────────────────────────────────────────────────
+      hero_droite = ""
+      bandeau = ""
+      if statut != "ok":
+          corps = '<p class="vide">Le classement n\'a pas pu être lu. Consultez le journal de CSFlow, puis tmp/goal/outils.txt pour les arguments de get_standings.</p>'
+      elif lignes:
+          chef = lignes[0]
+          suivant = lignes[1] if len(lignes) > 1 else None
+          ecart = (chef["pts"] - suivant["pts"]) if suivant and chef["pts"] is not None and suivant["pts"] is not None else None
+          petit = []
+          if chef["mj"] is not None:
+              petit.append(str(chef["mj"]) + " matchs")
+          if ecart is not None:
+              petit.append(("+" + str(ecart) + " point" + ("s" if ecart > 1 else "") + " sur " + e(suivant["equipe"])) if ecart > 0 else ("à égalité avec " + e(suivant["equipe"])))
+          hero_droite = ('<aside class="chef" aria-label="Leader">' + ecusson(chef, True)
+                         + '<div><p class="chef-lab">Leader</p><p class="chef-nom">' + e(chef["equipe"]) + "</p>"
+                         + ('<p class="chef-sous">' + " · ".join(petit) + "</p>" if petit else "") + "</div>"
+                         + '<p class="chef-pts"><b>' + cell(chef["pts"]) + "</b><span>pts</span></p></aside>")
+
+          tuiles = []
+          avec = [l for l in lignes if l["bp"] is not None]
+          if avec:
+              t = max(avec, key=lambda l: l["bp"])
+              tuiles.append(("Meilleure attaque", t["equipe"], str(t["bp"]) + " buts"))
+          avec = [l for l in lignes if l["bc"] is not None]
+          if avec:
+              t = min(avec, key=lambda l: l["bc"])
+              tuiles.append(("Meilleure défense", t["equipe"], str(t["bc"]) + " buts encaissés"))
+          avec = [l for l in lignes if l["g"] is not None]
+          if avec:
+              t = max(avec, key=lambda l: l["g"])
+              tuiles.append(("Le plus de victoires", t["equipe"], str(t["g"]) + " victoires"))
+          if tuiles:
+              bandeau = '<ul class="tuiles">' + "".join(
+                  "<li><span>" + e(a) + "</span><b>" + e(b) + "</b><em>" + e(c) + "</em></li>" for a, b, c in tuiles) + "</ul>"
+
+          total = len(lignes)
+          a_forme = any(l["forme"] for l in lignes)
+          a_buts = any(l["bp"] is not None for l in lignes)
+          a_g = any(l["g"] is not None for l in lignes)
+          tete = ['<th scope="col" class="c-pos">Pos</th>', '<th scope="col" class="c-eq">Équipe</th>', '<th scope="col" class="c-num" title="Matchs joués">MJ</th>']
+          if a_g:
+              tete += ['<th scope="col" class="c-num c-opt" title="Victoires">V</th>', '<th scope="col" class="c-num c-opt" title="Nuls">N</th>', '<th scope="col" class="c-num c-opt" title="Défaites">D</th>']
+          if a_buts:
+              tete.append('<th scope="col" class="c-num c-opt" title="Buts pour : buts contre">Buts</th>')
+          tete.append('<th scope="col" class="c-num" title="Différence de buts">Diff</th>')
+          tete.append('<th scope="col" class="c-num c-pts">Pts</th>')
+          if a_forme:
+              tete.append('<th scope="col" class="c-forme">Forme</th>')
+
+          rangs = []
+          for l in lignes:
+              rang = l["rang"]
+              zone, etiquette = "", ""
+              if zone_haut and rang <= zone_haut:
+                  zone, etiquette = "haut", "Places qualificatives"
+              elif zone_bas and rang > total - zone_bas:
+                  zone, etiquette = "bas", "Zone de relégation"
+              cellules = ['<td class="c-pos"><span class="pos">' + str(int(rang) if rang == int(rang) else rang) + "</span>"
+                          + ('<span class="sr">' + etiquette + "</span>" if etiquette else "") + "</td>",
+                          '<th scope="row" class="c-eq">' + ecusson(l) + '<span class="nom">' + e(l["equipe"]) + "</span></th>",
+                          '<td class="c-num">' + cell(l["mj"]) + "</td>"]
+              if a_g:
+                  cellules += ['<td class="c-num c-opt">' + cell(l["g"]) + "</td>", '<td class="c-num c-opt">' + cell(l["n"]) + "</td>", '<td class="c-num c-opt">' + cell(l["p"]) + "</td>"]
+              if a_buts:
+                  cellules.append('<td class="c-num c-opt">' + cell(l["bp"]) + ":" + cell(l["bc"]) + "</td>")
+              d = l["diff"]
+              cellules.append('<td class="c-num ' + ("pos-d" if d and d > 0 else "neg-d" if d and d < 0 else "") + '">' + signe(d) + "</td>")
+              cellules.append('<td class="c-num c-pts"><b>' + cell(l["pts"]) + "</b></td>")
+              if a_forme:
+                  cellules.append('<td class="c-forme">' + forme(l["forme"]) + "</td>")
+              rangs.append('<tr class="' + ("zone-" + zone if zone else "") + (" tete" if rang == lignes[0]["rang"] else "") + '">' + "".join(cellules) + "</tr>")
+
+          legende = []
+          if zone_haut:
+              legende.append('<li><i class="cle haut"></i>Places qualificatives (' + str(zone_haut) + " premières)</li>")
+          if zone_bas:
+              legende.append('<li><i class="cle bas"></i>Zone de relégation (' + str(zone_bas) + " dernières)</li>")
+          corps = ('<div class="carte"><table><caption class="sr">Classement : ' + e(competition) + "</caption><thead><tr>" + "".join(tete)
+                   + "</tr></thead><tbody>" + "".join(rangs) + "</tbody></table>"
+                   + ('<ul class="legende">' + "".join(legende) + "</ul>" if legende else "") + "</div>")
+      elif texte.strip() and donnee not in ([], {}):
+          # format inconnu : une table par colonnes séparées par 2 espaces, sinon le texte tel quel
+          brut = [l for l in texte.splitlines() if l.strip()]
+          cellules = [re.split(r"\s{2,}|\t", l.strip()) for l in brut]
+          if len(brut) >= 2 and all(len(c) >= 2 for c in cellules):
+              corps = '<div class="carte"><table><tbody>' + "".join("<tr>" + "".join("<td>" + e(x) + "</td>" for x in c) + "</tr>" for c in cellules) + "</tbody></table></div>"
+          else:
+              corps = '<pre class="brut">' + e(texte) + "</pre>"
+      else:
+          corps = '<p class="vide">Aucun classement renvoyé pour cette compétition.</p>'
+
+      CSS = """
+      :root{--craie:#edf0eb;--carte:#fff;--encre:#0f1f19;--doux:#5b6b64;--ligne:#dfe5df;--pitch:#0c4a35;--pitch2:#093c2b;
+      --lumiere:#f6c823;--haut:#1f5fd6;--bas:#d4372d;--v:#1f9d63;--n:#98a39d;--d:#d4372d}
+      @media (prefers-color-scheme:dark){:root{--craie:#0b1310;--carte:#121d18;--encre:#eaf1ec;--doux:#9aaba2;--ligne:#22322a;--pitch:#0a3a2a;--pitch2:#072b1f;--haut:#6c9cff;--bas:#ff7a70;--v:#3dc384;--n:#7f8c85;--d:#ff7a70}}
+      *{box-sizing:border-box}
+      html{-webkit-text-size-adjust:100%}
+      body{margin:0;background:var(--craie);color:var(--encre);font:16px/1.45 system-ui,-apple-system,"Segoe UI",sans-serif;font-variant-numeric:tabular-nums}
+      .sr{position:absolute;width:1px;height:1px;overflow:hidden;clip:rect(0 0 0 0);white-space:nowrap}
+      .titre,.chef-nom,.chef-pts,.tuiles b,th,.pos{font-family:Bahnschrift,"DIN Alternate","Roboto Condensed","Arial Narrow",system-ui,sans-serif}
+      .pelouse{position:relative;overflow:hidden;color:#fff;background-color:var(--pitch);
+      background-image:repeating-linear-gradient(90deg,rgba(255,255,255,.045) 0 72px,transparent 72px 144px);padding:44px 20px 92px}
+      .pelouse::before{content:"";position:absolute;right:-110px;top:-120px;width:460px;height:460px;border:3px solid rgba(255,255,255,.16);border-radius:50%}
+      .pelouse::after{content:"";position:absolute;right:119px;top:0;bottom:0;border-left:3px solid rgba(255,255,255,.16)}
+      .pelouse-in{position:relative;z-index:1;max-width:1040px;margin:0 auto;display:flex;gap:28px;align-items:flex-end;justify-content:space-between;flex-wrap:wrap}
+      .titre{margin:0;font-weight:800;font-stretch:condensed;font-size:clamp(40px,8vw,84px);line-height:.95;letter-spacing:-.01em}
+      .sous{margin:12px 0 0;color:rgba(255,255,255,.78);font-size:15px}
+      .chef{display:flex;align-items:center;gap:14px;background:rgba(5,30,21,.86);border:1px solid rgba(255,255,255,.18);border-radius:14px;padding:14px 18px}
+      .chef-lab{margin:0;font-size:13px;color:var(--lumiere);font-weight:600}
+      .chef-nom{margin:0;font-size:22px;font-weight:700;line-height:1.1;text-wrap:balance}
+      .chef-sous{margin:3px 0 0;font-size:13px;color:rgba(255,255,255,.75)}
+      .chef-pts{margin:0 0 0 6px;text-align:right;line-height:1}
+      .chef-pts b{display:block;font-size:46px;font-weight:800;color:var(--lumiere)}
+      .chef-pts span{font-size:12px;color:rgba(255,255,255,.7)}
+      main{position:relative;z-index:2;max-width:1040px;margin:-56px auto 0;padding:0 16px 24px}
+      .tuiles{list-style:none;margin:0 0 16px;padding:0;display:grid;grid-template-columns:repeat(auto-fit,minmax(200px,1fr));gap:12px}
+      .tuiles li{background:var(--carte);border:1px solid var(--ligne);border-radius:12px;padding:12px 16px;display:grid;gap:2px}
+      .tuiles span{font-size:13px;color:var(--doux)}
+      .tuiles b{font-size:20px;font-weight:700}
+      .tuiles em{font-style:normal;font-size:13px;color:var(--doux)}
+      .carte{background:var(--carte);border:1px solid var(--ligne);border-radius:14px;overflow:hidden;box-shadow:0 10px 30px rgba(8,30,22,.08)}
+      table{width:100%;border-collapse:collapse}
+      thead th{position:sticky;top:0;background:var(--carte);z-index:1;font-size:13px;font-weight:600;color:var(--doux);text-align:left;padding:12px 10px;border-bottom:2px solid var(--ligne)}
+      tbody tr{border-top:1px solid var(--ligne)}
+      tbody tr:hover{background:color-mix(in srgb,var(--lumiere) 10%,transparent)}
+      td,tbody th{padding:10px;vertical-align:middle;font-weight:400;text-align:left}
+      .c-num{text-align:center;width:46px}
+      .c-pos{width:56px;border-left:5px solid transparent}
+      .zone-haut .c-pos{border-left-color:var(--haut)}
+      .zone-bas .c-pos{border-left-color:var(--bas)}
+      .pos{display:inline-block;min-width:24px;font-weight:700;font-size:17px;text-align:center}
+      tr.tete{background:color-mix(in srgb,var(--lumiere) 14%,transparent)}
+      tr.tete .pos{background:var(--lumiere);color:#1b1500;border-radius:6px;padding:0 4px}
+      .c-eq{min-width:150px}
+      .nom{font-weight:600;margin-left:10px;vertical-align:middle}
+      .c-pts{width:58px}
+      .c-pts b{font-family:Bahnschrift,"DIN Alternate","Arial Narrow",system-ui,sans-serif;font-size:20px;font-weight:800}
+      .pos-d{color:var(--v);font-weight:600}.neg-d{color:var(--d);font-weight:600}
+      .c-forme{white-space:nowrap;width:140px}
+      .f{display:inline-block;width:20px;height:20px;line-height:20px;margin-right:3px;border-radius:5px;text-align:center;font-style:normal;font-size:11px;font-weight:700;color:#fff}
+      .f.v{background:var(--v)}.f.n{background:var(--n)}.f.d{background:var(--d)}
+      .ecu{position:relative;display:inline-grid;place-items:center;width:30px;height:30px;border-radius:50%;vertical-align:middle;overflow:hidden;
+      background:hsl(var(--t) 55% 40%);color:#fff;font-size:11px;flex:none}
+      .ecu.grand{width:56px;height:56px;font-size:19px;border:2px solid rgba(255,255,255,.5)}
+      .ecu b{font-weight:700}
+      .ecu img{position:absolute;inset:0;width:100%;height:100%;object-fit:contain;background:#fff;padding:3px;opacity:0}
+      .legende{list-style:none;margin:0;padding:12px 18px;display:flex;gap:22px;flex-wrap:wrap;border-top:1px solid var(--ligne);font-size:13px;color:var(--doux)}
+      .cle{display:inline-block;width:12px;height:12px;border-radius:3px;margin-right:8px;vertical-align:-1px}
+      .cle.haut{background:var(--haut)}.cle.bas{background:var(--bas)}
+      .vide,.brut{background:var(--carte);border:1px solid var(--ligne);border-radius:14px;padding:18px}
+      .brut{white-space:pre-wrap}
+      footer{max-width:1040px;margin:0 auto;padding:6px 16px 36px;display:flex;gap:10px 24px;flex-wrap:wrap;justify-content:space-between;font-size:13px;color:var(--doux)}
+      .quota{display:inline-flex;align-items:center;gap:8px}
+      .barre{display:inline-block;width:90px;height:6px;border-radius:99px;background:var(--ligne);overflow:hidden}
+      .barre span{display:block;height:100%;background:var(--v)}
+      @media (max-width:720px){.tuiles{grid-auto-flow:column;grid-template-columns:none;grid-auto-columns:72%;overflow-x:auto;scroll-snap-type:x mandatory;padding-bottom:4px}.tuiles li{scroll-snap-align:start}.c-opt{display:none}.pelouse::before,.pelouse::after{opacity:.5}.chef{width:100%}.chef-pts{margin-left:auto}.c-forme{width:auto}}
+      @media (max-width:480px){.c-forme{display:none}.nom{font-size:15px}td,tbody th,thead th{padding:9px 6px}.c-pos{width:46px}}
+      @media print{.pelouse{background:#fff;color:#000;padding:12px}.pelouse::before,.pelouse::after{display:none}.carte{box-shadow:none}}
+      """
+
+      date = datetime.now().strftime("%d/%m/%Y à %H:%M")
+      page = """<!doctype html>
+      <html lang="fr"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1">
+      <title>Classement : @@TITRE@@</title><style>@@CSS@@</style></head><body>
+      <header class="pelouse"><div class="pelouse-in">
+      <div><h1 class="titre">@@TITRE@@</h1><p class="sous">Classement général · mis à jour le @@DATE@@</p></div>
+      @@CHEF@@
+      </div></header>
+      <main>@@TUILES@@@@CORPS@@</main>
+      <footer><span>Données : GOAL API, récupérées par CSFlow (serveur MCP)</span>@@QUOTA@@</footer>
+      </body></html>
+      """
+      for cle, valeur in (("@@CSS@@", CSS), ("@@TITRE@@", e(competition)), ("@@DATE@@", date), ("@@CHEF@@", hero_droite),
+                          ("@@TUILES@@", bandeau), ("@@CORPS@@", corps), ("@@QUOTA@@", quota_html)):
+          page = page.replace(cle, valeur)
+
+      sortie = Path("tmp/goal/classement.html")
+      sortie.parent.mkdir(parents=True, exist_ok=True)
+      sortie.write_text(page, encoding="utf-8")
+      print("Page générée : " + str(sortie.resolve()))
+
+  # ── ouverture dans Microsoft Edge ───────────────────────────────────────────
+  - id: ouvrir_edge
+    type: python
+    description: "Ouverture de la page HTML dans Edge"
+    continue_on_error: true
+    code: |
+      import os, platform, shutil, subprocess, sys
+      from pathlib import Path
+
+      chemin = os.path.abspath("tmp/goal/classement.html")
+      uri = Path(chemin).as_uri()
+      ok = False
+      try:
+          if sys.platform == "win32":
+              # « start msedge » trouve Edge par son nom d'application, sans connaître son dossier
+              subprocess.Popen(["cmd", "/c", "start", "", "msedge", uri])
+              ok = True
+          elif sys.platform == "darwin":
+              ok = subprocess.run(["open", "-a", "Microsoft Edge", chemin]).returncode == 0
+          elif "microsoft" in platform.uname().release.lower():       # WSL : on ouvre Edge côté Windows
+              win = subprocess.run(["wslpath", "-w", chemin], capture_output=True, text=True).stdout.strip()
+              subprocess.Popen(["cmd.exe", "/c", "start", "", "msedge", win])
+              ok = True
+          else:
+              for nom in ("microsoft-edge", "microsoft-edge-stable", "microsoft-edge-beta"):
+                  exe = shutil.which(nom)
+                  if exe:
+                      subprocess.Popen([exe, uri], stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
+                      ok = True
+                      break
+      except Exception as e:
+          print(f"Impossible d'ouvrir Edge : {e}")
+      print("Ouvert dans Edge :", uri if ok else "(échec — ouvrez le fichier manuellement)")
+
+  - id: fin
+    type: end
+    message: "Terminé. La page HTML est dans tmp/goal/classement.html (ouverte dans Edge)."

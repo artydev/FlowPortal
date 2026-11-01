@@ -1,0 +1,301 @@
+# yaml-language-server: $schema=../csflow.schema.json
+name: datagouv-explorer
+description: >-
+  Explorateur de données ouvertes : saisissez un sujet, ce workflow interroge
+  data.gouv.fr via le MCP officiel (jeux de données, organisations, APIs tierces),
+  demande à CSAgent de synthétiser les résultats, puis génère un rapport HTML
+  prêt à partager.
+  Prérequis : mcp.json avec l'entrée "datagouv" (voir mcp.datagouv.example).
+
+# ─────────────────────────────────────────────────────────────────────────────
+#  Pour lancer :
+#    1. cp mcp.datagouv.example mcp.json
+#    2. ./start_agent.sh  (dans un terminal séparé)
+#    3. python app.py workflows/datagouv_explorer.yaml
+# ─────────────────────────────────────────────────────────────────────────────
+
+steps:
+
+  # ── 0. Saisie du sujet ────────────────────────────────────────────────────
+  - id: saisie
+    type: user_input
+    description: "Quel sujet souhaitez-vous explorer sur data.gouv.fr ?"
+    prompt: "Sujet à explorer (ex : prix carburants, qualité de l'air, immobilier…)"
+    default: "bornes de recharge véhicules électriques"
+    required: true
+    save_as: tmp/explorer/sujet.txt
+
+  # ── 1. Trois recherches en parallèle via le MCP data.gouv.fr ─────────────
+
+  - id: datasets
+    type: mcp_call
+    description: "Recherche de jeux de données (fichiers statiques)"
+    server: datagouv
+    tool: search_datasets
+    arguments:
+      query: "{{saisie.output}}"
+      page_size: 8
+    save_as: tmp/explorer/datasets.txt
+
+  - id: orgs
+    type: mcp_call
+    description: "Recherche des organisations productrices"
+    server: datagouv
+    tool: search_organizations
+    arguments:
+      query: "{{saisie.output}}"
+      page_size: 5
+    save_as: tmp/explorer/organisations.txt
+
+  - id: apis
+    type: mcp_call
+    description: "Recherche d'APIs tierces référencées (Adresse, Sirene…)"
+    server: datagouv
+    tool: search_dataservices
+    arguments:
+      query: "{{saisie.output}}"
+      page_size: 5
+    save_as: tmp/explorer/apis.txt
+
+  # ── 2. Log intermédiaire ──────────────────────────────────────────────────
+  - id: log_recherche
+    type: log
+    level: info
+    message: |
+      ✓ Recherches terminées pour : «{{saisie.output}}»
+        • Jeux de données : tmp/explorer/datasets.txt
+        • Organisations   : tmp/explorer/organisations.txt
+        • APIs tierces    : tmp/explorer/apis.txt
+
+  # ── 3. Synthèse par CSAgent ───────────────────────────────────────────────
+  - id: synthese
+    type: agent
+    description: "Rédaction du rapport Markdown par CSAgent"
+    prompt: |
+      Rédige le fichier tmp/explorer/rapport.md.
+
+      Le sujet exploré est : «{{saisie.output}}»
+      Date du rapport : {{today}}
+
+      Tu disposes de trois fichiers issus de data.gouv.fr — lis-les tous avant d'écrire :
+        • tmp/explorer/datasets.txt      : jeux de données disponibles
+        • tmp/explorer/organisations.txt : organismes producteurs
+        • tmp/explorer/apis.txt          : APIs tierces référencées
+
+      Produis un rapport Markdown avec ces sections exactes, dans cet ordre :
+
+      ## Synthèse
+      2-3 phrases : que trouve-t-on sur ce sujet sur data.gouv.fr ?
+      Indique si l'offre est riche, limitée, ou absente.
+
+      ## Jeux de données disponibles
+      Pour chaque dataset trouvé : titre en gras, description courte (1-2 lignes),
+      organisation source, et la mention « Ressources : N fichiers » si présente.
+
+      ## Organisations productrices
+      Liste des organismes qui publient des données sur ce sujet, avec leur rôle
+      en une ligne (ministère, collectivité, opérateur…).
+
+      ## APIs et services disponibles
+      Pour chaque API référencée : nom, description courte, URL de base si présente.
+      Si aucune : écrire « Aucune API référencée pour ce sujet. »
+
+      ## Recommandations d'usage
+      3 idées concrètes pour réutiliser ces données (journalisme de données,
+      application citoyenne, recherche, outil métier…). Chaque idée : titre en gras
+      + 2 lignes de description.
+
+      ## Limites et précautions
+      Ce que ces données ne couvrent pas, ou les précautions à prendre
+      (fraîcheur, périmètre géographique, licence…).
+
+      Règles strictes :
+      - N'invente aucun fait, chiffre ou nom absent des fichiers.
+      - Si un fichier est vide ou ne contient rien de pertinent, dis-le clairement.
+      - Longueur cible : 80 à 200 lignes. Pas de liste à puces excessive : privilégie la prose.
+      - Ne mets pas de lien cliquable (ils seront ajoutés automatiquement dans le HTML).
+
+  # ── 4. Génération du rapport HTML ─────────────────────────────────────────
+  - id: html
+    type: python
+    description: "Conversion Markdown → HTML avec mise en page professionnelle"
+    code: |
+      import html, os, re
+      from pathlib import Path
+
+      sujet  = """{{saisie.output}}"""
+      today  = """{{today}}"""
+
+      with open("tmp/explorer/rapport.md", encoding="utf-8") as f:
+          md = f.read()
+
+      # ── mini convertisseur Markdown ────────────────────────────────────────
+      esc = html.escape
+
+      def inline(t):
+          t = re.sub(r"\*\*\*(.+?)\*\*\*", r"<strong><em>\1</em></strong>", t)
+          t = re.sub(r"\*\*(.+?)\*\*",     r"<strong>\1</strong>", t)
+          t = re.sub(r"\*(.+?)\*",          r"<em>\1</em>", t)
+          t = re.sub(r"`(.+?)`",            r"<code>\1</code>", t)
+          # URLs brutes → liens cliquables
+          t = re.sub(r'(https?://[^\s<>"\']+)', r'<a href="\1" target="_blank">\1</a>', t)
+          return t
+
+      def convert(text):
+          out, buf, lst = [], [], False
+          def flush():
+              nonlocal buf
+              if buf:
+                  out.append("<p>" + inline(esc(" ".join(buf))) + "</p>")
+                  buf = []
+          def close_list():
+              nonlocal lst
+              if lst:
+                  out.append("</ul>")
+                  lst = False
+          for raw in text.splitlines():
+              line = raw.rstrip()
+              h = re.match(r"^(#{1,5})\s+(.+)$", line)
+              li = re.match(r"^\s*[-*]\s+(.+)$", line)
+              hr = re.match(r"^-{3,}$", line.strip())
+              if h:
+                  flush(); close_list()
+                  n = min(len(h.group(1)) + 2, 6)
+                  slug = re.sub(r"[^\w]+", "-", h.group(2).lower()).strip("-")
+                  out.append(f'<h{n} id="{slug}">{inline(esc(h.group(2)))}</h{n}>')
+              elif li:
+                  flush()
+                  if not lst:
+                      out.append("<ul>"); lst = True
+                  out.append(f"<li>{inline(esc(li.group(1)))}</li>")
+              elif hr:
+                  flush(); close_list(); out.append("<hr>")
+              elif not line.strip():
+                  flush(); close_list()
+              else:
+                  close_list(); buf.append(line.strip())
+          flush(); close_list()
+          return "\n".join(out)
+
+      body = convert(md)
+
+      # ── table des matières (sections ## uniquement) ────────────────────────
+      sections = re.findall(r"^## (.+)$", md, re.MULTILINE)
+      toc_items = ""
+      for s in sections:
+          slug = re.sub(r"[^\w]+", "-", s.lower()).strip("-")
+          toc_items += f'<li><a href="#{slug}">{html.escape(s)}</a></li>\n'
+      toc = f"<nav aria-label='Sommaire'><ul>{toc_items}</ul></nav>" if toc_items else ""
+
+      PAGE = f"""<!doctype html>
+      <html lang="fr">
+      <head>
+      <meta charset="utf-8">
+      <meta name="viewport" content="width=device-width,initial-scale=1">
+      <title>data.gouv.fr · {esc(sujet)}</title>
+      <style>
+      :root{{--ink:#16202c;--muted:#4a5568;--rule:#dde3ec;--bg:#f5f7fa;--white:#fff;
+             --accent:#003189;--accent2:#0057e7;--tag:#e8edf7;--tag-ink:#1a3a7c}}
+      *{{box-sizing:border-box;margin:0;padding:0}}
+      body{{font:17px/1.72 "Segoe UI",system-ui,sans-serif;background:var(--bg);color:var(--ink)}}
+      a{{color:var(--accent2);text-decoration:none}}
+      a:hover{{text-decoration:underline}}
+      /* header */
+      .site-header{{background:var(--accent);color:#fff;padding:2rem 0 1.6rem}}
+      .site-header h1{{font-size:clamp(1.4rem,3.5vw,2rem);line-height:1.25;margin-bottom:.4rem}}
+      .site-header .meta{{opacity:.75;font-size:.93rem}}
+      .site-header .tag{{display:inline-block;background:rgba(255,255,255,.18);
+                         border-radius:2rem;padding:.15rem .8rem;font-size:.85rem;
+                         margin-right:.4rem;margin-top:.5rem}}
+      /* layout */
+      .wrap{{max-width:860px;margin:0 auto;padding:0 1.25rem}}
+      .grid{{display:grid;grid-template-columns:220px 1fr;gap:2rem;align-items:start;
+             padding:2rem 0 3rem}}
+      @media(max-width:680px){{.grid{{grid-template-columns:1fr}}}}
+      /* sidebar */
+      aside{{position:sticky;top:1.5rem}}
+      aside h2{{font-size:.82rem;text-transform:uppercase;letter-spacing:.08em;
+                color:var(--muted);margin-bottom:.75rem}}
+      nav ul{{list-style:none;border-left:3px solid var(--rule);padding-left:.85rem}}
+      nav li{{margin:.35rem 0}}
+      nav a{{font-size:.92rem;color:var(--muted)}}
+      nav a:hover{{color:var(--accent2)}}
+      /* content */
+      article h2{{font-size:1.35rem;color:var(--accent);margin:2rem 0 .65rem;
+                  padding-bottom:.4rem;border-bottom:2px solid var(--accent)}}
+      article h3{{font-size:1.1rem;margin:1.4rem 0 .35rem}}
+      article h4,article h5,article h6{{font-size:1rem;margin:1.1rem 0 .25rem}}
+      article p{{margin:.6rem 0;max-width:68ch}}
+      article ul{{padding-left:1.4rem;margin:.5rem 0}}
+      article li{{margin:.3rem 0}}
+      article code{{background:#ecf0f8;padding:.1em .35em;border-radius:.25rem;font-size:.9em}}
+      article hr{{border:0;border-top:1px solid var(--rule);margin:1.75rem 0}}
+      article strong{{color:var(--ink)}}
+      /* source badges */
+      .sources{{display:flex;flex-wrap:wrap;gap:.5rem;margin-top:1.5rem;padding-top:1rem;
+                border-top:1px solid var(--rule)}}
+      .sources a{{background:var(--tag);color:var(--tag-ink);border-radius:.3rem;
+                  padding:.2rem .7rem;font-size:.83rem;font-weight:600}}
+      /* footer */
+      footer{{border-top:1px solid var(--rule);padding:1.25rem 0;color:var(--muted);font-size:.88rem}}
+      </style>
+      </head>
+      <body>
+      <header class="site-header">
+        <div class="wrap">
+          <div class="meta">data.gouv.fr · Exploration automatisée</div>
+          <h1>{esc(sujet)}</h1>
+          <div>
+            <span class="tag">📅 {today}</span>
+            <span class="tag">🔍 data.gouv.fr MCP</span>
+            <span class="tag">⚙️ CSFlow + CSAgent</span>
+          </div>
+        </div>
+      </header>
+      <div class="wrap">
+        <div class="grid">
+          <aside>
+            <h2>Sommaire</h2>
+            {toc}
+            <div class="sources" style="margin-top:1.5rem">
+              <a href="https://www.data.gouv.fr" target="_blank">data.gouv.fr</a>
+              <a href="https://github.com/datagouv/datagouv-mcp" target="_blank">MCP source</a>
+            </div>
+          </aside>
+          <article>
+      {body}
+          </article>
+        </div>
+      </div>
+      <footer><div class="wrap">Généré le {today} par le workflow CSFlow <em>datagouv-explorer</em>
+        via le MCP officiel data.gouv.fr · <a href="https://mcp.data.gouv.fr/mcp">mcp.data.gouv.fr</a>
+      </div></footer>
+      </body>
+      </html>"""
+
+      out = Path("tmp/explorer/rapport.html")
+      out.write_text(PAGE, encoding="utf-8")
+      print(out.resolve().as_uri())
+
+  # ── 5. Ouverture dans le navigateur ───────────────────────────────────────
+  - id: ouvrir
+    type: python
+    description: "Ouverture du rapport dans le navigateur par défaut"
+    continue_on_error: true
+    code: |
+      import webbrowser
+      uri = """{{html.output}}""".strip()
+      if uri.startswith("file://"):
+          ok = webbrowser.open(uri)
+          print("Rapport ouvert : " + uri if ok else "Ouvrez manuellement : tmp/explorer/rapport.html")
+      else:
+          print("URI inattendue : " + uri)
+
+  # ── 6. Fin ────────────────────────────────────────────────────────────────
+  - id: fin
+    type: log
+    level: success
+    message: |
+      ✓ Exploration terminée : «{{saisie.output}}»
+        Rapport HTML : tmp/explorer/rapport.html
+        Rapport MD   : tmp/explorer/rapport.md

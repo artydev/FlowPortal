@@ -1,0 +1,15 @@
+// Serveurs que les étapes mcp_tools / mcp_call de CSFlow peuvent appeler (sans CSAgent).
+// A copier en mcp.json (meme format que csagent --mcp-config : les deux usages peuvent coexister).
+// ${NOM} est remplace par la variable d'environnement : ne mettez jamais un secret en clair ici.
+{
+  "mcpServers": {
+    "fichiers": {
+      "command": "npx",
+      "args": ["-y", "@modelcontextprotocol/server-filesystem", "tmp"]
+    },
+    "api": {
+      "url": "https://exemple.org/mcp",
+      "headers": { "Authorization": "Bearer ${MON_JETON}" }
+    }
+  }
+}

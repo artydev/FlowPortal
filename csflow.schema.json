@@ -1,0 +1,788 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "title": "Workflow CSFlow",
+  "type": "object",
+  "properties": {
+    "name": {
+      "type": "string",
+      "description": "nom du workflow (affiché dans l'interface)"
+    },
+    "description": {
+      "type": "string",
+      "description": "description du workflow"
+    },
+    "inputs": {
+      "type": "object",
+      "description": "variables d'entrée, utilisables dans tout le workflow avec {{nom}}"
+    },
+    "steps": {
+      "type": "array",
+      "minItems": 1,
+      "description": "liste des étapes",
+      "items": {
+        "oneOf": [
+          {
+            "title": "agent",
+            "type": "object",
+            "properties": {
+              "id": {
+                "description": "identifiant unique de l'étape ; son résultat s'utilise avec {{id.output}}"
+              },
+              "type": {
+                "const": "agent",
+                "description": "Envoie une instruction à CSAgent et suit son raisonnement en direct ; sortie : sa dernière réponse."
+              },
+              "description": {
+                "description": "libellé affiché dans l'interface"
+              },
+              "skip_if": {
+                "description": "expression Python ; si elle est vraie, l'étape est ignorée. Ex : \"'{{statut.output}}' != 'ROUGE'\""
+              },
+              "continue_on_error": {
+                "description": "true = le workflow continue même si l'étape échoue",
+                "type": [
+                  "boolean",
+                  "string"
+                ]
+              },
+              "next": {
+                "description": "id de l'étape suivante (défaut : l'étape suivante dans la liste)"
+              },
+              "on_approve": {
+                "description": "human_approval : id de l'étape suivante si approuvé"
+              },
+              "on_reject": {
+                "description": "human_approval : id de l'étape suivante si rejeté"
+              },
+              "prompt": {
+                "description": "instruction en langage naturel envoyée à CSAgent"
+              },
+              "csagent_url": {
+                "description": "URL de CSAgent (défaut http://localhost:8080)"
+              },
+              "csagent_key": {
+                "description": "clé d'API (défaut demo-secret)"
+              },
+              "timeout": {
+                "description": "secondes sans donnée avant abandon (défaut 180)",
+                "type": [
+                  "integer",
+                  "string"
+                ]
+              },
+              "auto_confirm": {
+                "description": "true = approuver automatiquement les demandes de confirmation de CSAgent",
+                "type": [
+                  "boolean",
+                  "string"
+                ]
+              }
+            },
+            "required": [
+              "id",
+              "type",
+              "prompt"
+            ],
+            "additionalProperties": false
+          },
+          {
+            "title": "end",
+            "type": "object",
+            "properties": {
+              "id": {
+                "description": "identifiant unique de l'étape ; son résultat s'utilise avec {{id.output}}"
+              },
+              "type": {
+                "const": "end",
+                "description": "Termine le workflow (étape finale, aucune étape ne peut la suivre)."
+              },
+              "description": {
+                "description": "libellé affiché dans l'interface"
+              },
+              "skip_if": {
+                "description": "expression Python ; si elle est vraie, l'étape est ignorée. Ex : \"'{{statut.output}}' != 'ROUGE'\""
+              },
+              "continue_on_error": {
+                "description": "true = le workflow continue même si l'étape échoue",
+                "type": [
+                  "boolean",
+                  "string"
+                ]
+              },
+              "next": {
+                "description": "id de l'étape suivante (défaut : l'étape suivante dans la liste)"
+              },
+              "on_approve": {
+                "description": "human_approval : id de l'étape suivante si approuvé"
+              },
+              "on_reject": {
+                "description": "human_approval : id de l'étape suivante si rejeté"
+              },
+              "message": {
+                "description": "message affiché à la fin du workflow"
+              }
+            },
+            "required": [
+              "id",
+              "type"
+            ],
+            "additionalProperties": false
+          },
+          {
+            "title": "file_read",
+            "type": "object",
+            "properties": {
+              "id": {
+                "description": "identifiant unique de l'étape ; son résultat s'utilise avec {{id.output}}"
+              },
+              "type": {
+                "const": "file_read",
+                "description": "Lit un fichier texte ; sortie : output (le contenu)."
+              },
+              "description": {
+                "description": "libellé affiché dans l'interface"
+              },
+              "skip_if": {
+                "description": "expression Python ; si elle est vraie, l'étape est ignorée. Ex : \"'{{statut.output}}' != 'ROUGE'\""
+              },
+              "continue_on_error": {
+                "description": "true = le workflow continue même si l'étape échoue",
+                "type": [
+                  "boolean",
+                  "string"
+                ]
+              },
+              "next": {
+                "description": "id de l'étape suivante (défaut : l'étape suivante dans la liste)"
+              },
+              "on_approve": {
+                "description": "human_approval : id de l'étape suivante si approuvé"
+              },
+              "on_reject": {
+                "description": "human_approval : id de l'étape suivante si rejeté"
+              },
+              "path": {
+                "description": "chemin du fichier à lire (relatif au dossier workflow)"
+              }
+            },
+            "required": [
+              "id",
+              "type",
+              "path"
+            ],
+            "additionalProperties": false
+          },
+          {
+            "title": "file_write",
+            "type": "object",
+            "properties": {
+              "id": {
+                "description": "identifiant unique de l'étape ; son résultat s'utilise avec {{id.output}}"
+              },
+              "type": {
+                "const": "file_write",
+                "description": "Écrit (ou remplace) un fichier texte ; les dossiers manquants sont créés."
+              },
+              "description": {
+                "description": "libellé affiché dans l'interface"
+              },
+              "skip_if": {
+                "description": "expression Python ; si elle est vraie, l'étape est ignorée. Ex : \"'{{statut.output}}' != 'ROUGE'\""
+              },
+              "continue_on_error": {
+                "description": "true = le workflow continue même si l'étape échoue",
+                "type": [
+                  "boolean",
+                  "string"
+                ]
+              },
+              "next": {
+                "description": "id de l'étape suivante (défaut : l'étape suivante dans la liste)"
+              },
+              "on_approve": {
+                "description": "human_approval : id de l'étape suivante si approuvé"
+              },
+              "on_reject": {
+                "description": "human_approval : id de l'étape suivante si rejeté"
+              },
+              "path": {
+                "description": "fichier à écrire (les dossiers sont créés)"
+              },
+              "content": {
+                "description": "texte à écrire"
+              }
+            },
+            "required": [
+              "id",
+              "type",
+              "path",
+              "content"
+            ],
+            "additionalProperties": false
+          },
+          {
+            "title": "http_get",
+            "type": "object",
+            "properties": {
+              "id": {
+                "description": "identifiant unique de l'étape ; son résultat s'utilise avec {{id.output}}"
+              },
+              "type": {
+                "const": "http_get",
+                "description": "Requête HTTP GET ; sorties : body, status_code."
+              },
+              "description": {
+                "description": "libellé affiché dans l'interface"
+              },
+              "skip_if": {
+                "description": "expression Python ; si elle est vraie, l'étape est ignorée. Ex : \"'{{statut.output}}' != 'ROUGE'\""
+              },
+              "continue_on_error": {
+                "description": "true = le workflow continue même si l'étape échoue",
+                "type": [
+                  "boolean",
+                  "string"
+                ]
+              },
+              "next": {
+                "description": "id de l'étape suivante (défaut : l'étape suivante dans la liste)"
+              },
+              "on_approve": {
+                "description": "human_approval : id de l'étape suivante si approuvé"
+              },
+              "on_reject": {
+                "description": "human_approval : id de l'étape suivante si rejeté"
+              },
+              "url": {
+                "description": "adresse à appeler"
+              },
+              "headers": {
+                "description": "en-têtes HTTP (dictionnaire)",
+                "type": "object"
+              },
+              "timeout": {
+                "description": "secondes avant abandon (défaut 30)",
+                "type": [
+                  "integer",
+                  "string"
+                ]
+              }
+            },
+            "required": [
+              "id",
+              "type",
+              "url"
+            ],
+            "additionalProperties": false
+          },
+          {
+            "title": "http_post",
+            "type": "object",
+            "properties": {
+              "id": {
+                "description": "identifiant unique de l'étape ; son résultat s'utilise avec {{id.output}}"
+              },
+              "type": {
+                "const": "http_post",
+                "description": "Requête HTTP POST ; sorties : body, status_code."
+              },
+              "description": {
+                "description": "libellé affiché dans l'interface"
+              },
+              "skip_if": {
+                "description": "expression Python ; si elle est vraie, l'étape est ignorée. Ex : \"'{{statut.output}}' != 'ROUGE'\""
+              },
+              "continue_on_error": {
+                "description": "true = le workflow continue même si l'étape échoue",
+                "type": [
+                  "boolean",
+                  "string"
+                ]
+              },
+              "next": {
+                "description": "id de l'étape suivante (défaut : l'étape suivante dans la liste)"
+              },
+              "on_approve": {
+                "description": "human_approval : id de l'étape suivante si approuvé"
+              },
+              "on_reject": {
+                "description": "human_approval : id de l'étape suivante si rejeté"
+              },
+              "url": {
+                "description": "adresse à appeler"
+              },
+              "body": {
+                "description": "corps de la requête"
+              },
+              "headers": {
+                "description": "en-têtes HTTP (dictionnaire)",
+                "type": "object"
+              },
+              "timeout": {
+                "description": "secondes avant abandon (défaut 30)",
+                "type": [
+                  "integer",
+                  "string"
+                ]
+              }
+            },
+            "required": [
+              "id",
+              "type",
+              "url"
+            ],
+            "additionalProperties": false
+          },
+          {
+            "title": "human_approval",
+            "type": "object",
+            "properties": {
+              "id": {
+                "description": "identifiant unique de l'étape ; son résultat s'utilise avec {{id.output}}"
+              },
+              "type": {
+                "const": "human_approval",
+                "description": "Met le workflow en pause jusqu'à ce qu'un humain approuve ou rejette."
+              },
+              "description": {
+                "description": "libellé affiché dans l'interface"
+              },
+              "skip_if": {
+                "description": "expression Python ; si elle est vraie, l'étape est ignorée. Ex : \"'{{statut.output}}' != 'ROUGE'\""
+              },
+              "continue_on_error": {
+                "description": "true = le workflow continue même si l'étape échoue",
+                "type": [
+                  "boolean",
+                  "string"
+                ]
+              },
+              "next": {
+                "description": "id de l'étape suivante (défaut : l'étape suivante dans la liste)"
+              },
+              "on_approve": {
+                "description": "human_approval : id de l'étape suivante si approuvé"
+              },
+              "on_reject": {
+                "description": "human_approval : id de l'étape suivante si rejeté"
+              },
+              "message": {
+                "description": "question posée à l'humain (défaut « Approve to continue? »)"
+              }
+            },
+            "required": [
+              "id",
+              "type"
+            ],
+            "additionalProperties": false
+          },
+          {
+            "title": "log",
+            "type": "object",
+            "properties": {
+              "id": {
+                "description": "identifiant unique de l'étape ; son résultat s'utilise avec {{id.output}}"
+              },
+              "type": {
+                "const": "log",
+                "description": "Affiche un message dans la console et dans le log de l'interface."
+              },
+              "description": {
+                "description": "libellé affiché dans l'interface"
+              },
+              "skip_if": {
+                "description": "expression Python ; si elle est vraie, l'étape est ignorée. Ex : \"'{{statut.output}}' != 'ROUGE'\""
+              },
+              "continue_on_error": {
+                "description": "true = le workflow continue même si l'étape échoue",
+                "type": [
+                  "boolean",
+                  "string"
+                ]
+              },
+              "next": {
+                "description": "id de l'étape suivante (défaut : l'étape suivante dans la liste)"
+              },
+              "on_approve": {
+                "description": "human_approval : id de l'étape suivante si approuvé"
+              },
+              "on_reject": {
+                "description": "human_approval : id de l'étape suivante si rejeté"
+              },
+              "message": {
+                "description": "texte affiché (accepte les {{variables}})"
+              },
+              "level": {
+                "description": "info | success | warn | error (défaut info)"
+              }
+            },
+            "required": [
+              "id",
+              "type",
+              "message"
+            ],
+            "additionalProperties": false
+          },
+          {
+            "title": "mcp_call",
+            "type": "object",
+            "properties": {
+              "id": {
+                "description": "identifiant unique de l'étape ; son résultat s'utilise avec {{id.output}}"
+              },
+              "type": {
+                "const": "mcp_call",
+                "description": "Appelle un outil d'un serveur MCP déclaré dans mcp.json (sans CSAgent) ; sortie : le texte rendu par l'outil."
+              },
+              "description": {
+                "description": "libellé affiché dans l'interface"
+              },
+              "skip_if": {
+                "description": "expression Python ; si elle est vraie, l'étape est ignorée. Ex : \"'{{statut.output}}' != 'ROUGE'\""
+              },
+              "continue_on_error": {
+                "description": "true = le workflow continue même si l'étape échoue",
+                "type": [
+                  "boolean",
+                  "string"
+                ]
+              },
+              "next": {
+                "description": "id de l'étape suivante (défaut : l'étape suivante dans la liste)"
+              },
+              "on_approve": {
+                "description": "human_approval : id de l'étape suivante si approuvé"
+              },
+              "on_reject": {
+                "description": "human_approval : id de l'étape suivante si rejeté"
+              },
+              "server": {
+                "description": "nom du serveur dans le fichier de configuration (clé mcpServers)"
+              },
+              "tool": {
+                "description": "nom de l'outil à appeler"
+              },
+              "arguments": {
+                "description": "arguments de l'outil : un objet YAML (les {{...}} sont remplacés), ou un texte JSON",
+                "type": [
+                  "object",
+                  "string"
+                ]
+              },
+              "config": {
+                "description": "fichier de configuration MCP (défaut mcp.json)"
+              },
+              "timeout": {
+                "description": "secondes d'attente de la réponse (défaut 60)",
+                "type": [
+                  "integer",
+                  "string"
+                ]
+              },
+              "save_as": {
+                "description": "fichier où écrire le résultat complet (chemin relatif)"
+              },
+              "max_chars": {
+                "description": "longueur maximale de la sortie (défaut 50000) ; save_as garde tout",
+                "type": [
+                  "integer",
+                  "string"
+                ]
+              }
+            },
+            "required": [
+              "id",
+              "type",
+              "server",
+              "tool"
+            ],
+            "additionalProperties": false
+          },
+          {
+            "title": "mcp_tools",
+            "type": "object",
+            "properties": {
+              "id": {
+                "description": "identifiant unique de l'étape ; son résultat s'utilise avec {{id.output}}"
+              },
+              "type": {
+                "const": "mcp_tools",
+                "description": "Liste les outils d'un serveur MCP déclaré dans mcp.json (sans CSAgent) ; sortie : un outil par ligne."
+              },
+              "description": {
+                "description": "libellé affiché dans l'interface"
+              },
+              "skip_if": {
+                "description": "expression Python ; si elle est vraie, l'étape est ignorée. Ex : \"'{{statut.output}}' != 'ROUGE'\""
+              },
+              "continue_on_error": {
+                "description": "true = le workflow continue même si l'étape échoue",
+                "type": [
+                  "boolean",
+                  "string"
+                ]
+              },
+              "next": {
+                "description": "id de l'étape suivante (défaut : l'étape suivante dans la liste)"
+              },
+              "on_approve": {
+                "description": "human_approval : id de l'étape suivante si approuvé"
+              },
+              "on_reject": {
+                "description": "human_approval : id de l'étape suivante si rejeté"
+              },
+              "server": {
+                "description": "nom du serveur dans le fichier de configuration (clé mcpServers)"
+              },
+              "config": {
+                "description": "fichier de configuration MCP (défaut mcp.json)"
+              },
+              "timeout": {
+                "description": "secondes d'attente par requête (défaut 60)",
+                "type": [
+                  "integer",
+                  "string"
+                ]
+              }
+            },
+            "required": [
+              "id",
+              "type",
+              "server"
+            ],
+            "additionalProperties": false
+          },
+          {
+            "title": "python",
+            "type": "object",
+            "properties": {
+              "id": {
+                "description": "identifiant unique de l'étape ; son résultat s'utilise avec {{id.output}}"
+              },
+              "type": {
+                "const": "python",
+                "description": "Exécute un script Python (fichier ou code inline) avec l'interpréteur embarqué : aucun Python à installer."
+              },
+              "description": {
+                "description": "libellé affiché dans l'interface"
+              },
+              "skip_if": {
+                "description": "expression Python ; si elle est vraie, l'étape est ignorée. Ex : \"'{{statut.output}}' != 'ROUGE'\""
+              },
+              "continue_on_error": {
+                "description": "true = le workflow continue même si l'étape échoue",
+                "type": [
+                  "boolean",
+                  "string"
+                ]
+              },
+              "next": {
+                "description": "id de l'étape suivante (défaut : l'étape suivante dans la liste)"
+              },
+              "on_approve": {
+                "description": "human_approval : id de l'étape suivante si approuvé"
+              },
+              "on_reject": {
+                "description": "human_approval : id de l'étape suivante si rejeté"
+              },
+              "script": {
+                "description": "chemin d'un fichier .py (relatif au dossier de travail)"
+              },
+              "code": {
+                "description": "code Python inline (alternative à script)"
+              },
+              "args": {
+                "description": "arguments passés au script (liste YAML ou chaîne)"
+              },
+              "cwd": {
+                "description": "dossier d'exécution (défaut : dossier de travail)"
+              },
+              "timeout": {
+                "description": "secondes avant arrêt du processus (défaut 60)",
+                "type": [
+                  "integer",
+                  "string"
+                ]
+              }
+            },
+            "required": [
+              "id",
+              "type"
+            ],
+            "additionalProperties": false
+          },
+          {
+            "title": "shell",
+            "type": "object",
+            "properties": {
+              "id": {
+                "description": "identifiant unique de l'étape ; son résultat s'utilise avec {{id.output}}"
+              },
+              "type": {
+                "const": "shell",
+                "description": "Exécute une commande shell (cmd.exe sous Windows, bash ailleurs)."
+              },
+              "description": {
+                "description": "libellé affiché dans l'interface"
+              },
+              "skip_if": {
+                "description": "expression Python ; si elle est vraie, l'étape est ignorée. Ex : \"'{{statut.output}}' != 'ROUGE'\""
+              },
+              "continue_on_error": {
+                "description": "true = le workflow continue même si l'étape échoue",
+                "type": [
+                  "boolean",
+                  "string"
+                ]
+              },
+              "next": {
+                "description": "id de l'étape suivante (défaut : l'étape suivante dans la liste)"
+              },
+              "on_approve": {
+                "description": "human_approval : id de l'étape suivante si approuvé"
+              },
+              "on_reject": {
+                "description": "human_approval : id de l'étape suivante si rejeté"
+              },
+              "cmd": {
+                "description": "commande exécutée par cmd.exe (Windows) ou bash ; sorties : output, stdout, stderr, returncode"
+              },
+              "timeout": {
+                "description": "secondes avant arrêt du processus (défaut 60)",
+                "type": [
+                  "integer",
+                  "string"
+                ]
+              },
+              "shell": {
+                "description": "shell explicite : « bash », « sh » ou « pwsh » (défaut : le shell du système)"
+              }
+            },
+            "required": [
+              "id",
+              "type",
+              "cmd"
+            ],
+            "additionalProperties": false
+          },
+          {
+            "title": "transform",
+            "type": "object",
+            "properties": {
+              "id": {
+                "description": "identifiant unique de l'étape ; son résultat s'utilise avec {{id.output}}"
+              },
+              "type": {
+                "const": "transform",
+                "description": "Évalue une expression Python pour transformer des données."
+              },
+              "description": {
+                "description": "libellé affiché dans l'interface"
+              },
+              "skip_if": {
+                "description": "expression Python ; si elle est vraie, l'étape est ignorée. Ex : \"'{{statut.output}}' != 'ROUGE'\""
+              },
+              "continue_on_error": {
+                "description": "true = le workflow continue même si l'étape échoue",
+                "type": [
+                  "boolean",
+                  "string"
+                ]
+              },
+              "next": {
+                "description": "id de l'étape suivante (défaut : l'étape suivante dans la liste)"
+              },
+              "on_approve": {
+                "description": "human_approval : id de l'étape suivante si approuvé"
+              },
+              "on_reject": {
+                "description": "human_approval : id de l'étape suivante si rejeté"
+              },
+              "expression": {
+                "description": "expression Python évaluée ; les {{variables}} sont substituées avant"
+              }
+            },
+            "required": [
+              "id",
+              "type",
+              "expression"
+            ],
+            "additionalProperties": false
+          },
+          {
+            "title": "user_input",
+            "type": "object",
+            "properties": {
+              "id": {
+                "description": "identifiant unique de l'étape ; son résultat s'utilise avec {{id.output}}"
+              },
+              "type": {
+                "const": "user_input",
+                "description": "Demande un texte à l'humain (saisie, interface graphique ou terminal) ; sortie : le texte, aussi écrit dans un fichier."
+              },
+              "description": {
+                "description": "libellé affiché dans l'interface"
+              },
+              "skip_if": {
+                "description": "expression Python ; si elle est vraie, l'étape est ignorée. Ex : \"'{{statut.output}}' != 'ROUGE'\""
+              },
+              "continue_on_error": {
+                "description": "true = le workflow continue même si l'étape échoue",
+                "type": [
+                  "boolean",
+                  "string"
+                ]
+              },
+              "next": {
+                "description": "id de l'étape suivante (défaut : l'étape suivante dans la liste)"
+              },
+              "on_approve": {
+                "description": "human_approval : id de l'étape suivante si approuvé"
+              },
+              "on_reject": {
+                "description": "human_approval : id de l'étape suivante si rejeté"
+              },
+              "prompt": {
+                "description": "question posée à l'humain"
+              },
+              "default": {
+                "description": "texte pré-rempli, modifiable (défaut : vide)"
+              },
+              "required": {
+                "description": "true = refuse un texte vide (défaut true)"
+              },
+              "save_as": {
+                "description": "fichier (chemin relatif) où écrire le texte (défaut tmp/saisie/<id de l'étape>.txt)"
+              },
+              "voice": {
+                "description": "true = bouton micro : dictée transcrite par CSAgent (interface graphique ; défaut false)"
+              },
+              "language": {
+                "description": "langue parlée : fr, en… ou auto (défaut fr)"
+              },
+              "keep_audio": {
+                "description": "true = garde l'enregistrement et sa transcription dans recordings/ et transcripts/ (défaut false : supprimés)"
+              },
+              "csagent_url": {
+                "description": "URL de CSAgent pour la dictée (défaut http://localhost:8080)"
+              },
+              "csagent_key": {
+                "description": "clé d'API de CSAgent (défaut demo-secret)"
+              }
+            },
+            "required": [
+              "id",
+              "type",
+              "prompt"
+            ],
+            "additionalProperties": false
+          }
+        ]
+      }
+    }
+  },
+  "required": [
+    "steps"
+  ],
+  "additionalProperties": false
+}

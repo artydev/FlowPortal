@@ -1,0 +1,4 @@
+pyyaml>=6.0
+
+# Desktop UI (app.py)
+eel>=0.16.0

@@ -1,0 +1,43 @@
+--- a/Presentation/Web/ApiHost.cs
++++ b/Presentation/Web/ApiHost.cs
+@@ -52,12 +52,16 @@
+             distill: args.Distill,
+             confirm: !args.AutoApprove);
+ 
++        // Speech to text for orchestrators (e.g. CSFlow): same upload-in-chunks + transcribe endpoints as the web UI.
++        // They sit behind the API-key middleware above and keep their same-origin check (a request with no Origin header passes).
++        app.MapAudioEndpoints();
++
+         var url = $"http://{args.Host}:{args.Port}";
+ 
+         app.Lifetime.ApplicationStarted.Register(() =>
+         {
+             Console.WriteLine($"\n--- CSAgent API (SSE) listening on {url} ---");
+-            Console.WriteLine("--- Endpoints: GET/POST /api/chat, POST /api/confirm ---");
++            Console.WriteLine("--- Endpoints: GET/POST /api/chat, POST /api/confirm, POST /api/audio/... (speech to text) ---");
+             Console.WriteLine(args.ApiKey is null
+                 ? "--- Authentication: none (localhost only) ---"
+                 : "--- Authentication: API key required (Authorization: Bearer <key> or X-API-Key) ---");
+--- a/Presentation/Web/AudioEndpoints.cs
++++ b/Presentation/Web/AudioEndpoints.cs
+@@ -4,7 +4,7 @@
+ 
+ namespace CsAgent.Presentation.Web;
+ 
+-/// <summary>The recorder of the web UI (not mapped in --api mode): upload in chunks, then transcribe.</summary>
++/// <summary>The audio recorder endpoints (web UI, lean UI and --api mode): upload in chunks, then transcribe.</summary>
+ public static class AudioEndpoints
+ {
+     public static IEndpointRouteBuilder MapAudioEndpoints(this IEndpointRouteBuilder app)
+--- a/README.md
++++ b/README.md
+@@ -166,6 +166,9 @@
+ | `GET /api/chat?prompt=…[&task=slug]` | Exécute une demande ; la réponse est un flux Server-Sent Events |
+ | `POST /api/chat` | Idem, en `multipart/form-data` (`prompt`, `task` facultatif, `image` facultative) |
+ | `POST /api/confirm` | Corps `true` ou `false` : répond à un événement `confirm` en attente (inutile avec `--yes`) |
++| `POST /api/audio/start?type=audio/webm` | Démarre un enregistrement (`.webm`, `.ogg`, `.m4a`, `.wav`, `.mp3`) ; renvoie `{"id", "path"}` |
++| `POST /api/audio/{id}` | Ajoute un morceau d'audio (octets bruts dans le corps, dans l'ordre) |
++| `POST /api/audio/{id}/transcribe?lang=fr` | Transcrit l'enregistrement (Whisper) ; flux SSE : `progress`, puis `done` (`text`, `path`) ou `error`. Mêmes conditions que `transcribe_audio` (ffmpeg pour tout format autre que `.wav` / `.mp3`) |
+ 
+ **Authentification.** Quand une clé est définie, envoyez `Authorization: Bearer <clé>` ou `X-API-Key: <clé>` ; toute autre requête reçoit `401`. Le serveur parle en HTTP simple : dès qu'il est exposé au-delà de la machine locale, placez-le derrière un reverse proxy TLS. **Sans clé, un `--host` non local est refusé au démarrage**, parce que l'agent peut exécuter des commandes et écrire des fichiers.
+ 

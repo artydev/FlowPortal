@@ -1,0 +1,20 @@
+// Copiez ce fichier en mcp.json dans le dossier CSFlow (à côté de app.py).
+// Si vous avez déjà un mcp.json, fusionnez les blocs dans votre mcpServers.
+//
+// datagouv        : serveur officiel data.gouv.fr, public, lecture seule.
+//                   https://github.com/datagouv/datagouv-mcp
+// service-public  : serveur communautaire (Cloudflare Workers), public, sans authentification.
+//                   https://github.com/OneNicolas/mcp-service-public
+//                   Domaine workers.dev : peut être bloqué par un proxy d'entreprise.
+//
+// Les deux utilisent Streamable HTTP (pas de stdio).
+{
+  "mcpServers": {
+    "datagouv": {
+      "url": "https://mcp.data.gouv.fr/mcp"
+    },
+    "service-public": {
+      "url": "https://mcp-service-public.nhaultcoeur.workers.dev/mcp"
+    }
+  }
+}

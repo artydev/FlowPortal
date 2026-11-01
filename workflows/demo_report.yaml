@@ -1,0 +1,76 @@
+# yaml-language-server: $schema=../csflow.schema.json
+name: sales-report-pipeline
+description: Écrit un CSV, CSAgent l'analyse et produit un rapport markdown, puis l'affiche.
+
+# Chemins RELATIFS au dossier CSFlow/ (CSAgent n'écrit que dans son dossier
+# courant — lancez-le depuis ce dossier avec start_agent.sh / start_agent.bat).
+# Les « / » des chemins fonctionnent sur Windows comme sur Linux.
+
+steps:
+
+  # ── 1. données de ventes synthétiques ───────────────────────────────────────
+  - id: create_data
+    type: file_write
+    description: Création des données
+    path: 'tmp/sales.csv'
+    content: |
+      date,product,units,revenue
+      2026-10-01,Widget A,145,3200.00
+      2026-10-01,Gadget X,89,1750.50
+      2026-10-01,Doohickey Z,312,890.40
+      2026-10-02,Widget B,203,4100.25
+      2026-10-02,Widget A,98,2160.00
+      2026-10-02,Gadget Y,55,2750.00
+      2026-10-03,Widget A,167,3674.00
+      2026-10-03,Gadget X,74,1462.80
+      2026-10-03,Doohickey Z,278,792.60
+      2026-10-04,Widget B,189,3807.45
+      2026-10-04,Gadget Y,88,4400.00
+      2026-10-04,Widget A,210,4620.00
+      2026-10-05,Doohickey Z,340,970.20
+      2026-10-05,Widget B,155,3122.50
+      2026-10-05,Gadget X,101,1994.75
+
+  # ── 2. CSAgent analyse et écrit le rapport ──────────────────────────────────
+  - id: analyze
+    type: agent
+    description: Analyse par CSAgent
+    prompt: |
+      Read the CSV file at tmp/sales.csv (relative path).
+      Analyse the sales data and write a concise markdown report to tmp/report.md.
+
+      Use only relative paths: you can only read and write inside the current directory.
+      Do NOT use absolute paths such as C:\temp or /tmp.
+
+      The report must include:
+      - A one-line executive summary
+      - Total revenue and total units sold across all rows
+      - Revenue by product (sorted highest first)
+      - A short day-by-day revenue trend (one line per date)
+      - One actionable insight or observation
+
+      Keep the report under 30 lines. Write it to tmp/report.md when done.
+
+  # ── 3. relire le rapport ────────────────────────────────────────────────────
+  - id: read_report
+    type: file_read
+    description: Lecture du rapport
+    path: 'tmp/report.md'
+
+  # ── 4. compter les lignes (Python : identique sur Windows et Linux) ─────────
+  - id: line_count
+    type: python
+    description: Comptage des lignes
+    code: |
+      with open("tmp/report.md", encoding="utf-8") as f:
+          print(sum(1 for line in f if line.strip()))
+
+  # ── 5. afficher le rapport ──────────────────────────────────────────────────
+  - id: print_report
+    type: log
+    description: Affichage du rapport
+    level: success
+    message: |
+      Rapport prêt → tmp/report.md  ({{line_count.output}} lignes)
+
+      {{read_report.output}}

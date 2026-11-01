@@ -1,0 +1,10 @@
+// Windows, CSFlow.exe a cote de ce fichier. CSAgent --mcp-config mcp.json
+{
+  "mcpServers": {
+    "csflow": {
+      "command": "CSFlow.exe",
+      "args": ["--mcp"],
+      "cwd": "."
+    }
+  }
+}

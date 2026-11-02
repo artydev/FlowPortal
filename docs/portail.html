@@ -1,0 +1,198 @@
+<!doctype html>
+<html lang="fr">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<meta name="color-scheme" content="light">
+<title>FlowPortal — le portail de workflows</title>
+<meta name="description" content="FlowPortal : lancer un workflow en un clic, l'arrêter, dicter une saisie, lire et modifier son YAML, créer un workflow à la main ou avec l'assistant CSAgent.">
+<style>
+:root {
+  color-scheme: light;
+  --bg: #f1f5f9; --surface: #ffffff; --surface-2: #f8fafc;
+  --line: #cbd5e1; --line-ui: #64748b;
+  --text: #0f172a; --muted: #475569;
+  --brand: #1d4ed8; --brand-soft: #dbeafe; --brand-deep: #1e3a8a;
+  --head: #0f172a; --head-text: #f8fafc; --head-muted: #cbd5e1;
+  --dark: #0b1220; --dark-line: #2a3a58; --dark-text: #e2e8f0; --dark-muted: #a5b4cc;
+
+  --py: #1e3a8a;  --py-bg: #dbeafe;  --py-line: #2563eb;
+  --ia: #6b21a8;  --ia-bg: #f3e8ff;  --ia-line: #9333ea;
+  --hu: #854d0e;  --hu-bg: #fef3c7;  --hu-line: #d97706;
+  --ok: #166534;  --ok-bg: #dcfce7;  --ok-line: #16a34a;
+  --err: #991b1b; --err-bg: #fee2e2; --err-line: #dc2626;
+
+  --focus: #1d4ed8; --focus-dark: #93c5fd;
+  --font: "Segoe UI", system-ui, -apple-system, "Helvetica Neue", Arial, sans-serif;
+  --mono: "Cascadia Code", "Cascadia Mono", Consolas, "SF Mono", Menlo, monospace;
+  --r: 14px;
+}
+* { box-sizing: border-box; }
+html { font-size: 100%; scroll-behavior: smooth; }
+body { margin: 0; background: var(--bg); color: var(--text); font: 1.0625rem/1.6 var(--font); }
+h1, h2, h3, p, ul, ol { margin: 0; }
+ul, ol { padding: 0; list-style: none; }
+:focus-visible { outline: 3px solid var(--focus); outline-offset: 3px; border-radius: 6px; }
+header :focus-visible, .video-card :focus-visible { outline-color: var(--focus-dark); }
+
+.skip { position: absolute; left: 12px; top: -64px; z-index: 10; background: #fff; color: var(--text);
+        padding: 8px 14px; border-radius: 8px; border: 2px solid var(--brand); font-weight: 600; }
+.skip:focus { top: 12px; }
+.wrap { width: min(1120px, 100% - 40px); margin-inline: auto; }
+
+/* ── En-tête sombre, comme l'application ──────────────────────────────────── */
+header.top { background: var(--head); color: var(--head-text); }
+header.top .wrap { display: flex; align-items: center; gap: 16px; padding: 14px 0; flex-wrap: wrap; }
+.mark { flex: none; width: 44px; height: 44px; border-radius: 12px; color: #fff; font-weight: 800; font-size: 1.125rem;
+        background: linear-gradient(135deg, #2563eb, #7c3aed); display: grid; place-items: center; letter-spacing: -.02em; }
+.brand { display: flex; flex-direction: column; min-width: 0; }
+.brand .name { font-size: 1.5rem; font-weight: 700; line-height: 1.2; }
+.brand .name span { color: var(--focus-dark); }
+.brand .tag { font-size: 0.9375rem; color: var(--head-muted); }
+.top .spacer { flex: 1; }
+.toplinks { display: flex; gap: 6px; flex-wrap: wrap; }
+.toplinks a { color: #e2e8f0; text-decoration: none; padding: 8px 12px; border-radius: 8px; font-size: 1rem; }
+.toplinks a:hover { background: #1e293b; color: #fff; }
+.pill { display: inline-flex; align-items: center; gap: 8px; border: 1px solid #93c5fd; border-radius: 999px;
+        padding: 6px 16px; font-size: 0.9375rem; font-weight: 600; background: #1e3a8a; color: #dbeafe; }
+.pill i { width: 10px; height: 10px; border-radius: 50%; background: currentColor; }
+
+
+.hero { padding: 40px 0 16px; }
+.eyebrow { font-size: 0.9375rem; font-weight: 700; color: var(--brand); }
+.hero h1 { font-size: clamp(1.75rem, 3.4vw, 2.5rem); line-height: 1.2; margin: 6px 0 12px; letter-spacing: -.01em; }
+.hero p.lead { font-size: 1.25rem; color: var(--muted); max-width: 52rem; }
+.layout { display: grid; grid-template-columns: 220px minmax(0, 1fr); gap: 32px; padding: 16px 0 8px; align-items: start; }
+.toc { position: sticky; top: 16px; background: var(--surface); border: 1px solid var(--line); border-radius: var(--r); padding: 14px 16px; font-size: 0.9375rem; }
+.toc p { font-weight: 700; margin-bottom: 6px; }
+.toc a { display: block; padding: 4px 0; color: var(--brand-deep); }
+main section { padding: 8px 0 20px; }
+main h2 { font-size: 1.5rem; line-height: 1.3; margin-bottom: 12px; }
+main h3 { font-size: 1.125rem; margin: 18px 0 6px; }
+main p + p, main p + ul, main ul + p, main p + ol { margin-top: 10px; }
+main ul.bul { list-style: disc; padding-left: 1.3rem; display: grid; gap: 6px; }
+main ol.num-l { list-style: decimal; padding-left: 1.4rem; display: grid; gap: 8px; }
+code { font-family: var(--mono); font-size: .9em; background: var(--brand-soft); color: var(--brand-deep); padding: 1px 6px; border-radius: 5px; }
+pre { margin: 12px 0 0; background: var(--dark); color: var(--dark-text); border-radius: 10px; padding: 14px 16px; overflow: auto; font: .9rem/1.55 var(--mono); }
+.note { margin-top: 14px; padding: 12px 14px; border-radius: 10px; background: var(--hu-bg); border: 1px solid var(--hu-line); color: #451a03; font-size: 1rem; }
+.note.ok { background: var(--ok-bg); border-color: var(--ok-line); color: #052e16; }
+.note b { display: block; font-size: .9375rem; margin-bottom: 2px; }
+table { width: 100%; border-collapse: collapse; background: var(--surface); border: 1px solid var(--line); border-radius: 10px; overflow: hidden; font-size: .9375rem; margin-top: 12px; }
+th, td { text-align: left; padding: 10px 12px; border-bottom: 1px solid var(--line); vertical-align: top; }
+th { background: var(--surface-2); }
+.steps { display: grid; gap: 12px; grid-template-columns: repeat(4, minmax(0, 1fr)); margin-top: 14px; }
+.st { background: var(--surface); border: 2px solid var(--line-ui); border-radius: var(--r); padding: 12px 14px; font-size: .9375rem; }
+.st.ia { border-color: var(--ia-line); background: #fbf7ff; }
+.st.hu { border-color: var(--hu-line); background: #fffbeb; }
+.st.py { border-color: var(--py-line); background: #f5f9ff; }
+.st b { display: block; margin: 6px 0 4px; font-size: 1rem; }
+footer { margin-top: 40px; background: var(--head); color: var(--head-muted); padding: 22px 0; font-size: 0.9375rem; }
+footer .wrap { display: flex; gap: 12px 24px; justify-content: space-between; flex-wrap: wrap; }
+footer strong { color: var(--head-text); } footer a { color: #bfdbfe; }
+@media (max-width: 900px) { .layout { grid-template-columns: minmax(0, 1fr); } .toc { position: static; } .steps { grid-template-columns: repeat(2, minmax(0, 1fr)); } }
+@media (max-width: 560px) { .steps { grid-template-columns: minmax(0, 1fr); } }
+@media (prefers-reduced-motion: reduce) { html { scroll-behavior: auto; } }
+</style>
+</head>
+<body>
+<a class="skip" href="#contenu">Aller au contenu</a>
+<header class="top"><div class="wrap">
+  <div class="mark" aria-hidden="true">FP</div>
+  <div class="brand"><p class="name">Flow<span>Portal</span></p><p class="tag">Le portail de workflows de CSFlow</p></div>
+  <div class="spacer"></div>
+  <nav class="toplinks" aria-label="Pages du site"><a href="index.html">Accueil</a><a href="documentation_csflow.html">Documentation</a><a href="video.html">Démo vidéo</a></nav>
+</div></header>
+
+<div class="wrap">
+<div class="hero">
+  <p class="eyebrow">Guide d'utilisation</p>
+  <h1>Chaque workflow est une carte : on le lance, on le lit, on le modifie</h1>
+  <p class="lead">FlowPortal ouvre une page locale où l'on lance un workflow en un clic, on répond aux validations, on retrouve le résultat de chaque lancement, et on crée ou on modifie un workflow à la main ou en le décrivant à CSAgent.</p>
+</div>
+
+<div class="layout">
+<nav class="toc" aria-label="Sommaire"><p>Sommaire</p>
+  <a href="#demarrer">Démarrer</a><a href="#cartes">Les cartes</a><a href="#lancer">Lancer et arrêter</a><a href="#dicter">Dicter une saisie</a>
+  <a href="#resultat">Résultat d'un lancement</a><a href="#yaml">Lire et modifier le YAML</a><a href="#creer">Créer un workflow</a><a href="#assistant">L'assistant CSAgent</a><a href="#limites">Limites et dépannage</a></nav>
+<main id="contenu">
+
+<section id="demarrer"><h2>Démarrer</h2>
+<table><thead><tr><th>Windows (exe compilé)</th><th>Linux (exe compilé)</th><th>Depuis les sources</th></tr></thead>
+<tbody><tr><td><code>FlowPortal.exe</code></td><td><code>./FlowPortal</code></td><td><code>python app.py</code></td></tr></tbody></table>
+<p>Le portail s'ouvre par défaut dans le navigateur, à l'adresse <code>localhost</code>. L'ancienne interface de CSFlow reste disponible : ajoutez <code>--classic</code> (<code>FlowPortal.exe --classic</code>) ou cliquez sur « Interface classique » en haut de la page.</p>
+<p>Les données restent à côté de l'exécutable : le dossier <code>workflows/</code> (un fichier <code>.yaml</code> par carte), <code>tmp/</code> (fichiers produits) et <code>runs.jsonl</code> (historique, 200 lancements au plus).</p>
+</section>
+
+<section id="cartes"><h2>Les cartes</h2>
+<p>Une carte montre le titre, un résumé, la suite des étapes en un coup d'œil, des étiquettes (<b>CSAgent</b>, <b>Validation humaine</b>, <b>MCP</b>) et la date du dernier lancement. La barre de recherche et les filtres (« Avec CSAgent », « Validation humaine », « MCP », « Sans IA ») réduisent la liste ; les derniers lancements sont rappelés au-dessus.</p>
+<p>Si un workflow ne peut pas partir, la carte l'indique (« Prérequis manquant ») et le panneau explique pourquoi : serveur MCP absent de <code>mcp.json</code>, ou variable d'environnement non définie. Les valeurs des clés ne sont jamais lues ni affichées, seulement leur présence.</p>
+</section>
+
+<section id="lancer"><h2>Lancer et arrêter</h2>
+<ol class="num-l">
+<li>Cliquez sur une carte : le panneau s'ouvre avec les paramètres du bloc <code>inputs:</code> du workflow, que vous pouvez modifier avant de lancer.</li>
+<li><b>Lancer le workflow</b> : chaque étape s'allume au fil de l'exécution. Une étape <code>human_approval</code> affiche « Votre décision est attendue » avec <b>Approuver</b> / <b>Refuser</b> ; une étape <code>user_input</code> affiche une zone de saisie.</li>
+<li><b>Arrêter</b> interrompt tout de suite un script <code>python</code>, une commande <code>shell</code> (avec ses processus fils) ou une étape CSAgent, et libère une validation ou une saisie en attente. Les autres étapes (HTTP, MCP…) se terminent d'abord, puis le workflow s'arrête. Le lancement est enregistré avec le statut « Arrêté ».</li></ol>
+<p>Un seul workflow s'exécute à la fois.</p>
+<div class="note"><b>Étape CSAgent arrêtée</b>Le portail coupe seulement sa connexion : le worker CSAgent peut poursuivre son travail de son côté.</div>
+</section>
+
+<section id="dicter"><h2>Dicter une saisie</h2>
+<p>Une étape <code>user_input</code> avec <code>voice: true</code> propose le bouton <b>🎙 Dicter</b>. Le navigateur enregistre, CSAgent transcrit, et le texte s'ajoute à la zone de saisie : relisez-le et corrigez-le avant de valider (Ctrl + Entrée).</p>
+<ul class="bul"><li>Il faut un worker CSAgent démarré avec <code>--api</code>, comme dans l'interface classique.</li><li>Le micro n'est accessible que si la page est ouverte en <code>localhost</code>, ce qui est le cas du portail.</li><li>Un enregistrement peut durer jusqu'à 20 minutes ; les longs enregistrements sont transcrits par parties.</li></ul>
+</section>
+
+<section id="resultat"><h2>Résultat d'un lancement</h2>
+<p>À la fin d'un lancement, <b>Voir le résultat</b> ouvre une vue plein écran (également accessible depuis « Derniers lancements » et depuis le bandeau des lancements récents) :</p>
+<ul class="bul">
+<li><b>Étapes</b> : statut, durée et sortie de chaque étape ; une étape en échec est dépliée avec son message.</li>
+<li><b>Fichiers</b> : les fichiers écrits par le lancement, avec un aperçu ; <b>Ouvrir</b> les ouvre dans l'application par défaut (les exécutables sont refusés, et seuls les fichiers du dossier de FlowPortal sont accessibles).</li>
+<li><b>Journal</b> : déroulé chronologique, copiable.</li>
+<li><b>Entrées</b> : les paramètres utilisés. <b>Relancer</b> rouvre le workflow et le relance avec les valeurs par défaut de ses paramètres.</li></ul>
+<p>Les valeurs des variables d'environnement qui ressemblent à des secrets (<code>…KEY</code>, <code>…TOKEN</code>, <code>…SECRET</code>, <code>…PASSWORD</code>) sont masquées dans l'historique, et les sorties longues sont tronquées.</p>
+</section>
+
+<section id="yaml"><h2>Lire et modifier le YAML</h2>
+<p><b>Voir le YAML</b> affiche le fichier coloré ; <b>Modifier</b> ouvre un éditeur, avec un mode <b>Plein écran</b> (numéros de ligne, liste des problèmes cliquable pour sauter à la ligne). La structure est vérifiée en continu par le moteur.</p>
+<ul class="bul"><li><b>Enregistrer</b> (ou Ctrl + S) n'est possible que sans erreur de validation ; l'ancienne version est gardée dans un fichier <code>.bak</code> et l'écriture est atomique.</li><li><b>Annuler les modifications</b> revient au texte enregistré. Fermer sans enregistrer demande une confirmation.</li></ul>
+</section>
+
+<section id="creer"><h2>Créer un workflow</h2>
+<p>Le bouton <b>+ Nouveau workflow</b> (en haut de la liste) demande un nom de fichier — <code>.yaml</code> est ajouté si besoin, et un nom déjà pris est refusé — puis un point de départ :</p>
+<table><thead><tr><th>Point de départ</th><th>Ce que vous obtenez</th></tr></thead><tbody>
+<tr><td>Vide</td><td>Un squelette valide : nom, description et une étape de fin.</td></tr>
+<tr><td>Une étape</td><td>Un workflow qui écrit un fichier à partir d'un paramètre.</td></tr>
+<tr><td>Avec validation</td><td>Un workflow où un humain approuve ou refuse avant la suite.</td></tr>
+<tr><td>Décrire à CSAgent</td><td>Le squelette vide, avec l'onglet Assistant ouvert pour dire ce que doit faire le workflow.</td></tr></tbody></table>
+<p>Le workflow s'ouvre dans l'éditeur plein écran, <b>sans être enregistré</b> : le fichier n'est créé que par <b>Enregistrer</b>, après validation. Fermer l'éditeur abandonne le brouillon.</p>
+</section>
+
+<section id="assistant"><h2>L'assistant CSAgent</h2>
+<p>L'onglet <b>Assistant</b> de l'éditeur crée ou modifie un workflow à partir d'une demande en français, tapée ou dictée — par exemple « ajoute une étape qui écrit le résultat dans un fichier » ou « demande une validation avant l'envoi ».</p>
+<div class="steps">
+<div class="st hu"><span class="chip hu">Vous</span><b>1. Demandez</b>Tapez ou dictez, relisez, puis « Envoyer à CSAgent » (Ctrl + Entrée).</div>
+<div class="st ia"><span class="chip ia">CSAgent</span><b>2. Il travaille sur une copie</b>Un brouillon dans <code>tmp/assist/</code> ; jamais le vrai fichier.</div>
+<div class="st py"><span class="chip py">Portail</span><b>3. Il valide</b>Le résultat est contrôlé ; en cas d'erreur, CSAgent corrige (deux essais au plus).</div>
+<div class="st hu"><span class="chip hu">Vous</span><b>4. Vous décidez</b>Vous relisez les lignes ajoutées et supprimées, puis Appliquer ou Rejeter.</div></div>
+<ul class="bul" style="margin-top:14px">
+<li><b>Appliquer dans l'éditeur</b> remplace le texte de l'éditeur, qui reste non enregistré : enregistrez ensuite comme d'habitude. Si vous avez modifié le texte entre-temps, un second clic confirme l'écrasement.</li>
+<li>Vous pouvez enchaîner plusieurs demandes : la conversation reste visible tant que l'éditeur est ouvert ; sa fermeture l'efface, ainsi que les brouillons.</li>
+<li>Si CSAgent demande une confirmation (<code>Auto-approve: OFF</code>), elle s'affiche dans l'onglet et vous répondez par Approuver ou Refuser.</li>
+<li><b>Arrêter</b> coupe la connexion avec CSAgent. L'assistant et les lancements de workflows ne s'exécutent pas en même temps.</li></ul>
+<div class="note"><b>Relisez toujours la proposition</b>Le résultat d'un modèle de langage varie d'une demande à l'autre, et un YAML valide n'est pas forcément un workflow qui fait ce que vous voulez. Exemple : sous Windows, <code>start msedge fichier.html</code> est valide mais échoue ; la bonne commande est <code>start "" "fichier.html"</code>.</div>
+</section>
+
+<section id="limites"><h2>Limites et dépannage</h2>
+<table><thead><tr><th>Symptôme</th><th>Cause et remède</th></tr></thead><tbody>
+<tr><td>« Impossible de joindre FlowPortal »</td><td>La page doit être ouverte par FlowPortal (<code>FlowPortal.exe</code> ou <code>python app.py</code>), pas comme un simple fichier.</td></tr>
+<tr><td>L'assistant répond qu'il ne trouve pas le fichier</td><td>Le worker CSAgent doit tourner sur la même machine, démarré depuis le dossier de FlowPortal (<code>start_agent.bat</code> / <code>start_agent.sh</code>).</td></tr>
+<tr><td>« CSAgent n'a rien modifié »</td><td>La demande était déjà satisfaite, ou CSAgent a répondu par une question : lisez sa réponse affichée dessous et reformulez.</td></tr>
+<tr><td>La dictée échoue</td><td>Micro refusé dans le navigateur, page non ouverte en <code>localhost</code>, ou worker CSAgent sans <code>--api</code>.</td></tr>
+<tr><td>Le bouton Lancer est grisé</td><td>Un autre lancement (ou une demande à l'assistant) est en cours, ou un prérequis manque : le panneau le détaille.</td></tr>
+<tr><td>Le YAML ne s'enregistre pas</td><td>Une erreur de validation subsiste : cliquez sur le problème listé pour aller à la ligne.</td></tr>
+</tbody></table>
+</section>
+</main></div></div>
+
+<footer><div class="wrap"><span><strong>FlowPortal</strong> · le portail de workflows de CSFlow</span><span><a href="index.html">Accueil</a> · <a href="documentation_csflow.html">Documentation</a> · <a href="video.html">Démo vidéo</a></span></div></footer>
+</body></html>

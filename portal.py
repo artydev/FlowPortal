@@ -55,6 +55,36 @@ TEMPLATES = [
 ]
 
 
+def _output_warnings(text: str) -> list:
+    """Avertit quand une étape file_write écrit hors du dossier tmp/ (les fichiers produits y sont rangés)."""
+    try:
+        root = schema.yaml.compose(text)
+    except Exception:                                       # noqa: BLE001 : le YAML invalide est déjà signalé par schema.check
+        return []
+    if root is None or getattr(root, "id", "") != "mapping":
+        return []
+    out = []
+    for k, v in root.value:
+        if getattr(k, "value", None) != "steps" or getattr(v, "id", "") != "sequence":
+            continue
+        for st in v.value:
+            if getattr(st, "id", "") != "mapping":
+                continue
+            kv = {getattr(a, "value", None): b for a, b in st.value}
+            t, pth, sid = kv.get("type"), kv.get("path"), kv.get("id")
+            if getattr(t, "value", None) != "file_write" or getattr(pth, "id", "") != "scalar":
+                continue
+            val = str(pth.value).strip().replace("\\", "/")
+            while val.startswith("./"):
+                val = val[2:]
+            if not val or val.startswith("{{") or val.startswith("tmp/"):
+                continue
+            out.append({"level": "warn", "line": pth.start_mark.line + 1,
+                        "message": f"L'étape « {getattr(sid, 'value', '?')} » écrit « {pth.value} » hors du dossier tmp/ : "
+                                   "rangez les fichiers produits dans tmp/ (par exemple tmp/rapport.html)."})
+    return out
+
+
 class PortalError(Exception):
     """Erreur d'usage (nom de fichier invalide, workflow introuvable…), message lisible."""
 
@@ -256,7 +286,8 @@ class Portal:
             return {"ok": False, "error": str(exc)}
 
     def check_yaml(self, text: str) -> dict:
-        issues = _issues(schema.check(str(text)))
+        issues = _issues(schema.check(str(text))) + _output_warnings(str(text))
+        issues.sort(key=lambda i: (i.get("line") or 0))
         return {"ok": not any(i["level"] == "error" for i in issues), "issues": issues}
 
     def save_yaml(self, filename, text: str, create: bool = False) -> dict:

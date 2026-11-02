@@ -53,7 +53,7 @@ def build_prompt(rel_path: str, instruction: str) -> str:
             "respecte la compétence « csflow » (types d'étapes, ids uniques, références {{id.output}}) ; "
             "conserve tout ce que la demande ne concerne pas (ids, commentaires, ordre) ; "
             "le fichier doit rester un YAML valide avec au moins « name » et « steps ». "
-            "Le workflow s'exécute sous Windows : les chemins des fichiers qu'il lit ou écrit sont relatifs au dossier de FlowPortal ; "
+            "Le workflow s'exécute sous Windows : les chemins des fichiers qu'il lit ou écrit sont relatifs au dossier de FlowPortal ; les fichiers qu'il produit vont dans le sous-dossier « tmp/ » (par exemple « tmp/rapport.html »), jamais à la racine ; "
             "pour ouvrir un fichier, utilise la commande shell « start \"\" \"fichier\" » (application par défaut), "
             "jamais « start navigateur fichier ». "
             "Quand tu as terminé, réponds en une ou deux phrases : ce que tu as changé.\n"

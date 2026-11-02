@@ -229,5 +229,37 @@ class TemplateTests(unittest.TestCase):
         self.assertEqual([t["id"] for t in portal.Portal.templates()], ["vide", "une-etape", "validation"])
 
 
+class OutputPathWarningTests(Base):
+
+    def wf(self, path):
+        return f"name: w\nsteps:\n  - id: ecrire\n    type: file_write\n    path: {path}\n    content: x\n  - id: fin\n    type: end\n    message: ok\n"
+
+    def warns(self, path):
+        res = self.portal.check_yaml(self.wf(path))
+        return [i for i in res["issues"] if i["level"] == "warn" and "tmp/" in i["message"]], res
+
+    def test_root_path_warns_on_the_right_line(self):
+        w, res = self.warns("hello.html")
+        self.assertEqual(len(w), 1)
+        self.assertEqual(w[0]["line"], 5)
+        self.assertTrue(res["ok"])                               # avertissement, pas une erreur
+
+    def test_tmp_and_variable_paths_are_fine(self):
+        for p in ("tmp/hello.html", "./tmp/hello.html", "'tmp\\hello.html'", "'{{dossier}}/x.txt'"):
+            self.assertEqual(self.warns(p)[0], [], p)
+
+    def test_absolute_and_other_folders_warn(self):
+        for p in ("/etc/x.txt", "workflows/x.yaml", "'C:/x.txt'"):
+            self.assertEqual(len(self.warns(p)[0]), 1, p)
+
+    def test_invalid_yaml_does_not_crash(self):
+        self.assertFalse(self.portal.check_yaml("name: [")["ok"])
+
+    def test_templates_have_no_warning(self):
+        for t in portal.Portal.templates():
+            res = self.portal.check_yaml(portal.Portal.template_text(t["id"], "x.yaml"))
+            self.assertEqual(res["issues"], [], t["id"])
+
+
 if __name__ == "__main__":
     unittest.main()

@@ -435,6 +435,7 @@ steps:
 19. **Encodage** : fichiers UTF-8 ; une sortie console native OEM est décodée automatiquement.
 20. **`timeout` trop court** : `shell`/`python` s'arrêtent à 60 s par défaut ; `agent` abandonne après 180 s **sans donnée** ; augmente-les pour les tâches longues.
 21. **Ouvrir un fichier sous Windows** : `start "" "rapport.html"` (application par défaut). `start msedge rapport.html` est faux : le navigateur reçoit `rapport.html` comme une adresse web (`ERR_NAME_NOT_RESOLVED`). Passer un navigateur explicite exige une vraie adresse (`file:///…`).
+21b. **Fichiers produits à la racine** : n'écris pas `path: hello.html` (le fichier atterrit à la racine de FlowPortal, à côté du code) ; écris `path: tmp/hello.html`, et ouvre-le avec `cmd: 'start "" "tmp\hello.html"'`.
 22. **Édition d'un brouillon demandée par FlowPortal** : quand la demande désigne un fichier (`tmp/assist/…/draft.yaml`), modifie **uniquement** ce fichier, garde un YAML valide avec `name` et `steps`, et réponds en une ou deux phrases. Le portail valide le résultat avec `--check`, te renvoie les erreurs si besoin, puis montre les différences à l'utilisateur avant toute application : rien n'est enregistré sans son accord.
 
 ---

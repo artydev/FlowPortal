@@ -92,6 +92,11 @@ h1, h2, h3, p { margin: 0; }
 .tagline { font-size: 0.875rem; color: var(--head-muted); }
 .top .brand { display: flex; flex-direction: column; min-width: 0; }
 .top .spacer { flex: 1; }
+.top-link {
+  flex: none; min-height: 42px; display: inline-flex; align-items: center; padding: 0 14px; border-radius: 9px;
+  border: 1px solid #64748b; color: var(--head-text); background: transparent; text-decoration: none; font-size: 0.9375rem; font-weight: 600;
+}
+.top-link:hover { background: #1e293b; }
 
 .pill {
   display: inline-flex; align-items: center; gap: 8px; white-space: nowrap;
@@ -893,6 +898,10 @@ const Header = () => {
       title: store.hideDetail ? 'Afficher le détail de l’étape' : 'Masquer le détail de l’étape',
       onclick: () => { store.hideDetail = !store.hideDetail; saveLayout(); redraw(); },
       innerHTML: ICON_PANEL }),
+    m('a.top-link', {
+      id: 'link-portal', href: '/portal.html', title: 'Ouvrir le portail FlowPortal',
+      onclick: e => { if (store.running && !confirm('Un workflow est en cours : quitter cette page ne l’arrête pas, mais vous n’en verrez plus le déroulé ici. Ouvrir le portail quand même ?')) e.preventDefault(); } },
+      'Portail'),
     m('div.pill', { role: 'status', class: cls },
       m('span.dot', { 'aria-hidden': 'true' }), label),
     m('button.btn-primary', {

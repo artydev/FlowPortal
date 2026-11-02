@@ -35,7 +35,7 @@ button:focus-visible,input:focus-visible,textarea:focus-visible,.card:focus-visi
 .tag.h{color:var(--human);border-color:var(--human)}.tag.m{color:var(--mcp);border-color:var(--mcp)}.tag.a{color:var(--accent);border-color:var(--accent)}.tag.bad{color:var(--bad);border-color:var(--bad)}
 .foot{display:flex;justify-content:space-between;align-items:center;gap:8px;margin-top:auto;color:var(--mute);font-size:13px}
 .btn{padding:8px 16px;border-radius:9px;border:1px solid var(--accent);background:var(--accent);color:var(--accent-ink);font:inherit;font-weight:600;cursor:pointer}
-.btn.ghost{background:transparent;color:var(--ink);border-color:var(--line)}.btn:disabled{opacity:.45;cursor:not-allowed}
+.btn.ghost{background:transparent;color:var(--ink);border-color:var(--line)}.btn.stopb{background:transparent;color:var(--bad);border-color:var(--bad)}.note{font-size:13px;color:var(--mute);margin:0}.btn:disabled{opacity:.45;cursor:not-allowed}
 .empty{padding:40px;text-align:center;color:var(--mute);border:1px dashed var(--line);border-radius:12px;grid-column:1/-1}
 dialog{border:none;padding:0;background:transparent;max-width:none;max-height:none;margin:0 0 0 auto;height:100%}
 dialog::backdrop{background:rgba(10,20,17,.45)}
@@ -48,7 +48,7 @@ ol.steps{list-style:none;margin:0;padding:0;display:grid;gap:2px}
 ol.steps li{display:flex;gap:10px;align-items:flex-start;padding:7px 8px;border-radius:8px;font-size:14px}
 ol.steps li .st{width:18px;flex:0 0 18px;text-align:center;font-weight:700;color:var(--mute)}
 ol.steps li.run{background:color-mix(in srgb,var(--accent) 12%,transparent)}ol.steps li.run .st{color:var(--accent)}
-ol.steps li.ok .st{color:var(--ok)}ol.steps li.err .st{color:var(--bad)}ol.steps li.wait{background:color-mix(in srgb,var(--human) 16%,transparent)}ol.steps li.wait .st{color:var(--human)}
+ol.steps li.stop .st{color:var(--human)}ol.steps li.ok .st{color:var(--ok)}ol.steps li.err .st{color:var(--bad)}ol.steps li.wait{background:color-mix(in srgb,var(--human) 16%,transparent)}ol.steps li.wait .st{color:var(--human)}
 ol.steps small{display:block;color:var(--mute);font-family:"IBM Plex Mono",ui-monospace,Consolas,monospace;font-size:12px}
 .gate{border:1px solid var(--human);border-radius:10px;padding:12px;display:grid;gap:10px}
 .pre{font-size:13px;color:var(--bad);border:1px solid var(--bad);border-radius:8px;padding:8px 12px}
@@ -62,9 +62,9 @@ pre.y{margin:0;padding:12px;border:1px solid var(--line);border-radius:10px;back
 .pi:hover{background:var(--bg)}.pi.error{color:var(--bad)}.pi.warn{color:var(--human)}
 .okmsg{color:var(--ok)}.badmsg{color:var(--bad)}.dirty{color:var(--human)}
 .rb{display:inline-block;padding:2px 10px;border-radius:999px;font-size:13px;font-weight:600;border:1px solid}
-.rb.ok{color:var(--ok)}.rb.error,.rb.interrupted{color:var(--bad)}.rb.rejected{color:var(--human)}
+.rb.ok{color:var(--ok)}.rb.error,.rb.interrupted{color:var(--bad)}.rb.rejected,.rb.cancelled{color:var(--human)}
 .hist{display:grid;gap:4px}.hist button{display:flex;justify-content:space-between;gap:8px;padding:8px 10px;border:1px solid var(--line);border-radius:8px;background:transparent;color:var(--ink);font:inherit;font-size:13px;cursor:pointer;text-align:left}
-.hist button:hover{border-color:var(--accent)}.hist .ok i{color:var(--ok)}.hist .error i,.hist .interrupted i{color:var(--bad)}.hist .rejected i{color:var(--human)}.hist i{font-style:normal;font-weight:700}
+.hist button:hover{border-color:var(--accent)}.hist .ok i{color:var(--ok)}.hist .error i,.hist .interrupted i{color:var(--bad)}.hist .rejected i,.hist .cancelled i{color:var(--human)}.hist i{font-style:normal;font-weight:700}
 dialog.full{width:100vw;height:100vh;margin:0}
 .fp{background:var(--bg);color:var(--ink);width:100vw;height:100vh;display:flex;flex-direction:column}
 .fh{display:flex;flex-wrap:wrap;gap:8px 16px;justify-content:space-between;align-items:center;padding:12px 20px;background:var(--surface);border-bottom:1px solid var(--line)}
@@ -81,7 +81,7 @@ dialog.full{width:100vw;height:100vh;margin:0}
 .sr{background:var(--surface);border:1px solid var(--line);border-radius:10px;margin-bottom:8px}
 .sr summary{display:grid;grid-template-columns:22px 1fr 90px;gap:10px;align-items:center;padding:10px 14px;cursor:pointer;list-style:none}
 .sr summary::-webkit-details-marker{display:none}
-.sr .ic{font-weight:700;text-align:center}.sr.ok .ic{color:var(--ok)}.sr.error{border-color:var(--bad)}.sr.error .ic{color:var(--bad)}.sr.skipped,.sr.notrun{opacity:.55}.sr.rejected .ic{color:var(--human)}
+.sr .ic{font-weight:700;text-align:center}.sr.ok .ic{color:var(--ok)}.sr.error{border-color:var(--bad)}.sr.error .ic{color:var(--bad)}.sr.skipped,.sr.notrun{opacity:.55}.sr.rejected .ic,.sr.cancelled .ic{color:var(--human)}
 .sr small{display:block;color:var(--mute);font:12px "IBM Plex Mono",ui-monospace,Consolas,monospace}
 .sr .bar2{height:6px;border-radius:3px;background:var(--line);overflow:hidden}.sr .bar2 b{display:block;height:100%;background:var(--accent)}
 .sr .tm{text-align:right;font-size:12px;color:var(--mute);margin-bottom:3px}
@@ -117,8 +117,8 @@ dialog.full{width:100vw;height:100vh;margin:0}
 const $=s=>document.querySelector(s);
 const esc=s=>String(s==null?"":s).replace(/&/g,"&amp;").replace(/</g,"&lt;").replace(/>/g,"&gt;").replace(/"/g,"&quot;");
 const T={agent:"Agent",file_write:"Écrit un fichier",file_read:"Lit un fichier",python:"Python",shell:"Commande",http_get:"HTTP GET",http_post:"HTTP POST",http_put:"HTTP PUT",http_delete:"HTTP DELETE",human_approval:"Validation",user_input:"Saisie",mcp_call:"Appel MCP",mcp_tools:"Outils MCP",log:"Journal",end:"Fin",transform:"Transformation"};
-const BL={ok:"Réussi",error:"Échoué",rejected:"Refusé",interrupted:"Interrompu"};
-const SYM={ok:"✓",error:"✕",rejected:"⏸",interrupted:"✕"};
+const BL={ok:"Réussi",error:"Échoué",rejected:"Refusé",interrupted:"Interrompu",cancelled:"Arrêté"};
+const SYM={ok:"✓",error:"✕",rejected:"⏸",interrupted:"✕",cancelled:"■"};
 const S={cards:[],recent:[],busy:false,filter:"all",q:"",cur:null,live:null,drafts:{},saved:{},hist:[]};
 const card=f=>S.cards.find(c=>c.filename==f);
 const call=async(fn,...a)=>{try{return await eel[fn](...a)()}catch(e){return{ok:false,error:"Erreur de communication : "+(e&&e.message||e)}}};
@@ -147,21 +147,22 @@ async function openCard(f,run){const c=card(f);if(!c)return;S.cur=c;S.hist=await
  $("#pn").innerHTML='<button class="f x" id="cl">Fermer</button><h2>'+esc(c.title)+'</h2><p style="margin:0;color:var(--mute)">'+esc(c.description||"")+'</p>'+tags(c)+
  (c.missing.length?'<div class="pre"><b>Ce workflow ne peut pas être lancé :</b><ul>'+c.missing.map(m=>'<li>'+esc(m)+'</li>').join("")+'</ul></div>':'')+
  (inp.length?'<div class="form">'+inp.map(([k,v])=>'<div><label for="i_'+esc(k)+'">'+esc(k)+'</label><input type="text" id="i_'+esc(k)+'" data-k="'+esc(k)+'" value="'+esc(v)+'"></div>').join("")+'</div>':'<p style="margin:0;color:var(--mute)">Aucun paramètre.</p>')+
- '<div class="row"><button class="btn" id="go">Lancer le workflow</button><button class="btn ghost" id="yb" aria-expanded="false">Voir le YAML</button></div><div id="yw" hidden></div><div id="gate"></div><div id="out"></div>'+
+ '<div class="row"><button class="btn" id="go">Lancer le workflow</button><button class="btn stopb" id="stop" hidden>Arrêter</button><button class="btn ghost" id="yb" aria-expanded="false">Voir le YAML</button></div><p class="note" id="stopnote" hidden></p><div id="yw" hidden></div><div id="gate"></div><div id="out"></div>'+
  '<ol class="steps" id="ol">'+c.steps.map((s,i)=>'<li id="s'+i+'"><span class="st">·</span><span>'+esc(s.label)+'<small>'+esc(s.id)+' · '+esc(T[s.type]||s.type)+'</small></span></li>').join("")+'</ol>'+
  '<div><h3 style="font-size:16px;margin:0 0 8px">Derniers lancements</h3><div id="hs"></div></div>';
  hist();const d=$("#dlg");if(!d.open)d.showModal();
- $("#cl").onclick=()=>d.close();$("#go").onclick=()=>launch();$("#yb").onclick=()=>yamlToggle();
+ $("#cl").onclick=()=>d.close();$("#go").onclick=()=>launch();$("#stop").onclick=()=>stopRun();$("#yb").onclick=()=>yamlToggle();
  $("#hs").onclick=e=>{const b=e.target.closest("[data-r]");if(b)showRun(b.dataset.r)};
  syncGo();if(S.live&&S.live.file==f)liveRedraw();if(run)launch()}
 function syncGo(){const g=$("#go");if(!g||!S.cur)return;const c=S.cur;g.disabled=!c.ready||S.busy||(S.live&&S.live.running)}
 function hist(){const e=$("#hs");if(!e)return;e.className="hist";e.innerHTML=S.hist.length?S.hist.map(r=>'<button class="'+r.status+'" data-r="'+esc(r.id)+'"><span>'+when(r.started)+' · '+fd(r.duration)+'</span><i>'+SYM[r.status]+' '+BL[r.status]+'</i></button>').join(""):'<p style="margin:0;color:var(--mute);font-size:14px">Aucun lancement pour l\'instant.</p>'}
 async function launch(){const c=S.cur;if(!c||(S.live&&S.live.running))return;const vals={};document.querySelectorAll("#pn input[data-k]").forEach(i=>vals[i.dataset.k]=i.value);
  const r=await call("portal_run",c.filename,vals);if(!r.ok){$("#out").innerHTML='<div class="pre">'+esc(r.error)+'</div>';return}
- S.live={file:c.filename,running:true,st:{},warn:[],gate:null,runId:null};S.busy=true;liveRedraw();env();draw()}
+ S.live={file:c.filename,running:true,stopping:false,st:{},warn:[],gate:null,runId:null};S.busy=true;liveRedraw();env();draw()}
 function liveRedraw(){const L=S.live;if(!L||!S.cur||S.cur.filename!=L.file||!$("#ol"))return;
- S.cur.steps.forEach((s,i)=>{const e=$("#s"+i);if(!e)return;const v=L.st[s.id]||"";e.className=v;e.querySelector(".st").textContent={run:"▶",ok:"✓",err:"✕",wait:"⏸",skip:"–"}[v]||"·"});
+ S.cur.steps.forEach((s,i)=>{const e=$("#s"+i);if(!e)return;const v=L.st[s.id]||"";e.className=v;e.querySelector(".st").textContent={run:"▶",ok:"✓",err:"✕",wait:"⏸",skip:"–",stop:"■"}[v]||"·"});
  $("#go").disabled=!!L.running||S.busy||!S.cur.ready;$("#go").textContent=L.running?"En cours…":"Relancer";
+ const sb=$("#stop"),sn=$("#stopnote");sb.hidden=!L.running;sb.disabled=!!L.stopping;sb.textContent=L.stopping?"Arrêt en cours…":"Arrêter";sn.hidden=!L.stopping;sn.textContent="Les scripts, commandes et étapes CSAgent s'interrompent tout de suite ; les autres étapes se terminent d'abord.";
  const g=$("#gate");g.innerHTML="";const G=L.gate;
  if(G&&G.kind=="approval"){g.innerHTML='<div class="gate"><b>Votre décision est attendue</b><span>'+esc(G.message)+'</span><div class="row"><button class="btn" id="ap">Approuver</button><button class="btn ghost" id="rj">Refuser</button></div></div>';
   $("#ap").onclick=()=>answer("approved");$("#rj").onclick=()=>answer("rejected");$("#ap").focus()}
@@ -169,6 +170,7 @@ function liveRedraw(){const L=S.live;if(!L||!S.cur||S.cur.filename!=L.file||!$("
   $("#itx").value=G.def||"";$("#itx").focus();const sync=()=>{$("#iok").disabled=G.required&&!$("#itx").value.trim()};sync();$("#itx").oninput=sync;
   $("#iok").onclick=async()=>{const t=$("#itx").value;L.gate=null;liveRedraw();await call("submit_input",t,false)};$("#ino").onclick=async()=>{L.gate=null;liveRedraw();await call("submit_input","",true)}}
  if(L.warn.length)$("#out").innerHTML='<div class="pre" style="color:var(--human);border-color:var(--human)">'+L.warn.map(esc).join("<br>")+'</div>'}
+async function stopRun(){const L=S.live;if(!L||!L.running||L.stopping)return;L.stopping=true;L.gate=null;liveRedraw();const r=await call("portal_stop");if(!r.ok){L.stopping=false;liveRedraw();$("#out").innerHTML='<div class="pre">'+esc(r.error)+'</div>'}}
 async function answer(a){const L=S.live;L.gate=null;if(L.waitId)L.st[L.waitId]="run";liveRedraw();await call("resolve_approval",a)}
 
 /* ── événements du moteur ──────────────────────────────────────────── */
@@ -179,6 +181,7 @@ function receiveEvent(ev){const L=S.live,t=ev&&ev.type,id=ev&&ev.step_id;
  else if(t=="step_done")L.st[id]="ok";
  else if(t=="step_error")L.st[id]="err";
  else if(t=="step_skip")L.st[id]="skip";
+ else if(t=="workflow_cancelled"){if(id)L.st[id]="stop";L.gate=null}
  else if(t=="workflow_warning")L.warn.push(ev.message);
  else if(t=="human_approval_required"){L.waitId=Object.keys(L.st).find(k=>L.st[k]=="run");if(L.waitId)L.st[L.waitId]="wait";L.gate={kind:"approval",message:ev.message||"Approuver ?"}}
  else if(t=="user_input_required"){L.waitId=Object.keys(L.st).find(k=>L.st[k]=="run");if(L.waitId)L.st[L.waitId]="wait";L.gate={kind:"input",prompt:ev.prompt||"Saisie demandée",def:ev.default||"",required:ev.required!==false,voice:!!ev.voice}}
@@ -186,7 +189,8 @@ function receiveEvent(ev){const L=S.live,t=ev&&ev.type,id=ev&&ev.step_id;
 async function finishLive(ev){const L=S.live;await load();if(!L||!S.cur||S.cur.filename!=L.file){env();return}
  S.hist=await call("portal_runs",L.file,8);if(!Array.isArray(S.hist))S.hist=[];hist();
  const r=S.hist[0];const o=$("#out");if(!o)return;
- if(r){o.innerHTML='<div class="res '+(r.status=="ok"?"":r.status=="rejected"?"stop":"bad")+'"><b>'+BL[r.status]+'</b> en '+fd(r.duration)+(r.error?' · '+esc(r.error):'')+'<div class="row" style="margin-top:8px"><button class="btn" id="vr">Voir le résultat</button></div></div>';$("#vr").onclick=()=>showRun(r.id)}
+ if(r){o.innerHTML='<div class="res '+(r.status=="ok"?"":r.status=="rejected"||r.status=="cancelled"?"stop":"bad")+'"><b>'+BL[r.status]+'</b> en '+fd(r.duration)+(r.error?' · '+esc(r.error):'')+'<div class="row" style="margin-top:8px"><button class="btn" id="vr">Voir le résultat</button></div></div>';$("#vr").onclick=()=>showRun(r.id)}
+ const sb=$("#stop"),sn=$("#stopnote");if(sb)sb.hidden=true;if(sn)sn.hidden=true;
  $("#go").textContent="Relancer";syncGo();env()}
 eel.expose(receiveEvent,"receiveEvent");
 
@@ -238,7 +242,7 @@ async function body(){const r=cr,b=$("#rbd"),mx=Math.max(...r.steps.map(s=>+s.du
  if(tab=="steps"){const f=r.steps.find(s=>s.status=="error");
   b.innerHTML=(f?'<div class="pre" style="margin-bottom:14px"><b>L\'étape « '+esc(f.id)+' » a échoué.</b> '+esc((f.output||"").split("\n")[0])+'</div>':(r.error?'<div class="pre" style="margin-bottom:14px">'+esc(r.error)+'</div>':''))+
   (r.warnings&&r.warnings.length?'<div class="pre" style="margin-bottom:14px;color:var(--human);border-color:var(--human)">'+r.warnings.map(esc).join("<br>")+'</div>':'')+
-  r.steps.map(s=>'<details class="sr '+s.status+'" '+(s.status=="error"?"open":"")+'><summary><span class="ic">'+({ok:"✓",error:"✕",skipped:"–",notrun:"–",rejected:"⏸"}[s.status]||"·")+'</span><span>'+esc(s.label)+'<small>'+esc(s.id)+' · '+esc(T[s.type]||s.type)+'</small></span><span class="bw"><div class="tm">'+(s.status=="notrun"||s.status=="skipped"?"":fd(s.duration))+'</div><div class="bar2"><b style="width:'+Math.max(3,(+s.duration||0)/mx*100)+'%"></b></div></span></summary>'+(s.output?'<pre>'+esc(s.output)+'</pre>':'<pre style="color:var(--mute)">'+(s.status=="notrun"?"Non exécutée.":s.status=="skipped"?"Étape ignorée (condition skip_if).":"Pas de sortie.")+'</pre>')+'</details>').join("")}
+  r.steps.map(s=>'<details class="sr '+s.status+'" '+(s.status=="error"?"open":"")+'><summary><span class="ic">'+({ok:"✓",error:"✕",skipped:"–",notrun:"–",rejected:"⏸",cancelled:"■"}[s.status]||"·")+'</span><span>'+esc(s.label)+'<small>'+esc(s.id)+' · '+esc(T[s.type]||s.type)+'</small></span><span class="bw"><div class="tm">'+(s.status=="notrun"||s.status=="skipped"?"":fd(s.duration))+'</div><div class="bar2"><b style="width:'+Math.max(3,(+s.duration||0)/mx*100)+'%"></b></div></span></summary>'+(s.output?'<pre>'+esc(s.output)+'</pre>':'<pre style="color:var(--mute)">'+(s.status=="notrun"?"Non exécutée.":s.status=="skipped"?"Étape ignorée (condition skip_if).":"Pas de sortie.")+'</pre>')+'</details>').join("")}
  if(tab=="files"){if(!r.files.length){b.innerHTML='<div class="empty">Ce lancement n\'a produit aucun fichier.</div>';return}const f=r.files[sf]||r.files[0];
   b.innerHTML='<div class="fl"><div class="lst">'+r.files.map((x,i)=>'<button data-f2="'+i+'" aria-pressed="'+(i==sf)+'">'+esc(x.path)+'<span>'+(x.size==null?"absent":Math.max(1,Math.round(x.size/1024))+" Ko")+'</span></button>').join("")+'</div><div id="pv"><p style="color:var(--mute)">Chargement…</p></div></div>';
   b.querySelector(".lst").onclick=e=>{const x=e.target.closest("[data-f2]");if(x){sf=+x.dataset.f2;body()}};

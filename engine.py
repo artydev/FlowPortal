@@ -106,7 +106,8 @@ class WorkflowEngine:
                  event_callback=None,
                  approval_wait=None,
                  input_wait=None,
-                 inputs: dict | None = None):
+                 inputs: dict | None = None,
+                 cancel=None):
         """
         event_callback : callable(event: dict) — UI event bus (optional)
         approval_wait  : callable() -> str — blocks until human approves/rejects;
@@ -116,6 +117,8 @@ class WorkflowEngine:
                          the text of a user_input step ({"text": ...} or {"cancelled": True})
         inputs         : dict — valeurs qui remplacent celles du bloc `inputs:` du workflow
                          (seules les clés déclarées dans le workflow sont prises en compte)
+        cancel         : threading.Event — s'il est levé, le workflow s'arrête (avant l'étape suivante, ou tout
+                         de suite pour une étape shell / python / agent en cours)
         """
         path = Path(workflow_path)
         if not path.exists():
@@ -129,6 +132,7 @@ class WorkflowEngine:
         self._cb            = event_callback
         self._approval_wait = approval_wait
         self._input_wait    = input_wait
+        self._cancel        = cancel
 
         # Pre-seed ctx with workflow inputs
         for k, v in (self.wf.get("inputs") or {}).items():
@@ -230,6 +234,9 @@ class WorkflowEngine:
         current_id = steps[0].get("id", "step_1") if steps else None
 
         while current_id:
+            if self._stopped():
+                self._cancelled(current_id)
+                return
             step = index.get(current_id)
             if step is None:
                 print(c(RED, f"  ✗  Unknown step id: '{current_id}'"))
@@ -282,6 +289,8 @@ class WorkflowEngine:
                 params["_wait_approval"] = self._approval_wait
             if self._input_wait:
                 params["_wait_input"] = self._input_wait
+            if self._cancel is not None:
+                params["_cancel"] = self._cancel
             params["_step_id"] = sid
 
             handler = REGISTRY.get(stype)
@@ -300,6 +309,10 @@ class WorkflowEngine:
             result = handler(params)
             dur    = round(time.time() - t0, 1)
             self.ctx[sid] = result
+
+            if self._stopped():                  # arrêt demandé pendant l'étape
+                self._cancelled(sid)
+                return
 
             # ── print & emit outcome ───────────────────────────────────────
             if result.get("status") == "error":
@@ -325,6 +338,14 @@ class WorkflowEngine:
         rule()
         print(c(BOLD, c(GRN, "\n  ✅  Workflow complete.\n")))
         self._emit({"type": "workflow_done"})
+
+    def _stopped(self) -> bool:
+        return self._cancel is not None and self._cancel.is_set()
+
+    def _cancelled(self, step_id):
+        rule()
+        print(c(YLW, "\n  ■  Workflow arrêté à la demande de l'utilisateur.\n"))
+        self._emit({"type": "workflow_cancelled", "step_id": step_id, "message": "Arrêté par l'utilisateur"})
 
     def _abort(self):
         rule()

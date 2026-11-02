@@ -119,6 +119,7 @@ def agent(params: dict) -> dict:
     auto     = _truthy(params.get("auto_confirm", os.environ.get("CSFLOW_AUTO_CONFIRM", "0")))
     # Injected by the engine when a UI is attached.
     emit     = params.get("_callback")        # callback({"type": "agent_*", ...})
+    cancel   = params.get("_cancel")           # threading.Event : arrêt demandé depuis le portail
     wait_fn  = params.get("_wait_approval")   # blocks until the UI answers
 
     endpoint = f"{url}/api/chat?prompt={quote(prompt, safe='')}"
@@ -198,6 +199,8 @@ def agent(params: dict) -> dict:
     try:
         with urlopen(req, timeout=timeout) as resp:
             for raw_line in resp:
+                if cancel is not None and cancel.is_set():
+                    return {"output": "Arrêté par l'utilisateur", "status": "error"}
                 line = raw_line.decode("utf-8").rstrip("\r\n")
                 if not line.startswith("data:"):
                     continue

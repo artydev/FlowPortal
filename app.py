@@ -191,14 +191,17 @@ def load_workflow(path: str) -> dict:
 
 
 _run_busy = threading.Event()          # un lancement est en cours (le portail n'en accepte qu'un à la fois)
+_current_cancel: threading.Event | None = None     # arrêt demandé pour le lancement en cours
 
 
 def _start_run(path: str, inputs: dict | None = None) -> dict:
     """Lance un workflow dans un thread ; chaque lancement est enregistré dans runs.jsonl (portail)."""
-    global _approval_event, _approval_result, _input_event, _input_result, _input_request
+    global _approval_event, _approval_result, _input_event, _input_result, _input_request, _current_cancel
     _approval_event  = None
     _approval_result = {}
     _input_event, _input_result, _input_request = None, {}, {}
+    cancel = threading.Event()
+    _current_cancel = cancel
 
     try:
         rec = PORTAL.recorder(Path(path).name, inputs)
@@ -252,7 +255,8 @@ def _start_run(path: str, inputs: dict | None = None) -> dict:
                                     event_callback=on_event,
                                     approval_wait=wait_approval,
                                     input_wait=wait_input,
-                                    inputs=inputs)
+                                    inputs=inputs,
+                                    cancel=cancel)
             engine.run()
         except Exception as exc:
             error = str(exc)
@@ -419,6 +423,19 @@ def portal_run(filename: str, inputs: dict | None = None) -> dict:
     if not card["ready"]:
         return {"ok": False, "error": "Prérequis manquants : " + " ".join(card["missing"])}
     _start_run(str(path), values)
+    return {"ok": True}
+
+
+@eel.expose
+def portal_stop() -> dict:
+    """Arrête le lancement en cours : l'étape en cours est interrompue si c'est un script, une commande ou
+    une étape CSAgent ; sinon le workflow s'arrête dès qu'elle est terminée. Les attentes sont levées."""
+    if not _run_busy.is_set() or _current_cancel is None:
+        return {"ok": False, "error": "Aucun workflow en cours."}
+    _current_cancel.set()
+    for ev in (_approval_event, _input_event):         # validation ou saisie en attente : on la libère
+        if ev is not None:
+            ev.set()
     return {"ok": True}
 
 

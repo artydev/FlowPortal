@@ -197,6 +197,42 @@ class AppPortalTests(unittest.TestCase):
         self.wait_idle()
         self.assertEqual(self.portal.history.load()[-1]["status"], "error")
 
+    def wait_event(self, kind, timeout=10):
+        end = time.time() + timeout
+        while time.time() < end:
+            if any(n == "receiveEvent" and a[0].get("type") == kind for n, a in self.fake.events):
+                return True
+            time.sleep(0.02)
+        return False
+
+    def test_stop_without_run(self):
+        res = self.app.portal_stop()
+        self.assertFalse(res["ok"])
+
+    def test_stop_interrupts_a_running_step(self):
+        (self.root / "workflows" / "dort.yaml").write_text(
+            "name: dort\nsteps:\n  - id: dort\n    type: python\n    code: \"import time; time.sleep(30)\"\n"
+            "    timeout: 60\n  - id: b\n    type: end\n    message: fin\n", encoding="utf-8")
+        self.assertTrue(self.app.portal_run("dort.yaml", {})["ok"])
+        self.assertTrue(self.wait_event("step_start"))
+        time.sleep(0.5)
+        t0 = time.time()
+        self.assertTrue(self.app.portal_stop()["ok"])
+        self.wait_idle()
+        self.assertLess(time.time() - t0, 10)
+        self.assertEqual(self.portal.history.load()[-1]["status"], "cancelled")
+        self.assertTrue(self.wait_event("workflow_cancelled"))
+
+    def test_stop_releases_a_pending_approval(self):
+        (self.root / "workflows" / "ok.yaml").write_text(
+            "name: ok\nsteps:\n  - id: v\n    type: human_approval\n    message: ok ?\n    on_approve: f\n"
+            "    on_reject: f\n  - id: f\n    type: end\n    message: fin\n", encoding="utf-8")
+        self.assertTrue(self.app.portal_run("ok.yaml", {})["ok"])
+        self.assertTrue(self.wait_event("human_approval_required"))
+        self.assertTrue(self.app.portal_stop()["ok"])
+        self.wait_idle()
+        self.assertEqual(self.portal.history.load()[-1]["status"], "cancelled")
+
     def test_save_and_check(self):
         self.assertFalse(self.app.portal_check("name: x\nsteps:\n  - id: a\n    type: nope\n")["ok"])
         self.assertTrue(self.app.portal_save("mini.yaml", WF.replace("Petit test", "Autre"))["ok"])

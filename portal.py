@@ -136,6 +136,7 @@ class RunRecorder:
         self._done = False
         self._error = ""
         self._rejected = False
+        self._cancelled = False
         self._warnings: list = []
         self._record = None
         self._lock = threading.Lock()
@@ -156,6 +157,11 @@ class RunRecorder:
                 self._by_id = {s["id"]: s for s in self._steps}
             elif kind == "workflow_done":
                 self._done = True
+            elif kind == "workflow_cancelled":
+                self._cancelled = True
+                for st in self._steps:
+                    if st["status"] == "running":
+                        st["status"], st["output"] = "cancelled", "Arrêté par l'utilisateur."
             elif kind == "workflow_error":
                 self._error = clip(ev.get("message", "erreur"), 500)
             elif kind == "workflow_warning":
@@ -185,7 +191,9 @@ class RunRecorder:
                 return self._record
             had_error = any(s["status"] == "error" for s in self._steps)
             if status is None:
-                if self._error or (had_error and not self._done):
+                if self._cancelled:
+                    status = "cancelled"
+                elif self._error or (had_error and not self._done):
                     status = "error"
                 elif self._done:
                     status = "rejected" if self._rejected else "ok"

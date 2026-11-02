@@ -10,6 +10,7 @@ import os
 import subprocess
 import sys
 from . import register
+from . import proc_util
 from .shell_node import _decode
 
 FLAG = "--csflow-python"
@@ -126,10 +127,12 @@ def python(params: dict) -> dict:
     env = {**os.environ, "PYTHONUTF8": "1", "PYTHONIOENCODING": "utf-8"}
     extra = {"creationflags": subprocess.CREATE_NO_WINDOW} if sys.platform == "win32" else {}
     try:
-        proc = subprocess.run(cmd, capture_output=True, timeout=timeout, env=env, cwd=cwd, **extra)
+        proc = proc_util.run(cmd, timeout=timeout, cancel=params.get("_cancel"), env=env, cwd=cwd, **extra)
         out, err = _decode(proc.stdout), _decode(proc.stderr)
         return {"output": (out + err).strip(), "stdout": out.strip(), "stderr": err.strip(),
                 "returncode": proc.returncode, "status": "ok" if proc.returncode == 0 else "error"}
+    except proc_util.Cancelled:
+        return {"output": "Arrêté par l'utilisateur", "returncode": -1, "status": "error"}
     except subprocess.TimeoutExpired:
         return {"output": f"Script timed out after {timeout}s", "returncode": -1, "status": "error"}
     except Exception as exc:

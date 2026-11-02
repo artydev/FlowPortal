@@ -5,6 +5,7 @@ import shutil
 import subprocess
 import sys
 from . import register
+from . import proc_util
 
 
 def _decode(raw: bytes) -> str:
@@ -70,11 +71,11 @@ def shell(params: dict) -> dict:
         extra["creationflags"] = subprocess.CREATE_NO_WINDOW
 
     try:
-        proc = subprocess.run(
+        proc = proc_util.run(
             command,
             shell=use_shell,
-            capture_output=True,       # bytes — decoded below
             timeout=timeout,
+            cancel=params.get("_cancel"),
             env=env,
             **extra,
         )
@@ -89,6 +90,8 @@ def shell(params: dict) -> dict:
             "returncode": proc.returncode,   # int — use  {{step.returncode}} == 0
             "status":     status,
         }
+    except proc_util.Cancelled:
+        return {"output": "Arrêté par l'utilisateur", "returncode": -1, "status": "error"}
     except subprocess.TimeoutExpired:
         return {
             "output":     f"Command timed out after {timeout}s",

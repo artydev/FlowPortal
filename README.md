@@ -22,7 +22,10 @@
 
 Le portail s'ouvre par défaut. Pour l'interface classique de CSFlow, ajoutez `--classic` (`FlowPortal.exe --classic`,
 `python app.py --classic`) ; elle reste aussi accessible depuis le portail (« Interface classique »).
-Un seul workflow s'exécute à la fois. L'historique est écrit dans `runs.jsonl`, à côté de l'exécutable (200 lancements au plus ;
+Un seul workflow s'exécute à la fois. Le bouton **Arrêter** interrompt tout de suite un script `python`, une commande `shell`
+(avec leurs processus fils) ou une étape CSAgent, et libère une validation ou une saisie en attente ; les autres étapes
+(HTTP, MCP…) se terminent d'abord, puis le workflow s'arrête. Le lancement est enregistré avec le statut « Arrêté ».
+Une étape CSAgent arrêtée coupe seulement la connexion du portail : le worker CSAgent peut poursuivre son travail de son côté. L'historique est écrit dans `runs.jsonl`, à côté de l'exécutable (200 lancements au plus ;
 les valeurs des variables d'environnement qui ressemblent à des secrets, comme `GOAL_API_KEY`, y sont masquées).
 Depuis le portail, l'édition d'un workflow est validée par le moteur avant l'écriture, et l'ancienne version est gardée en `.bak`.
 La dictée vocale d'une étape `user_input` n'est disponible que dans l'interface classique ; le portail propose la saisie au clavier.

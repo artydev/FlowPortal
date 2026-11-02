@@ -35,7 +35,7 @@ button:focus-visible,input:focus-visible,textarea:focus-visible,.card:focus-visi
 .tag.h{color:var(--human);border-color:var(--human)}.tag.m{color:var(--mcp);border-color:var(--mcp)}.tag.a{color:var(--accent);border-color:var(--accent)}.tag.bad{color:var(--bad);border-color:var(--bad)}
 .foot{display:flex;justify-content:space-between;align-items:center;gap:8px;margin-top:auto;color:var(--mute);font-size:13px}
 .btn{padding:8px 16px;border-radius:9px;border:1px solid var(--accent);background:var(--accent);color:var(--accent-ink);font:inherit;font-weight:600;cursor:pointer}
-.btn.ghost{background:transparent;color:var(--ink);border-color:var(--line)}.btn.stopb{background:transparent;color:var(--bad);border-color:var(--bad)}.note{font-size:13px;color:var(--mute);margin:0}.btn:disabled{opacity:.45;cursor:not-allowed}
+.btn.ghost{background:transparent;color:var(--ink);border-color:var(--line)}.btn.stopb{background:transparent;color:var(--bad);border-color:var(--bad)}.note{font-size:13px;color:var(--mute);margin:0}.voice{display:flex;align-items:center;gap:12px;flex-wrap:wrap}.vst{color:var(--mute);font-size:14px}.verr{color:var(--bad);border:1px solid var(--bad);border-radius:6px;padding:2px 10px;font-size:13px}.btn:disabled{opacity:.45;cursor:not-allowed}
 .empty{padding:40px;text-align:center;color:var(--mute);border:1px dashed var(--line);border-radius:12px;grid-column:1/-1}
 dialog{border:none;padding:0;background:transparent;max-width:none;max-height:none;margin:0 0 0 auto;height:100%}
 dialog::backdrop{background:rgba(10,20,17,.45)}
@@ -163,15 +163,49 @@ function liveRedraw(){const L=S.live;if(!L||!S.cur||S.cur.filename!=L.file||!$("
  S.cur.steps.forEach((s,i)=>{const e=$("#s"+i);if(!e)return;const v=L.st[s.id]||"";e.className=v;e.querySelector(".st").textContent={run:"▶",ok:"✓",err:"✕",wait:"⏸",skip:"–",stop:"■"}[v]||"·"});
  $("#go").disabled=!!L.running||S.busy||!S.cur.ready;$("#go").textContent=L.running?"En cours…":"Relancer";
  const sb=$("#stop"),sn=$("#stopnote");sb.hidden=!L.running;sb.disabled=!!L.stopping;sb.textContent=L.stopping?"Arrêt en cours…":"Arrêter";sn.hidden=!L.stopping;sn.textContent="Les scripts, commandes et étapes CSAgent s'interrompent tout de suite ; les autres étapes se terminent d'abord.";
- const g=$("#gate");g.innerHTML="";const G=L.gate;
+ const g=$("#gate"),G=L.gate;
+ if(L.gateDrawn!==G||(G&&!g.firstChild)){L.gateDrawn=G;if(!G)Voice.abort();g.innerHTML="";
  if(G&&G.kind=="approval"){g.innerHTML='<div class="gate"><b>Votre décision est attendue</b><span>'+esc(G.message)+'</span><div class="row"><button class="btn" id="ap">Approuver</button><button class="btn ghost" id="rj">Refuser</button></div></div>';
   $("#ap").onclick=()=>answer("approved");$("#rj").onclick=()=>answer("rejected");$("#ap").focus()}
- if(G&&G.kind=="input"){g.innerHTML='<div class="gate"><b>'+esc(G.prompt)+'</b>'+(G.voice?'<span style="color:var(--mute);font-size:13px">La dictée n\'est disponible que dans l\'interface classique : saisissez le texte ici.</span>':'')+'<textarea class="in" id="itx" rows="4" style="width:100%;padding:9px 12px;border:1px solid var(--line);border-radius:8px;background:var(--bg);color:var(--ink);font:inherit"></textarea><div class="row"><button class="btn" id="iok">Valider</button><button class="btn ghost" id="ino">Annuler</button></div></div>';
-  $("#itx").value=G.def||"";$("#itx").focus();const sync=()=>{$("#iok").disabled=G.required&&!$("#itx").value.trim()};sync();$("#itx").oninput=sync;
-  $("#iok").onclick=async()=>{const t=$("#itx").value;L.gate=null;liveRedraw();await call("submit_input",t,false)};$("#ino").onclick=async()=>{L.gate=null;liveRedraw();await call("submit_input","",true)}}
+ if(G&&G.kind=="input"){g.innerHTML='<div class="gate"><b>'+esc(G.prompt)+'</b><textarea class="in" id="itx" rows="4" aria-label="'+esc(G.prompt)+'" style="width:100%;padding:9px 12px;border:1px solid var(--line);border-radius:8px;background:var(--bg);color:var(--ink);font:inherit"></textarea>'+
+   (G.voice?'<div class="voice"><button class="btn ghost" id="mic" type="button" aria-pressed="false">🎙 Dicter</button><span class="vst" id="vst" role="status" aria-live="polite"></span><span class="verr" id="verr" role="alert" hidden></span></div>':'')+
+   '<div class="row"><button class="btn" id="iok">Valider</button><button class="btn ghost" id="ino">Annuler</button><span class="note" style="align-self:center">Ctrl + Entrée pour valider</span></div></div>';
+  const tx=$("#itx");tx.value=G.def||"";tx.focus();tx.oninput=voiceUI;
+  tx.onkeydown=e=>{if(e.key=="Enter"&&(e.ctrlKey||e.metaKey)){e.preventDefault();if(!$("#iok").disabled)$("#iok").click()}};
+  if(G.voice){S.voice={state:"idle",msg:"",err:"",secs:0};$("#mic").onclick=()=>S.voice.state=="recording"?Voice.stop():Voice.start()}
+  $("#iok").onclick=async()=>{const t=$("#itx").value;Voice.abort();L.gate=null;liveRedraw();await call("submit_input",t,false)};
+  $("#ino").onclick=async()=>{Voice.abort();L.gate=null;liveRedraw();await call("submit_input","",true)};voiceUI()}}
  if(L.warn.length)$("#out").innerHTML='<div class="pre" style="color:var(--human);border-color:var(--human)">'+L.warn.map(esc).join("<br>")+'</div>'}
 async function stopRun(){const L=S.live;if(!L||!L.running||L.stopping)return;L.stopping=true;L.gate=null;liveRedraw();const r=await call("portal_stop");if(!r.ok){L.stopping=false;liveRedraw();$("#out").innerHTML='<div class="pre">'+esc(r.error)+'</div>'}}
 async function answer(a){const L=S.live;L.gate=null;if(L.waitId)L.st[L.waitId]="run";liveRedraw();await call("resolve_approval",a)}
+
+/* ── dictée : enregistrement dans le navigateur, transcription par CSAgent (côté Python) ── */
+const VOICE_MAX=20*60;
+const mmss=n=>String(Math.floor(n/60)).padStart(2,"0")+":"+String(n%60).padStart(2,"0");
+function voiceUI(){const G=S.live&&S.live.gate;if(!G||G.kind!="input")return;const v=S.voice,tx=$("#itx"),ok=$("#iok");if(!tx||!ok)return;
+ ok.disabled=(v&&v.state!="idle")||(G.required&&!tx.value.trim());if(!G.voice||!v)return;
+ const mic=$("#mic");mic.className="btn "+(v.state=="recording"?"stopb":"ghost");mic.setAttribute("aria-pressed",v.state=="recording");mic.disabled=v.state=="transcribing";
+ mic.textContent=v.state=="recording"?"⏹ Arrêter ("+mmss(v.secs)+")":v.state=="transcribing"?"… Transcription":"🎙 Dicter";
+ $("#vst").textContent=v.state=="recording"?"Enregistrement en cours… parlez, puis cliquez sur Arrêter.":v.msg;
+ const er=$("#verr");er.hidden=!v.err;er.textContent=v.err}
+const Voice={rec:null,stream:null,chunks:[],timer:null,t0:0,discard:false,
+ supported(){return!!(navigator.mediaDevices&&navigator.mediaDevices.getUserMedia&&window.MediaRecorder)},
+ release(){clearInterval(Voice.timer);if(Voice.stream){Voice.stream.getTracks().forEach(t=>t.stop());Voice.stream=null}},
+ async start(){const v=S.voice;v.err="";v.msg="";
+  if(!Voice.supported()){v.err="Le micro n'est pas disponible dans ce navigateur (la page doit être ouverte en localhost).";voiceUI();return}
+  try{Voice.stream=await navigator.mediaDevices.getUserMedia({audio:true})}catch(e){v.err="Micro refusé ou introuvable ("+((e&&e.name)||e)+"). Autorisez le micro puis réessayez.";voiceUI();return}
+  const mime=["audio/webm;codecs=opus","audio/webm","audio/ogg;codecs=opus","audio/mp4"].find(t=>window.MediaRecorder.isTypeSupported(t))||"";
+  Voice.chunks=[];Voice.discard=false;Voice.rec=new MediaRecorder(Voice.stream,mime?{mimeType:mime}:undefined);
+  Voice.rec.ondataavailable=e=>{if(e.data&&e.data.size)Voice.chunks.push(e.data)};
+  Voice.rec.onstop=()=>Voice.finish(Voice.rec.mimeType||mime||"audio/webm");Voice.rec.start(1000);
+  v.state="recording";v.secs=0;Voice.t0=Date.now();
+  Voice.timer=setInterval(()=>{v.secs=Math.floor((Date.now()-Voice.t0)/1000);if(v.secs>=VOICE_MAX)Voice.stop();voiceUI()},500);voiceUI()},
+ stop(){if(Voice.rec&&Voice.rec.state!="inactive")Voice.rec.stop();Voice.release()},
+ abort(){if(!S.voice)return;Voice.discard=true;if(Voice.rec&&Voice.rec.state!="inactive"){try{Voice.rec.stop()}catch(e){}}Voice.release();S.voice.state="idle"},
+ async finish(mime){Voice.release();const v=S.voice;if(Voice.discard||!v){if(v)v.state="idle";voiceUI();return}
+  const blob=new Blob(Voice.chunks,{type:mime});v.state="transcribing";v.msg="Envoi de l'enregistrement…";voiceUI();
+  const b64=await new Promise(res=>{const fr=new FileReader();fr.onloadend=()=>res(String(fr.result).split(",")[1]||"");fr.readAsDataURL(blob)});
+  const r=await call("audio_upload",b64,mime);if(!r||!r.ok){v.state="idle";v.msg="";v.err=(r&&r.error)||"Envoi impossible."}voiceUI()}};
 
 /* ── événements du moteur ──────────────────────────────────────────── */
 function receiveEvent(ev){const L=S.live,t=ev&&ev.type,id=ev&&ev.step_id;
@@ -183,6 +217,11 @@ function receiveEvent(ev){const L=S.live,t=ev&&ev.type,id=ev&&ev.step_id;
  else if(t=="step_skip")L.st[id]="skip";
  else if(t=="workflow_cancelled"){if(id)L.st[id]="stop";L.gate=null}
  else if(t=="workflow_warning")L.warn.push(ev.message);
+ else if(t=="user_input_progress"&&S.voice){S.voice.msg=ev.total>1?"Transcription… partie "+ev.part+"/"+ev.total:"Transcription en cours…";voiceUI();return}
+ else if(t=="user_input_transcribed"&&S.voice){const v=S.voice,x=String(ev.text||"").trim(),tx=$("#itx");v.state="idle";
+  if(x&&tx){tx.value=tx.value.trim()?tx.value.replace(/\s+$/,"")+"\n"+x:x;v.msg="Transcription terminée : relisez et corrigez le texte avant de valider."}else{v.msg="";v.err="Aucune parole détectée."}
+  voiceUI();if(tx)tx.focus();return}
+ else if(t=="user_input_error"&&S.voice){S.voice.state="idle";S.voice.msg="";S.voice.err=ev.message||"Transcription impossible.";voiceUI();return}
  else if(t=="human_approval_required"){L.waitId=Object.keys(L.st).find(k=>L.st[k]=="run");if(L.waitId)L.st[L.waitId]="wait";L.gate={kind:"approval",message:ev.message||"Approuver ?"}}
  else if(t=="user_input_required"){L.waitId=Object.keys(L.st).find(k=>L.st[k]=="run");if(L.waitId)L.st[L.waitId]="wait";L.gate={kind:"input",prompt:ev.prompt||"Saisie demandée",def:ev.default||"",required:ev.required!==false,voice:!!ev.voice}}
  liveRedraw()}

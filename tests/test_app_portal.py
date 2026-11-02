@@ -233,6 +233,76 @@ class AppPortalTests(unittest.TestCase):
         self.wait_idle()
         self.assertEqual(self.portal.history.load()[-1]["status"], "cancelled")
 
+    # --- création et assistant -------------------------------------------------
+    def test_create_new_existing_and_bad_name(self):
+        self.assertTrue(self.app.portal_create("neuf.yaml", WF)["ok"])
+        self.assertTrue((self.root / "workflows" / "neuf.yaml").exists())
+        self.assertFalse(self.app.portal_create("neuf.yaml", WF)["ok"])
+        self.assertFalse(self.app.portal_create("../x.yaml", WF)["ok"])
+        self.assertFalse(self.app.portal_create("inv.yaml", "name: x\nsteps:\n  - id: a\n    type: nope\n")["ok"])
+
+    def test_templates_api(self):
+        ids = [t["id"] for t in self.app.portal_templates()]
+        self.assertIn("vide", ids)
+        res = self.app.portal_template("vide", "Mon Flux.yaml")
+        self.assertTrue(res["ok"])
+        self.assertIn("name:", res["yaml"])
+        self.assertFalse(self.app.portal_template("nope", "a.yaml")["ok"])
+
+    def _assistant(self, agent):
+        import assist
+        a = assist.Assistant(self.portal, self.root, agent)
+        p = mock.patch.object(self.app, "ASSIST", a)
+        p.start()
+        self.addCleanup(p.stop)
+
+    def _wait_done(self, timeout=10):
+        end = time.time() + timeout
+        while time.time() < end:
+            for name, args in self.fake.events:
+                if name == "receiveEvent" and args and args[0].get("type") == "assist_done":
+                    return args[0]
+            time.sleep(0.02)
+        self.fail("assist_done non reçu")
+
+    def test_assist_returns_proposal(self):
+        import re
+
+        def agent(params):
+            rel = re.search(r"« ([^»]+) »", params["prompt"]).group(1)
+            (self.root / rel).write_text(WF.replace("Petit test", "Modifié"), encoding="utf-8")
+            return {"status": "ok", "output": "Fait."}
+        self._assistant(agent)
+        self.assertTrue(self.app.portal_assist(WF, "change la description")["ok"])
+        res = self._wait_done()
+        self.assertTrue(res["ok"])
+        self.assertTrue(res["changed"])
+        self.assertIn("Modifié", res["draft"])
+        self.assertFalse(self.app._run_busy.is_set())
+
+    def test_assist_refused_while_busy_and_stoppable(self):
+        started = threading.Event()
+
+        def agent(params):
+            started.set()
+            params["_cancel"].wait(10)
+            return {"status": "ok", "output": ""}
+        self._assistant(agent)
+        self.assertTrue(self.app.portal_assist(WF, "x")["ok"])
+        self.assertTrue(started.wait(5))
+        self.assertFalse(self.app.portal_assist(WF, "y")["ok"])
+        self.assertFalse(self.app.portal_run("mini.yaml", {})["ok"])
+        self.assertTrue(self.app.portal_stop()["ok"])
+        res = self._wait_done()
+        self.assertFalse(res["ok"])
+        self.assertFalse(self.app._run_busy.is_set())
+
+    def test_assist_voice_sets_input_request(self):
+        self.assertTrue(self.app.portal_assist_voice(True)["ok"])
+        self.assertTrue(self.app._input_request.get("voice"))
+        self.assertTrue(self.app.portal_assist_voice(False)["ok"])
+        self.assertFalse((self.app._input_request or {}).get("voice"))
+
     def test_save_and_check(self):
         self.assertFalse(self.app.portal_check("name: x\nsteps:\n  - id: a\n    type: nope\n")["ok"])
         self.assertTrue(self.app.portal_save("mini.yaml", WF.replace("Petit test", "Autre"))["ok"])

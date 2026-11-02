@@ -85,9 +85,20 @@ except ImportError:
 from engine import WorkflowEngine
 import audio_client
 import portal as _portal
+import assist as _assist
 
 WORKFLOWS_DIR = APP_DIR / "workflows"
 PORTAL = _portal.Portal(WORKFLOWS_DIR, APP_DIR / "runs.jsonl", base_dir=APP_DIR)
+
+
+def _assist_agent(params: dict) -> dict:
+    """Étape `agent` du moteur, appelée directement par l'assistant (même flux, mêmes confirmations)."""
+    from nodes import REGISTRY
+    return REGISTRY["agent"](params)
+
+
+ASSIST = _assist.Assistant(PORTAL, APP_DIR, lambda p: _assist_agent(p))
+ASSIST.cleanup_stale()
 
 eel.init(str(RES_DIR / "ui"))
 
@@ -423,6 +434,72 @@ def portal_run(filename: str, inputs: dict | None = None) -> dict:
     if not card["ready"]:
         return {"ok": False, "error": "Prérequis manquants : " + " ".join(card["missing"])}
     _start_run(str(path), values)
+    return {"ok": True}
+
+
+@eel.expose
+def portal_templates() -> list:
+    return PORTAL.templates()
+
+
+@eel.expose
+def portal_template(template_id: str, filename: str) -> dict:
+    try:
+        return {"ok": True, "yaml": PORTAL.template_text(template_id, filename)}
+    except _portal.PortalError as exc:
+        return {"ok": False, "error": str(exc)}
+
+
+@eel.expose
+def portal_create(filename: str, text: str) -> dict:
+    """Crée un nouveau workflow (refuse d'écraser un fichier existant)."""
+    return PORTAL.save_yaml(filename, text, create=True)
+
+
+@eel.expose
+def portal_assist_voice(enable: bool = True) -> dict:
+    """Prépare (ou retire) la dictée pour la zone de demande de l'assistant."""
+    global _input_request
+    import nodes.agent_node as _agent
+    _input_request = ({"voice": True, "csagent_url": _agent.DEFAULT_URL, "csagent_key": _agent.DEFAULT_KEY,
+                       "language": "fr", "keep_audio": False} if enable else {})
+    return {"ok": True}
+
+
+@eel.expose
+def portal_assist(text: str, instruction: str) -> dict:
+    """Confie une demande à CSAgent (création ou modification) ; le résultat arrive par l'événement assist_done."""
+    global _approval_event, _approval_result, _current_cancel
+    if _run_busy.is_set():
+        return {"ok": False, "error": "Un workflow ou une demande à l'assistant est déjà en cours."}
+    cancel = threading.Event()
+    _current_cancel = cancel
+    _approval_event, _approval_result = None, {}
+    _run_busy.set()
+
+    def say(ev: dict):
+        try:
+            eel.receiveEvent(ev if str(ev.get("type", "")).startswith("assist_") else {"type": "assist_event", "event": ev})
+        except Exception as exc:
+            print(f"[EEL] receiveEvent échoué : {exc}", flush=True)
+
+    def wait_approval() -> str:
+        global _approval_event, _approval_result
+        ev, result = threading.Event(), {}
+        _approval_event, _approval_result = ev, result
+        ev.wait(timeout=600)
+        return result.get("answer", "rejected")
+
+    def _work():
+        try:
+            res = ASSIST.run(text, instruction, emit=say, cancel=cancel, wait_approval=wait_approval)
+        except Exception as exc:                                   # noqa: BLE001
+            res = {"ok": False, "error": str(exc)}
+        finally:
+            _run_busy.clear()
+        say({"type": "assist_done", **res})
+
+    threading.Thread(target=_work, daemon=True).start()
     return {"ok": True}
 
 

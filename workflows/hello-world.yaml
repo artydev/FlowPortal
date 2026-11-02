@@ -1,0 +1,21 @@
+name: hello-world
+description: À compléter.
+steps:
+  - id: saisie
+    type: user_input
+    prompt: Saisissez le message à afficher dans le navigateur
+  - id: html
+    type: file_write
+    path: hello.html
+    content: |
+      <html>
+        <body style="background-color: red;">
+          <h1>{{saisie.output}}</h1>
+        </body>
+      </html>
+  - id: open
+    type: shell
+    cmd: start "" hello.html
+  - id: fin
+    type: end
+    message: Terminé

@@ -39,6 +39,22 @@ MAX_OUTPUT = 2000          # caractères conservés par étape dans l'historique
 MAX_RUNS = 200             # lancements conservés dans runs.jsonl
 
 
+TEMPLATES = [
+    {"id": "vide", "label": "Vide", "description": "Un nom, une description et une étape de fin.",
+     "yaml": "name: {NOM}\ndescription: À compléter.\nsteps:\n  - id: fin\n    type: end\n    message: Terminé\n"},
+    {"id": "une-etape", "label": "Une étape", "description": "Une entrée, un fichier écrit, un message final.",
+     "yaml": "name: {NOM}\ndescription: Écrit un fichier à partir d'une entrée.\ninputs:\n  sujet: Rapport\nsteps:\n"
+             "  - id: ecrire\n    type: file_write\n    description: Écrit le fichier\n    path: tmp/{NOM}.txt\n"
+             "    content: \"Sujet : {{sujet}}\"\n  - id: fin\n    type: end\n    message: Fichier écrit dans tmp/{NOM}.txt\n"},
+    {"id": "validation", "label": "Avec validation humaine", "description": "Prépare un fichier, demande l'accord, puis conclut.",
+     "yaml": "name: {NOM}\ndescription: Prépare un fichier puis attend votre validation.\nsteps:\n"
+             "  - id: preparer\n    type: file_write\n    description: Prépare le fichier\n    path: tmp/{NOM}.txt\n    content: Brouillon\n"
+             "  - id: valider\n    type: human_approval\n    description: Validation\n    message: Valider le fichier tmp/{NOM}.txt ?\n"
+             "    on_approve: accepte\n    on_reject: refuse\n"
+             "  - id: accepte\n    type: end\n    message: Validé\n  - id: refuse\n    type: end\n    message: Refusé\n"},
+]
+
+
 class PortalError(Exception):
     """Erreur d'usage (nom de fichier invalide, workflow introuvable…), message lisible."""
 
@@ -267,6 +283,21 @@ class Portal:
             return {"ok": True, "filename": name, "issues": res["issues"]}
         except (PortalError, OSError) as exc:
             return {"ok": False, "error": str(exc), "issues": []}
+
+    # -- modèles ------------------------------------------------------------
+    @staticmethod
+    def templates() -> list:
+        return [{k: t[k] for k in ("id", "label", "description")} for t in TEMPLATES]
+
+    @staticmethod
+    def template_text(template_id: str, filename: str) -> str:
+        """Texte d'un modèle, avec le nom du workflow tiré du nom de fichier."""
+        name = re.sub(r"\.ya?ml$", "", safe_name(filename), flags=re.I)
+        slug = re.sub(r"[^A-Za-z0-9_-]+", "-", name).strip("-") or "nouveau-workflow"
+        for t in TEMPLATES:
+            if t["id"] == template_id:
+                return t["yaml"].replace("{NOM}", slug)
+        raise PortalError(f"Modèle inconnu : « {template_id} ».")
 
     # -- cartes -------------------------------------------------------------
     def list_cards(self) -> list:

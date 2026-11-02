@@ -13,6 +13,7 @@
 | Exécutable compilé : `FlowPortal.exe` (Windows) / `FlowPortal` (Linux), à la place de `CSFlow.exe` | **fait** (scripts de build et de démarrage, exemples `mcp.*.example`) |
 | Page du portail (`ui/portal.html`), ouverte par défaut (`--classic` pour l'ancienne interface) : cartes, lancement avec paramètres, validations et saisies, YAML (lecture, édition, plein écran), résultat de chaque lancement | **fait** |
 | `engine.py` : `WorkflowEngine(..., inputs={...})` remplace les valeurs du bloc `inputs:` | **fait**, testé |
+| Création d'un workflow depuis le portail (à la main, ou décrite à CSAgent par la voix ou au clavier) et modification assistée d'un workflow existant (`assist.py`) | **fait**, testé (`tests/test_assist.py`) |
 
 ### Lancer le portail
 
@@ -31,6 +32,23 @@ Depuis le portail, l'édition d'un workflow est validée par le moteur avant l'�
 Une étape `user_input` avec `voice: true` propose le bouton **Dicter** (prise de note vocale) : le navigateur enregistre,
 CSAgent transcrit (worker `--api` démarré, comme dans l'interface classique), et le texte s'ajoute à la zone de saisie pour être relu et corrigé avant validation.
 Le micro n'est accessible que si la page est ouverte en `localhost`, ce qui est le cas du portail.
+
+### Créer et modifier un workflow depuis le portail
+
+Le bouton **+ Nouveau workflow** demande un nom de fichier (`.yaml` ajouté si besoin, refus si le nom existe déjà) puis un point de départ :
+un squelette vide, un workflow à une étape, un workflow avec validation humaine, ou **Décrire à CSAgent**. Le workflow s'ouvre dans l'éditeur plein écran,
+**sans être enregistré** : le fichier n'est créé que par **Enregistrer**, après la validation habituelle du moteur. Fermer l'éditeur abandonne le brouillon.
+
+L'onglet **Assistant** de l'éditeur (également accessible par le bouton « Assistant » de l'éditeur du panneau) sert aussi bien à créer qu'à modifier un workflow existant :
+
+1. Écrivez la demande (« ajoute une étape qui écrit le résultat dans un fichier ») ou cliquez sur **Dicter** (micro, transcription par CSAgent) ; relisez, puis **Envoyer à CSAgent** (Ctrl + Entrée).
+2. CSAgent travaille sur une **copie** du YAML (`tmp/assist/<id>/draft.yaml`), jamais sur le fichier du workflow. Si le résultat ne passe pas la validation, le portail lui renvoie les erreurs (deux corrections au plus).
+3. Vous recevez une **proposition** avec les lignes ajoutées et supprimées. **Appliquer dans l'éditeur** remplace le texte de l'éditeur (toujours non enregistré) ; **Rejeter** l'abandonne. Si vous avez modifié le texte entre-temps, un second clic confirme l'écrasement.
+4. Les échanges restent visibles tant que l'éditeur est ouvert ; la fermeture efface l'historique de la conversation et les brouillons de `tmp/assist`.
+
+Conditions : un worker CSAgent joignable (`--api`, comme pour une étape `agent`) ; la dictée demande en plus le micro (page ouverte en `localhost`). Le résultat d'un LLM varie : relisez toujours le diff.
+Si CSAgent demande une confirmation (`Auto-approve: OFF`), elle s'affiche dans le panneau de l'assistant. **Arrêter** coupe la connexion avec CSAgent (le worker peut poursuivre de son côté).
+L'assistant et les lancements de workflows ne s'exécutent pas en même temps.
 
 `portal.py` n'a aucune dépendance au navigateur : il peut être testé et utilisé sans interface.
 

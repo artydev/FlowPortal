@@ -27,6 +27,7 @@ python -m nuitka ^
     --include-module=audio_client ^
     --include-module=mcp_client ^
     --include-module=portal ^
+    --include-module=assist ^
     --include-module=runpy ^
     --include-package=unittest ^
     --include-module=csv ^

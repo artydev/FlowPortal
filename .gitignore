@@ -75,3 +75,4 @@ mcp.json
 runs.jsonl
 runs.jsonl.tmp
 workflows/*.bak
+workflows/.corbeille/

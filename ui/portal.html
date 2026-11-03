@@ -87,6 +87,13 @@ dialog.full{width:100vw;height:100vh;margin:0}
 .dl.add{background:color-mix(in srgb,var(--ok) 16%,transparent)}.dl.add i{color:var(--ok)}
 .dl.del{background:color-mix(in srgb,var(--bad) 14%,transparent)}.dl.del i{color:var(--bad)}.dl.gap{color:var(--mute)}
 #atx{width:100%;padding:9px 12px;border:1px solid var(--line);border-radius:8px;background:var(--bg);color:var(--ink);font:inherit;resize:vertical}
+/* vue liste */
+.grid.lst{display:block}.lw{overflow:auto;border:1px solid var(--line);border-radius:12px;background:var(--surface)}
+.lt{width:100%;border-collapse:collapse;font-size:14px}.lt th,.lt td{text-align:left;padding:10px 14px;border-bottom:1px solid var(--line);vertical-align:middle}
+.lt thead th{color:var(--mute);font-weight:600;font-size:13px}.lt tbody tr:last-child>*{border-bottom:0}.lt tbody tr:hover{background:var(--bg)}
+.lt small{display:block;color:var(--mute);font:12px "IBM Plex Mono",ui-monospace,Consolas,monospace}.lt .act{white-space:nowrap;text-align:right}.lt .act button{margin-left:6px}
+.lnk{border:0;background:transparent;color:var(--ink);font:inherit;font-weight:600;cursor:pointer;padding:0;text-align:left}.lnk:hover{color:var(--accent);text-decoration:underline}
+.f.danger{color:var(--bad);border-color:var(--bad)}.sr-only{position:absolute;width:1px;height:1px;overflow:hidden;clip:rect(0 0 0 0);white-space:nowrap}
 dialog.modal{margin:auto;height:auto;width:min(520px,94vw)}
 .mp{background:var(--surface);color:var(--ink);padding:24px;border-radius:14px;border:1px solid var(--line);display:grid;gap:14px}.mp h2{font-size:22px}
 .mp input[type=text]{width:100%;padding:9px 12px;border:1px solid var(--line);border-radius:8px;background:var(--bg);color:var(--ink);font:inherit}
@@ -119,7 +126,7 @@ fieldset{border:0;margin:0;padding:0;display:grid;gap:8px}
 <div class="env"><span class="chip" id="c1"></span><span class="chip" id="c2"></span><a class="chip" href="/index.html">Interface classique</a><button class="f" id="th">Thème</button></div></header>
 <div id="alert"></div>
 <div class="bar"><input id="q" type="search" placeholder="Rechercher un workflow" aria-label="Rechercher">
-<button class="f" data-k="all" aria-pressed="true">Tous</button><button class="f" data-k="agent" aria-pressed="false">Avec CSAgent</button><button class="f" data-k="human" aria-pressed="false">Validation humaine</button><button class="f" data-k="mcp" aria-pressed="false">MCP</button><button class="f" data-k="solo" aria-pressed="false">Sans IA</button><button class="btn" id="newb" type="button">+ Nouveau workflow</button></div>
+<button class="f" data-k="all" aria-pressed="true">Tous</button><button class="f" data-k="agent" aria-pressed="false">Avec CSAgent</button><button class="f" data-k="human" aria-pressed="false">Validation humaine</button><button class="f" data-k="mcp" aria-pressed="false">MCP</button><button class="f" data-k="solo" aria-pressed="false">Sans IA</button><button class="f" id="vwb" type="button">Vue liste</button><button class="btn" id="newb" type="button">+ Nouveau workflow</button></div>
 <div class="recent" id="rec"></div>
 <div class="grid" id="grid"></div>
 </div>
@@ -131,6 +138,13 @@ fieldset{border:0;margin:0;padding:0;display:grid;gap:8px}
 <div><textarea id="atx" rows="3" placeholder="Décrivez ce que le workflow doit faire, ou ce qu'il faut modifier…" aria-label="Demande à CSAgent"></textarea>
 <div class="voice" style="margin:6px 0"><button class="btn ghost" id="amic" type="button" aria-pressed="false">🎙 Dicter</button><span class="vst" id="avst" role="status" aria-live="polite"></span><span class="verr" id="averr" role="alert" hidden></span></div>
 <div class="row"><button class="btn" id="asend" type="button">Envoyer à CSAgent</button><button class="btn stopb" id="astop" type="button" hidden>Arrêter</button><span class="note" style="align-self:center">Ctrl + Entrée pour envoyer</span></div></div></div></aside></div></div></dialog>
+
+<dialog id="rn" class="modal"><form class="mp" id="rnf"><h2 id="rnt"></h2>
+<div><label for="rnn">Nouveau nom du fichier</label><input type="text" id="rnn" autocomplete="off" spellcheck="false"><p class="note" id="rnh" style="margin-top:4px"></p></div>
+<div class="pre" id="rne" role="alert" hidden></div>
+<div class="row"><button class="btn" id="rnok" type="submit"></button><button class="f" id="rnno" type="button">Annuler</button></div></form></dialog>
+
+<dialog id="dd" class="modal"><div class="mp"><h2 id="ddt"></h2><p class="note">Le fichier est déplacé dans <b>workflows/.corbeille/</b> : vous pourrez le récupérer à la main. L'historique des lancements est conservé.</p><div class="pre" id="dde" role="alert" hidden></div><div class="row"><button class="btn stopb" id="ddok" type="button">Supprimer</button><button class="f" id="ddno" type="button">Annuler</button></div></div></dialog>
 
 <dialog id="nw" class="modal"><form class="mp" id="nwf"><h2>Nouveau workflow</h2>
 <div><label for="nwn">Nom du fichier</label><input type="text" id="nwn" placeholder="mon-workflow" autocomplete="off" spellcheck="false"><p class="note" style="margin-top:4px">Enregistré dans le dossier workflows (extension .yaml ajoutée si besoin).</p></div>
@@ -149,7 +163,7 @@ const T={agent:"Agent",file_write:"Écrit un fichier",file_read:"Lit un fichier"
 const BL={ok:"Réussi",error:"Échoué",rejected:"Refusé",interrupted:"Interrompu",cancelled:"Arrêté"};
 const SYM={ok:"✓",error:"✕",rejected:"⏸",interrupted:"✕",cancelled:"■"};
 const newAssist=()=>({busy:false,log:[],proposal:null,status:"",gate:null,gateDrawn:0,base:"",armed:false});
-const S={cards:[],recent:[],busy:false,filter:"all",q:"",cur:null,live:null,drafts:{},saved:{},hist:[],assist:newAssist(),voice:null};
+const S={cards:[],recent:[],busy:false,filter:"all",q:"",cur:null,live:null,drafts:{},saved:{},hist:[],assist:newAssist(),voice:null,view:"cards"};
 const card=f=>S.cards.find(c=>c.filename==f);
 const call=async(fn,...a)=>{try{return await eel[fn](...a)()}catch(e){return{ok:false,error:"Erreur de communication : "+(e&&e.message||e)}}};
 const fd=s=>{s=+s||0;return s<60?s.toFixed(1).replace(".",",")+" s":Math.floor(s/60)+" min "+String(Math.round(s%60)).padStart(2,"0")+" s"};
@@ -164,8 +178,11 @@ function env(){const miss=S.cards.filter(c=>!c.ready).length;$("#c1").innerHTML=
  $("#c2").innerHTML='<i class="dot '+(S.live&&S.live.running?"run":miss?"off":"")+'"></i>'+(S.live&&S.live.running?"Lancement en cours":miss?miss+" avec prérequis manquants":"Prérequis réunis")}
 function line(c){const st=c.steps.filter(s=>s.type!="end");return'<div class="line" aria-hidden="true">'+st.map((s,i)=>(i?'<i class="s"></i>':'')+'<i class="n '+esc(s.type)+'"></i>').join("")+'</div>'}
 function tags(c){return'<div class="tags">'+(c.tags.agent?'<span class="tag a">CSAgent</span>':'')+(c.tags.human?'<span class="tag h">Validation humaine</span>':'')+(c.tags.mcp?'<span class="tag m">MCP</span>':'')+(c.error?'<span class="tag bad">Illisible</span>':!c.ready?'<span class="tag bad">Prérequis manquant</span>':'')+'<span class="tag">'+c.steps.length+' étapes</span></div>'}
-function draw(){const q=S.q;const L=S.cards.filter(c=>(S.filter=="all"||(S.filter=="solo"?!c.tags.agent:c.tags[S.filter]))&&(c.title+" "+c.description).toLowerCase().includes(q));
- $("#grid").innerHTML=S.cards.length==0?'<div class="empty">Aucun workflow dans le dossier workflows. Cliquez sur « Nouveau workflow » ou ajoutez un fichier .yaml.</div>':L.length?L.map(c=>'<div class="card" tabindex="0" role="button" data-f="'+esc(c.filename)+'"><h3>'+esc(c.title)+'</h3><p>'+esc(c.summary||"Pas de description.")+'</p>'+line(c)+tags(c)+'<div class="foot"><span>'+ago(c.last_run&&c.last_run.started)+'</span><button class="btn" '+(c.ready&&!S.busy?'':'disabled')+' data-run="'+esc(c.filename)+'">Lancer</button></div></div>').join(""):'<div class="empty">Aucun workflow ne correspond. Effacez la recherche ou choisissez « Tous ».</div>'}
+function cardH(c){return'<div class="card" tabindex="0" role="button" data-f="'+esc(c.filename)+'"><h3>'+esc(c.title)+'</h3><p>'+esc(c.summary||"Pas de description.")+'</p>'+line(c)+tags(c)+'<div class="foot"><span>'+ago(c.last_run&&c.last_run.started)+'</span><button class="btn" '+(c.ready&&!S.busy?'':'disabled')+' data-run="'+esc(c.filename)+'">Lancer</button></div></div>'}
+function rowH(c){const f=esc(c.filename);return'<tr><th scope="row"><button class="lnk" data-open="'+f+'">'+esc(c.title)+'</button><small>'+f+'</small></th><td>'+c.steps.length+'</td><td>'+ago(c.last_run&&c.last_run.started)+(c.error?' · <span class="badmsg">illisible</span>':!c.ready?' · <span class="badmsg">prérequis manquant</span>':'')+'</td><td class="act"><button class="f" data-run="'+f+'" '+(c.ready&&!S.busy?'':'disabled')+'>Lancer</button><button class="f" data-edit="'+f+'">Modifier</button><button class="f" data-dup="'+f+'">Dupliquer</button><button class="f" data-ren="'+f+'">Renommer</button><button class="f danger" data-del="'+f+'">Supprimer</button></td></tr>'}
+function draw(){const q=S.q,list=S.view=="list";const L=S.cards.filter(c=>(S.filter=="all"||(S.filter=="solo"?!c.tags.agent:c.tags[S.filter]))&&(c.title+" "+c.description+" "+c.filename).toLowerCase().includes(q));
+ $("#grid").classList.toggle("lst",list);const v=$("#vwb");v.textContent=list?"Vue cartes":"Vue liste";
+ $("#grid").innerHTML=S.cards.length==0?'<div class="empty">Aucun workflow dans le dossier workflows. Cliquez sur « Nouveau workflow » ou ajoutez un fichier .yaml.</div>':L.length?(list?'<div class="lw"><table class="lt"><thead><tr><th scope="col">Workflow</th><th scope="col">Étapes</th><th scope="col">Dernier lancement</th><th scope="col"><span class="sr-only">Actions</span></th></tr></thead><tbody>'+L.map(rowH).join("")+'</tbody></table></div>':L.map(cardH).join("")):'<div class="empty">Aucun workflow ne correspond. Effacez la recherche ou choisissez « Tous ».</div>'}
 function rec(){$("#rec").innerHTML=S.recent.map(r=>{const c=card(r.file);return'<button data-r="'+esc(r.id)+'"><b>'+esc(c?c.title:r.name)+'</b><span>'+ago(r.started)+' · '+BL[r.status]+'</span></button>'}).join("")}
 
 /* ── panneau ───────────────────────────────────────────────────────── */
@@ -177,11 +194,11 @@ async function openCard(f,run){const c=card(f);if(!c)return;S.cur=c;S.hist=await
  $("#pn").innerHTML='<button class="f x" id="cl">Fermer</button><h2>'+esc(c.title)+'</h2><p style="margin:0;color:var(--mute)">'+esc(c.description||"")+'</p>'+tags(c)+
  (c.missing.length?'<div class="pre"><b>Ce workflow ne peut pas être lancé :</b><ul>'+c.missing.map(m=>'<li>'+esc(m)+'</li>').join("")+'</ul></div>':'')+
  (inp.length?'<div class="form">'+inp.map(([k,v])=>'<div><label for="i_'+esc(k)+'">'+esc(k)+'</label><input type="text" id="i_'+esc(k)+'" data-k="'+esc(k)+'" value="'+esc(v)+'"></div>').join("")+'</div>':'<p style="margin:0;color:var(--mute)">Aucun paramètre.</p>')+
- '<div class="row"><button class="btn" id="go">Lancer le workflow</button><button class="btn stopb" id="stop" hidden>Arrêter</button><button class="btn ghost" id="yb" aria-expanded="false">Voir le YAML</button></div><p class="note" id="stopnote" hidden></p><div id="yw" hidden></div><div id="gate"></div><div id="out"></div>'+
+ '<div class="row"><button class="btn" id="go">Lancer le workflow</button><button class="btn stopb" id="stop" hidden>Arrêter</button><button class="btn ghost" id="yb" aria-expanded="false">Voir le YAML</button><button class="btn ghost" id="dupb">Dupliquer</button><button class="btn ghost" id="renb">Renommer</button><button class="btn stopb" id="delb">Supprimer</button></div><p class="note" id="stopnote" hidden></p><div id="yw" hidden></div><div id="gate"></div><div id="out"></div>'+
  '<ol class="steps" id="ol">'+c.steps.map((s,i)=>'<li id="s'+i+'"><span class="st">·</span><span>'+esc(s.label)+'<small>'+esc(s.id)+' · '+esc(T[s.type]||s.type)+'</small></span></li>').join("")+'</ol>'+
  '<div><h3 style="font-size:16px;margin:0 0 8px">Derniers lancements</h3><div id="hs"></div></div>';
  hist();const d=$("#dlg");if(!d.open)d.showModal();
- $("#cl").onclick=()=>d.close();$("#go").onclick=()=>launch();$("#stop").onclick=()=>stopRun();$("#yb").onclick=()=>yamlToggle();
+ $("#cl").onclick=()=>d.close();$("#go").onclick=()=>launch();$("#stop").onclick=()=>stopRun();$("#yb").onclick=()=>yamlToggle();$("#delb").onclick=()=>delAsk(c.filename);$("#dupb").onclick=()=>nameAsk("dup",c.filename);$("#renb").onclick=()=>nameAsk("ren",c.filename);
  $("#hs").onclick=e=>{const b=e.target.closest("[data-r]");if(b)showRun(b.dataset.r)};
  syncGo();if(S.live&&S.live.file==f)liveRedraw();if(run)launch()}
 function syncGo(){const g=$("#go");if(!g||!S.cur)return;const c=S.cur;g.disabled=!c.ready||S.busy||(S.live&&S.live.running)}
@@ -296,8 +313,8 @@ async function save(){if(!(dirty()||S.cur.isNew)||probs.e)return;
   S.saved[f]=text;delete S.drafts[f];await load();await openCard(f);$("#ed").close();return}
  const f=S.cur.filename,r=await call("portal_save",f,S.drafts[f]);
  if(!r.ok){probs={P:r.issues||[{level:"error",line:null,message:r.error}],e:1,w:0};refresh();return}
- S.saved[f]=S.drafts[f];delete S.drafts[f];await load();const wasFull=$("#ed").open,keep=!$("#yw").hidden;
- await openCard(f);if(keep)await yamlToggle();S.cur.justSaved=true;if(wasFull)$("#ed").close();if($("#pst"))refresh();
+ S.saved[f]=S.drafts[f];delete S.drafts[f];await load();const wasFull=$("#ed").open,panel=$("#dlg").open,keep=panel&&$("#yw")&&!$("#yw").hidden;
+ if(panel){await openCard(f);if(keep)await yamlToggle()}else S.cur=card(f)||S.cur;S.cur.justSaved=true;if(wasFull)$("#ed").close();if($("#pst"))refresh();
  setTimeout(()=>{if(S.cur){S.cur.justSaved=false;if($("#pst"))refresh()}},2500)}
 function revert(){delete S.drafts[S.cur.filename];if($("#pta"))$("#pta").value=cur();if($("#eta"))$("#eta").value=cur();check()}
 let armed=false;
@@ -307,6 +324,37 @@ $("#ecl").onclick=()=>{if(dirty()&&!armed){armed=true;$("#ecl").textContent="Fer
 $("#ed").addEventListener("close",()=>{const A=S.assist;if(A&&A.busy)call("portal_stop");Voice.abort();S.voice=null;S.assist=newAssist();call("portal_assist_voice",false);
  if(S.cur&&S.cur.isNew){const f=S.cur.filename;delete S.drafts[f];delete S.saved[f];S.cur=null;return}
  if(S.cur&&$("#yw")&&!$("#yw").hidden)pview(dirty()?"edit":"view")});
+
+/* ── liste : modifier, supprimer ───────────────────────────────────── */
+let noteT=null;
+function note(m,bad){const a=$("#alert");a.innerHTML='<div class="'+(bad?"pre":"res")+'" style="margin-bottom:16px" role="status">'+esc(m)+'</div>';clearTimeout(noteT);noteT=setTimeout(()=>{a.innerHTML=""},8000)}
+async function editCard(f){const c=card(f);if(!c)return;S.cur=c;if(!(f in S.saved)){const r=await call("portal_read",f);if(!r.ok){note(r.error,true);return}S.saved[f]=r.yaml}probs={P:[],e:0,w:0};full()}
+let delF=null;
+function delAsk(f){const c=card(f);if(!c)return;if(S.busy||(S.live&&S.live.running)){note("Un lancement est en cours : attendez la fin ou arrêtez-le avant de supprimer.",true);return}
+ delF=f;$("#ddt").textContent="Supprimer « "+c.title+" » ?";$("#dde").hidden=true;$("#dd").showModal();$("#ddno").focus()}
+$("#ddno").onclick=()=>$("#dd").close();
+$("#ddok").onclick=async()=>{const f=delF,r=await call("portal_delete",f);if(!r.ok){$("#dde").textContent=r.error||"Suppression impossible.";$("#dde").hidden=false;return}
+ delete S.drafts[f];delete S.saved[f];$("#dd").close();if($("#dlg").open)$("#dlg").close();if(S.cur&&S.cur.filename==f)S.cur=null;await load();
+ note("« "+f+" » a été déplacé dans workflows/.corbeille/ : vous pouvez le récupérer à la main.")};
+/* renommer / dupliquer : même boîte de dialogue */
+let nmMode="ren",nmF=null;
+function nameAsk(mode,f){const c=card(f);if(!c)return;if(mode=="ren"&&(S.busy||(S.live&&S.live.running))){note("Un lancement est en cours : attendez la fin ou arrêtez-le avant de renommer.",true);return}
+ nmMode=mode;nmF=f;const stem=f.replace(/\.ya?ml$/i,"");let v=stem;
+ if(mode=="dup"){v=stem+"-copie";for(let i=2;S.cards.some(x=>x.filename.toLowerCase()==(v+".yaml").toLowerCase());i++)v=stem+"-copie-"+i}
+ $("#rnt").textContent=(mode=="ren"?"Renommer « ":"Dupliquer « ")+c.title+" »";$("#rnok").textContent=mode=="ren"?"Renommer":"Dupliquer";
+ $("#rnh").textContent=mode=="ren"?"L'historique des lancements suit le fichier. Si le nom interne (name:) était identique à l'ancien nom, il est mis à jour.":"Le nom interne (name:) de la copie prend le nouveau nom, pour distinguer les deux cartes.";
+ $("#rnn").value=v;$("#rne").hidden=true;$("#rn").showModal();$("#rnn").focus();$("#rnn").select()}
+$("#rnno").onclick=()=>$("#rn").close();
+$("#rnf").onsubmit=async e=>{e.preventDefault();const er=$("#rne"),bad=m=>{er.textContent=m;er.hidden=false};er.hidden=true;
+ let n=$("#rnn").value.trim();if(!n)return bad("Donnez un nom au fichier.");if(!/\.ya?ml$/i.test(n))n+=".yaml";
+ if(n==nmF&&nmMode=="ren")return bad("Le nouveau nom est identique à l'ancien.");
+ if(S.cards.some(c=>c.filename.toLowerCase()==n.toLowerCase()&&!(nmMode=="ren"&&c.filename==nmF)))return bad("Un workflow porte déjà ce nom : « "+n+" ».");
+ const r=await call(nmMode=="ren"?"portal_rename":"portal_duplicate",nmF,n);if(!r.ok)return bad(r.error||"Opération impossible.");
+ $("#rn").close();
+ if(nmMode=="ren"){delete S.drafts[nmF];delete S.saved[nmF];if($("#dlg").open)$("#dlg").close();if(S.cur&&S.cur.filename==nmF)S.cur=null}
+ await load();note(nmMode=="ren"?"« "+nmF+" » est maintenant « "+r.filename+" ».":"« "+nmF+" » a été dupliqué en « "+r.filename+" ».")};
+$("#vwb").onclick=()=>{S.view=S.view=="list"?"cards":"list";try{localStorage.setItem("fp-view",S.view)}catch(e){}draw()};
+try{if(localStorage.getItem("fp-view")=="list")S.view="list"}catch(e){}
 
 /* ── nouveau workflow ──────────────────────────────────────────────── */
 let TPL=[];
@@ -401,12 +449,13 @@ async function body(){const r=cr,b=$("#rbd"),mx=Math.max(...r.steps.map(s=>+s.du
 
 /* ── interactions générales ────────────────────────────────────────── */
 document.addEventListener("click",e=>{const r=e.target.closest("[data-run]");if(r){e.stopPropagation();openCard(r.dataset.run,true);return}
+ const o=e.target.closest("[data-open]");if(o){openCard(o.dataset.open);return}const ed=e.target.closest("[data-edit]");if(ed){editCard(ed.dataset.edit);return}const dl=e.target.closest("[data-del]");if(dl){delAsk(dl.dataset.del);return}const du=e.target.closest("[data-dup]");if(du){nameAsk("dup",du.dataset.dup);return}const re=e.target.closest("[data-ren]");if(re){nameAsk("ren",re.dataset.ren);return}
  const rr=e.target.closest("#rec [data-r]");if(rr){showRun(rr.dataset.r);return}const c=e.target.closest(".card[data-f]");if(c)openCard(c.dataset.f)});
 document.addEventListener("keydown",e=>{if(e.key=="Enter"&&e.target.classList.contains("card"))openCard(e.target.dataset.f)});
 $("#q").oninput=e=>{S.q=e.target.value.toLowerCase();draw()};
-document.querySelectorAll(".bar .f").forEach(b=>b.onclick=()=>{S.filter=b.dataset.k;document.querySelectorAll(".bar .f").forEach(x=>x.setAttribute("aria-pressed",x==b));draw()});
+document.querySelectorAll(".bar .f[data-k]").forEach(b=>b.onclick=()=>{S.filter=b.dataset.k;document.querySelectorAll(".bar .f[data-k]").forEach(x=>x.setAttribute("aria-pressed",x==b));draw()});
 $("#th").onclick=()=>{const r=document.documentElement,n=(r.dataset.theme||(matchMedia("(prefers-color-scheme:dark)").matches?"dark":"light"))=="dark"?"light":"dark";r.dataset.theme=n;try{localStorage.setItem("fp-theme",n)}catch(e){}};
 try{const t=localStorage.getItem("fp-theme");if(t)document.documentElement.dataset.theme=t}catch(e){}
 if(typeof eel==="undefined"||!eel.portal_list){$("#alert").innerHTML='<div class="pre" style="margin-bottom:16px">Le portail doit être ouvert par FlowPortal : lancez <b>FlowPortal</b> (ou <b>python app.py</b>).</div>'}
-else{boot();setInterval(()=>{if(!(S.live&&S.live.running)&&!$("#dlg").open&&!$("#rvw").open&&!$("#ed").open&&!$("#nw").open)load()},30000)}
+else{boot();setInterval(()=>{if(!(S.live&&S.live.running)&&!$("#dlg").open&&!$("#rvw").open&&!$("#ed").open&&!$("#nw").open&&!$("#dd").open&&!$("#rn").open)load()},30000)}
 </script></body></html>

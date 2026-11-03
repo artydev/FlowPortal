@@ -113,7 +113,7 @@ footer strong { color: var(--head-text); } footer a { color: #bfdbfe; }
 <div class="layout">
 <nav class="toc" aria-label="Sommaire"><p>Sommaire</p>
   <a href="#demarrer">Démarrer</a><a href="#cartes">Les cartes</a><a href="#lancer">Lancer et arrêter</a><a href="#dicter">Dicter une saisie</a>
-  <a href="#resultat">Résultat d'un lancement</a><a href="#yaml">Lire et modifier le YAML</a><a href="#creer">Créer un workflow</a><a href="#assistant">L'assistant CSAgent</a><a href="#limites">Limites et dépannage</a></nav>
+  <a href="#liste">Liste et gestion</a><a href="#resultat">Résultat d'un lancement</a><a href="#yaml">Lire et modifier le YAML</a><a href="#creer">Créer un workflow</a><a href="#assistant">L'assistant CSAgent</a><a href="#limites">Limites et dépannage</a></nav>
 <main id="contenu">
 
 <section id="demarrer"><h2>Démarrer</h2>
@@ -140,6 +140,12 @@ footer strong { color: var(--head-text); } footer a { color: #bfdbfe; }
 <section id="dicter"><h2>Dicter une saisie</h2>
 <p>Une étape <code>user_input</code> avec <code>voice: true</code> propose le bouton <b>🎙 Dicter</b>. Le navigateur enregistre, CSAgent transcrit, et le texte s'ajoute à la zone de saisie : relisez-le et corrigez-le avant de valider (Ctrl + Entrée).</p>
 <ul class="bul"><li>Il faut un worker CSAgent démarré avec <code>--api</code>, comme dans l'interface classique.</li><li>Le micro n'est accessible que si la page est ouverte en <code>localhost</code>, ce qui est le cas du portail.</li><li>Un enregistrement peut durer jusqu'à 20 minutes ; les longs enregistrements sont transcrits par parties.</li></ul>
+</section>
+
+<section id="liste"><h2>Vue liste, modifier, copier, renommer, supprimer</h2>
+<p>Le bouton <b>Vue liste</b> affiche les workflows en tableau : nom et fichier, nombre d'étapes, dernier lancement, prérequis manquants. Chaque ligne propose <b>Lancer</b>, <b>Modifier</b> (l'éditeur plein écran s'ouvre directement), <b>Dupliquer</b>, <b>Renommer</b> et <b>Supprimer</b>. La recherche et les filtres fonctionnent dans les deux vues.</p>
+<p><b>Dupliquer</b> copie le workflow sous un nouveau nom (proposé : <code>nom-copie</code>) et met à jour son <code>name:</code> pour distinguer les deux cartes. <b>Renommer</b> change le nom du fichier ; sa copie <code>.bak</code> et l'historique des lancements suivent, et le <code>name:</code> est mis à jour seulement s'il était identique à l'ancien nom. Renommer est refusé pendant un lancement. Ces deux actions sont aussi dans le panneau du workflow.</p>
+<p><b>Supprimer</b> demande une confirmation, puis <b>déplace</b> le fichier dans <code>workflows/.corbeille/</code> (la date est ajoutée au nom, la copie <code>.bak</code> suit). Rien n'est effacé définitivement : pour récupérer un workflow, recopiez-le à la main dans <code>workflows/</code>. L'historique des lancements est conservé. La suppression est refusée tant qu'un lancement ou une demande à l'assistant est en cours.</p>
 </section>
 
 <section id="resultat"><h2>Résultat d'un lancement</h2>

@@ -303,6 +303,39 @@ class AppPortalTests(unittest.TestCase):
         self.assertTrue(self.app.portal_assist_voice(False)["ok"])
         self.assertFalse((self.app._input_request or {}).get("voice"))
 
+    def test_delete_workflow(self):
+        self.assertFalse(self.app.portal_delete("../x.yaml")["ok"])
+        self.assertFalse(self.app.portal_delete("nope.yaml")["ok"])
+        res = self.app.portal_delete("mini.yaml")
+        self.assertTrue(res["ok"], res)
+        self.assertFalse((self.root / "workflows" / "mini.yaml").exists())
+        self.assertEqual(self.app.portal_list()["cards"], [])
+
+    def test_rename_and_duplicate(self):
+        self.assertTrue(self.app.portal_duplicate("mini.yaml", "copie.yaml")["ok"])
+        self.assertFalse(self.app.portal_duplicate("mini.yaml", "copie.yaml")["ok"])
+        self.assertTrue(self.app.portal_rename("copie.yaml", "autre.yaml")["ok"])
+        names = sorted(c["filename"] for c in self.app.portal_list()["cards"])
+        self.assertEqual(names, ["autre.yaml", "mini.yaml"])
+
+    def test_rename_refused_while_busy_but_duplicate_allowed(self):
+        self.app._run_busy.set()
+        try:
+            self.assertFalse(self.app.portal_rename("mini.yaml", "x.yaml")["ok"])
+            self.assertTrue(self.app.portal_duplicate("mini.yaml", "y.yaml")["ok"])
+        finally:
+            self.app._run_busy.clear()
+        self.assertTrue((self.root / "workflows" / "mini.yaml").exists())
+
+    def test_delete_refused_while_busy(self):
+        self.app._run_busy.set()
+        try:
+            res = self.app.portal_delete("mini.yaml")
+        finally:
+            self.app._run_busy.clear()
+        self.assertFalse(res["ok"])
+        self.assertTrue((self.root / "workflows" / "mini.yaml").exists())
+
     def test_save_and_check(self):
         self.assertFalse(self.app.portal_check("name: x\nsteps:\n  - id: a\n    type: nope\n")["ok"])
         self.assertTrue(self.app.portal_save("mini.yaml", WF.replace("Petit test", "Autre"))["ok"])

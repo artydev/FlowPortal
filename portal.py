@@ -134,6 +134,36 @@ def _issues(raw: list) -> list:
 
 
 # ── historique ────────────────────────────────────────────────────────────────
+_NAME_LINE = re.compile(r"^name:[ \t]*(.*?)[ \t]*(#.*)?$", re.M)
+_YAML_WORDS = {"true", "false", "null", "yes", "no", "on", "off", "y", "n", "~"}
+
+
+def _yaml_scalar(value: str) -> str:
+    """Valeur YAML sûre pour un nom : telle quelle si elle est simple, sinon entre guillemets."""
+    if re.fullmatch(r"[A-Za-z][A-Za-z0-9_-]*", value) and value.lower() not in _YAML_WORDS:
+        return value
+    return json.dumps(value, ensure_ascii=False)
+
+
+def _top_name(text: str):
+    """(valeur, correspondance) de la première ligne `name:` de premier niveau, ou (None, None)."""
+    m = _NAME_LINE.search(text)
+    if not m:
+        return None, None
+    v = m.group(1).strip()
+    if len(v) >= 2 and v[0] == v[-1] and v[0] in "\"'":
+        v = v[1:-1]
+    return v, m
+
+
+def _set_top_name(text: str, new_name: str) -> str:
+    _, m = _top_name(text)
+    if not m:
+        return text
+    comment = ("  " + m.group(2)) if m.group(2) else ""
+    return text[:m.start()] + "name: " + _yaml_scalar(new_name) + comment + text[m.end():]
+
+
 class History:
     """Fichier JSONL, un lancement par ligne. Les lignes illisibles sont ignorées ; le fichier est borné."""
 
@@ -156,6 +186,19 @@ class History:
             if isinstance(rec, dict):
                 out.append(rec)
         return out
+
+    def rename_file(self, old: str, new: str) -> None:
+        """Rattache les lancements d'un workflow renommé à son nouveau nom de fichier."""
+        with self._lock:
+            rows = self.load()
+            if not any(r.get("file") == old for r in rows):
+                return
+            for r in rows:
+                if r.get("file") == old:
+                    r["file"] = new
+            tmp = self.path.with_name(self.path.name + ".tmp")
+            tmp.write_text("".join(json.dumps(r, ensure_ascii=False) + "\n" for r in rows), encoding="utf-8")
+            os.replace(tmp, self.path)
 
     def append(self, record: dict) -> None:
         with self._lock:
@@ -314,6 +357,87 @@ class Portal:
             return {"ok": True, "filename": name, "issues": res["issues"]}
         except (PortalError, OSError) as exc:
             return {"ok": False, "error": str(exc), "issues": []}
+
+    def _clash(self, new_name: str, ignore: str | None = None):
+        """Un workflow porte-t-il déjà ce nom (sans tenir compte de la casse, comme Windows) ?"""
+        low = new_name.lower()
+        for p in self.dir.glob("*.y*ml"):
+            if p.name.lower() == low and p.name != ignore:
+                return p.name
+        return None
+
+    def rename_workflow(self, old, new) -> dict:
+        """Renomme le fichier ; l'historique suit. Si `name:` valait l'ancien nom, il prend le nouveau."""
+        try:
+            o, n = safe_name(old), safe_name(new)
+            src = self.dir / o
+            if not src.is_file():
+                raise PortalError(f"Workflow introuvable : {o}")
+            if o == n:
+                raise PortalError("Le nouveau nom est identique à l'ancien.")
+            clash = self._clash(n, ignore=o if o.lower() == n.lower() else None)
+            if clash:
+                raise PortalError(f"Un workflow porte déjà ce nom : {clash}.")
+            text = src.read_text(encoding="utf-8")
+            cur, _ = _top_name(text)
+            new_text = _set_top_name(text, Path(n).stem) if cur is not None and cur == Path(o).stem else text
+            dst = self.dir / n
+            if new_text != text:
+                src.write_text(new_text, encoding="utf-8")
+            os.replace(src, dst)
+            bak = self.dir / (o + ".bak")
+            if bak.is_file():
+                os.replace(bak, self.dir / (n + ".bak"))
+            self.history.rename_file(o, n)
+            return {"ok": True, "filename": n}
+        except (PortalError, OSError, UnicodeError) as exc:
+            return {"ok": False, "error": str(exc)}
+
+    def duplicate_workflow(self, source, new) -> dict:
+        """Copie un workflow sous un nouveau nom ; `name:` prend le nouveau nom pour distinguer les deux cartes."""
+        try:
+            o, n = safe_name(source), safe_name(new)
+            src = self.dir / o
+            if not src.is_file():
+                raise PortalError(f"Workflow introuvable : {o}")
+            clash = self._clash(n)
+            if clash:
+                raise PortalError(f"Un workflow porte déjà ce nom : {clash}.")
+            text = _set_top_name(src.read_text(encoding="utf-8"), Path(n).stem)
+            if not text.endswith("\n"):
+                text += "\n"
+            tmp = self.dir / ("." + n + ".tmp")
+            tmp.write_bytes(text.encode("utf-8"))
+            os.replace(tmp, self.dir / n)
+            return {"ok": True, "filename": n}
+        except (PortalError, OSError, UnicodeError) as exc:
+            return {"ok": False, "error": str(exc)}
+
+    TRASH = ".corbeille"
+
+    def delete_workflow(self, filename) -> dict:
+        """Supprime un workflow en le déplaçant dans `<workflows>/.corbeille/` (récupérable à la main).
+        Sa copie `.bak` suit. L'historique des lancements est conservé."""
+        try:
+            name = safe_name(filename)
+            path = self.dir / name
+            if not path.is_file():
+                raise PortalError(f"Workflow introuvable : {name}")
+            trash = self.dir / self.TRASH
+            trash.mkdir(parents=True, exist_ok=True)
+            stamp = time.strftime("%Y%m%d-%H%M%S")
+            dest = trash / f"{path.stem}.{stamp}{path.suffix}"
+            n = 1
+            while dest.exists():
+                n += 1
+                dest = trash / f"{path.stem}.{stamp}-{n}{path.suffix}"
+            os.replace(path, dest)
+            bak = self.dir / (name + ".bak")
+            if bak.is_file():
+                os.replace(bak, trash / (dest.name + ".bak"))
+            return {"ok": True, "filename": name, "trash": f"{self.dir.name}/{self.TRASH}/{dest.name}"}
+        except (PortalError, OSError) as exc:
+            return {"ok": False, "error": str(exc)}
 
     # -- modèles ------------------------------------------------------------
     @staticmethod

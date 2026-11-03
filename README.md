@@ -33,6 +33,12 @@ Une étape `user_input` avec `voice: true` propose le bouton **Dicter** (prise d
 CSAgent transcrit (worker `--api` démarré, comme dans l'interface classique), et le texte s'ajoute à la zone de saisie pour être relu et corrigé avant validation.
 Le micro n'est accessible que si la page est ouverte en `localhost`, ce qui est le cas du portail.
 
+### Liste, modification, copie, renommage et suppression
+
+Le bouton **Vue liste** remplace les cartes par un tableau (workflow, nombre d'étapes, dernier lancement, prérequis manquants) avec, pour chaque ligne, **Lancer**, **Modifier** (ouvre directement l'éditeur plein écran), **Dupliquer**, **Renommer** et **Supprimer**. La recherche et les filtres s'appliquent aux deux vues, et le choix de la vue est retenu par le navigateur.
+**Dupliquer** copie le workflow sous un nouveau nom (proposé : `<nom>-copie`) et met à jour son `name:` pour que les deux cartes se distinguent ; **Renommer** change le nom du fichier (sa copie `.bak` et l'historique des lancements suivent ; le `name:` est mis à jour seulement s'il était identique à l'ancien nom). Ces deux actions existent aussi dans le panneau d'un workflow ; renommer est refusé pendant un lancement.
+**Supprimer** (également dans le panneau d'un workflow) demande une confirmation puis **déplace** le fichier dans `workflows/.corbeille/` (avec la date dans le nom, et sa copie `.bak`) : rien n'est effacé définitivement, on le récupère en le recopiant à la main dans `workflows/`. L'historique des lancements est conservé. La suppression est refusée pendant un lancement ou une demande à l'assistant. Ajoutez `workflows/.corbeille/` à votre `.gitignore`.
+
 ### Créer et modifier un workflow depuis le portail
 
 Le bouton **+ Nouveau workflow** demande un nom de fichier (`.yaml` ajouté si besoin, refus si le nom existe déjà) puis un point de départ :

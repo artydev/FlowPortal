@@ -504,6 +504,28 @@ def portal_assist(text: str, instruction: str) -> dict:
 
 
 @eel.expose
+def portal_delete(filename: str) -> dict:
+    """Supprime un workflow (déplacé dans workflows/.corbeille/). Refusé pendant un lancement ou une demande à l'assistant."""
+    if _run_busy.is_set():
+        return {"ok": False, "error": "Un workflow ou une demande à l'assistant est en cours : attendez la fin ou arrêtez-le."}
+    return PORTAL.delete_workflow(filename)
+
+
+@eel.expose
+def portal_rename(filename: str, new_filename: str) -> dict:
+    """Renomme un workflow (refusé pendant un lancement ou une demande à l'assistant)."""
+    if _run_busy.is_set():
+        return {"ok": False, "error": "Un workflow ou une demande à l'assistant est en cours : attendez la fin ou arrêtez-le."}
+    return PORTAL.rename_workflow(filename, new_filename)
+
+
+@eel.expose
+def portal_duplicate(filename: str, new_filename: str) -> dict:
+    """Copie un workflow sous un nouveau nom."""
+    return PORTAL.duplicate_workflow(filename, new_filename)
+
+
+@eel.expose
 def portal_stop() -> dict:
     """Arrête le lancement en cours : l'étape en cours est interrompue si c'est un script, une commande ou
     une étape CSAgent ; sinon le workflow s'arrête dès qu'elle est terminée. Les attentes sont levées."""

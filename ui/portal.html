@@ -39,7 +39,9 @@ button:focus-visible,input:focus-visible,textarea:focus-visible,.card:focus-visi
 .empty{padding:40px;text-align:center;color:var(--mute);border:1px dashed var(--line);border-radius:12px;grid-column:1/-1}
 dialog{border:none;padding:0;background:transparent;max-width:none;max-height:none;margin:0 0 0 auto;height:100%}
 dialog::backdrop{background:rgba(10,20,17,.45)}
-.panel{background:var(--surface);color:var(--ink);width:min(520px,100vw);height:100vh;overflow:auto;padding:24px;display:flex;flex-direction:column;gap:16px;border-left:1px solid var(--line)}
+body:has(dialog[open]){overflow:hidden}
+*{scrollbar-width:thin;scrollbar-color:var(--line) transparent}
+.panel{background:var(--surface);color:var(--ink);width:min(clamp(520px,44vw,860px),100vw);height:100%;overflow-y:auto;overflow-x:hidden;padding:24px;display:flex;flex-direction:column;gap:16px;border-left:1px solid var(--line)}
 .panel h2{font-size:24px}.panel .x{align-self:flex-end}
 label{display:block;font-size:13px;color:var(--mute);margin-bottom:4px}
 .panel input[type=text],.panel textarea.in{width:100%;padding:9px 12px;border:1px solid var(--line);border-radius:8px;background:var(--bg);color:var(--ink);font:inherit}
@@ -54,7 +56,7 @@ ol.steps small{display:block;color:var(--mute);font-family:"IBM Plex Mono",ui-mo
 .pre{font-size:13px;color:var(--bad);border:1px solid var(--bad);border-radius:8px;padding:8px 12px}
 .pre ul{margin:4px 0 0;padding-left:18px}
 .res{border:1px solid var(--ok);border-radius:10px;padding:12px;color:var(--ok)}.res.bad{border-color:var(--bad);color:var(--bad)}.res.stop{border-color:var(--human);color:var(--human)}
-pre.y{margin:0;padding:12px;border:1px solid var(--line);border-radius:10px;background:var(--bg);font:12px/1.55 "IBM Plex Mono",ui-monospace,Consolas,monospace;overflow:auto;max-height:55vh;white-space:pre;tab-size:2}
+pre.y{margin:0;padding:12px;border:1px solid var(--line);border-radius:10px;background:var(--bg);font:12px/1.55 "IBM Plex Mono",ui-monospace,Consolas,monospace;white-space:pre-wrap;overflow-wrap:anywhere;tab-size:2}
 .y .k{color:var(--accent)}.y .c{color:var(--mute);font-style:italic}.y .q{color:var(--mcp)}
 .ytop{display:flex;justify-content:space-between;align-items:center;gap:8px;color:var(--mute);font-size:13px}
 .ta{width:100%;min-height:260px;height:42vh;resize:vertical;padding:12px;border:1px solid var(--line);border-radius:10px;background:var(--bg);color:var(--ink);font:13px/20px "IBM Plex Mono",ui-monospace,Consolas,monospace;white-space:pre;overflow:auto;tab-size:2}
@@ -80,9 +82,9 @@ dialog.full{width:100vw;height:100vh;margin:0}
 #alog{flex:1 1 120px;min-height:80px;overflow:auto;display:grid;gap:8px;align-content:start}
 .am{padding:8px 10px;border-radius:8px;border:1px solid var(--line);white-space:pre-wrap;word-break:break-word}
 .am.user{background:var(--bg)}.am.bot{border-color:var(--accent)}.am.err{color:var(--bad);border-color:var(--bad)}.am.st{color:var(--mute);border-style:dashed}
-#aprop{max-height:50%;overflow:auto}
+#aprop{flex:0 1 auto;max-height:66%;overflow:auto}
 .prop{border:1px solid var(--accent);border-radius:10px;padding:10px;display:grid;gap:8px}
-.df{font:12px/1.5 "IBM Plex Mono",ui-monospace,Consolas,monospace;border:1px solid var(--line);border-radius:8px;overflow:auto;max-height:220px;background:var(--bg)}
+.df{font:12px/1.5 "IBM Plex Mono",ui-monospace,Consolas,monospace;border:1px solid var(--line);border-radius:8px;overflow:auto;max-height:150px;background:var(--bg)}
 .dl{display:flex;gap:8px;padding:0 8px;white-space:pre}.dl i{font-style:normal;width:10px;flex:0 0 10px;color:var(--mute)}
 .dl.add{background:color-mix(in srgb,var(--ok) 16%,transparent)}.dl.add i{color:var(--ok)}
 .dl.del{background:color-mix(in srgb,var(--bad) 14%,transparent)}.dl.del i{color:var(--bad)}.dl.gap{color:var(--mute)}
@@ -116,7 +118,7 @@ fieldset{border:0;margin:0;padding:0;display:grid;gap:8px}
 .fl{display:grid;grid-template-columns:260px 1fr;gap:16px}.fl .lst{display:grid;gap:6px;align-content:start}
 .fl .lst button{text-align:left;padding:10px 12px;border:1px solid var(--line);border-radius:8px;background:var(--surface);color:var(--ink);font:inherit;font-size:13px;cursor:pointer;word-break:break-all}
 .fl .lst button[aria-pressed=true]{border-color:var(--accent)}.fl .lst span{display:block;color:var(--mute);font-size:12px}
-.jr{margin:0;padding:14px;background:var(--surface);border:1px solid var(--line);border-radius:10px;font:12px/1.7 "IBM Plex Mono",ui-monospace,Consolas,monospace;overflow:auto;white-space:pre}
+.jr{margin:0;padding:14px;background:var(--surface);border:1px solid var(--line);border-radius:10px;font:12px/1.7 "IBM Plex Mono",ui-monospace,Consolas,monospace;white-space:pre-wrap;overflow-wrap:anywhere}
 .jr .ok{color:var(--ok)}.jr .er{color:var(--bad)}.jr .t{color:var(--mute)}
 .kv{display:grid;grid-template-columns:max-content 1fr;gap:6px 16px;background:var(--surface);border:1px solid var(--line);border-radius:10px;padding:14px;font-size:14px}.kv b{color:var(--mute);font-weight:500}
 @media(max-width:760px){.edb{grid-template-columns:1fr;grid-template-rows:1fr 260px}.edw{border-right:0;border-bottom:1px solid var(--line)}.fl{grid-template-columns:1fr}.sr summary{grid-template-columns:22px 1fr}.sr summary .bw{display:none}}
@@ -440,7 +442,7 @@ async function body(){const r=cr,b=$("#rbd"),mx=Math.max(...r.steps.map(s=>+s.du
   b.innerHTML='<div class="fl"><div class="lst">'+r.files.map((x,i)=>'<button data-f2="'+i+'" aria-pressed="'+(i==sf)+'">'+esc(x.path)+'<span>'+(x.size==null?"absent":Math.max(1,Math.round(x.size/1024))+" Ko")+'</span></button>').join("")+'</div><div id="pv"><p style="color:var(--mute)">Chargement…</p></div></div>';
   b.querySelector(".lst").onclick=e=>{const x=e.target.closest("[data-f2]");if(x){sf=+x.dataset.f2;body()}};
   const p=await call("portal_file_preview",f.path),pv=$("#pv");if(!pv||tab!="files")return;
-  pv.innerHTML=(p.ok?(p.binary?'<div class="empty">Fichier binaire ('+Math.max(1,Math.round(p.size/1024))+' Ko) : ouvrez-le avec son application.</div>':'<pre class="jr" style="max-height:55vh">'+esc(p.text)+(p.truncated?"\n… (aperçu tronqué)":"")+'</pre>'):'<div class="empty">'+esc(p.error)+'</div>')+'<div class="row" style="margin-top:10px"><button class="btn" id="of" '+(p.ok?"":"disabled")+'>Ouvrir</button><span id="om" style="align-self:center;color:var(--mute);font-size:13px"></span></div>';
+  pv.innerHTML=(p.ok?(p.binary?'<div class="empty">Fichier binaire ('+Math.max(1,Math.round(p.size/1024))+' Ko) : ouvrez-le avec son application.</div>':'<pre class="jr">'+esc(p.text)+(p.truncated?"\n… (aperçu tronqué)":"")+'</pre>'):'<div class="empty">'+esc(p.error)+'</div>')+'<div class="row" style="margin-top:10px"><button class="btn" id="of" '+(p.ok?"":"disabled")+'>Ouvrir</button><span id="om" style="align-self:center;color:var(--mute);font-size:13px"></span></div>';
   const of=$("#of");if(of)of.onclick=async()=>{const o=await call("portal_open_file",f.path);$("#om").textContent=o.ok?"Ouvert dans l'application par défaut.":o.error}}
  if(tab=="log"){let t=0,L=[];const off=x=>"+"+x.toFixed(1).replace(".",",")+" s";r.steps.forEach(s=>{if(s.status=="notrun"||s.status=="skipped"||s.status=="pending")return;L.push('<span class="t">'+off(t).padStart(9)+'</span>  ▶ '+esc(s.id)+' ('+esc(s.type)+')');t+=+s.duration||0;L.push('<span class="t">'+off(t).padStart(9)+'</span>  <span class="'+(s.status=="error"?"er":"ok")+'">'+(s.status=="error"?"✕ échec":s.status=="rejected"?"⏸ refusé":"✓ terminé")+'</span> '+esc(s.id)+' · '+fd(s.duration));if(s.status=="error")L.push('<span class="er">            '+esc((s.output||"").split("\n")[0])+'</span>')});
   b.innerHTML='<div class="ytop" style="margin-bottom:8px"><span>'+L.length+' lignes · temps cumulés (les durées des étapes sont mesurées par le moteur)</span><button class="f" id="cj">Copier</button></div><pre class="jr">'+L.join("\n")+'</pre>';

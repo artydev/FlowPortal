@@ -1,4 +1,4 @@
-# FlowPortal — portail de workflows pour CSFlow
+# FlowPortal — portail de workflows pour CSFlow 
 
 > Un portail local où chaque workflow est une carte : on le lance en un clic, on lit et on modifie son YAML,
 > on retrouve le résultat de chaque lancement. FlowPortal repose sur le moteur de **CSFlow** (Python × CSAgent),

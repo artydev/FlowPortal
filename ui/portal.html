@@ -1,463 +1,51 @@
 <!DOCTYPE html>
 <html lang="fr"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
 <title>FlowPortal</title>
-<style>
-:root{--bg:#f4f6f5;--surface:#fff;--ink:#14201d;--mute:#5b6b66;--line:#dbe3e0;--accent:#0e6a5c;--accent-ink:#fff;--human:#b7791f;--mcp:#2b5fb8;--bad:#b3261e;--ok:#1b7f4b;--shadow:0 1px 2px rgba(20,32,29,.06),0 8px 24px -12px rgba(20,32,29,.18)}
-@media(prefers-color-scheme:dark){:root:not([data-theme=light]){--bg:#0e1513;--surface:#151e1b;--ink:#e6efec;--mute:#93a39d;--line:#27332f;--accent:#3fb59f;--accent-ink:#062019;--human:#e0a64a;--mcp:#7da6ec;--bad:#f08a82;--ok:#59c98d;--shadow:0 1px 2px #0006,0 8px 24px -12px #000a}}
-:root[data-theme=dark]{--bg:#0e1513;--surface:#151e1b;--ink:#e6efec;--mute:#93a39d;--line:#27332f;--accent:#3fb59f;--accent-ink:#062019;--human:#e0a64a;--mcp:#7da6ec;--bad:#f08a82;--ok:#59c98d;--shadow:0 1px 2px #0006,0 8px 24px -12px #000a}
-*{box-sizing:border-box}body{margin:0;background:var(--bg);color:var(--ink);font:15px/1.5 "Hanken Grotesk","Segoe UI",system-ui,sans-serif}
-h1,h2,h3{font-family:"Bricolage Grotesque","Segoe UI",system-ui,sans-serif;margin:0;letter-spacing:-.01em}
-.wrap{max-width:1180px;margin:0 auto;padding:0 16px 64px}
-header{display:flex;flex-wrap:wrap;gap:12px 24px;align-items:center;justify-content:space-between;padding:28px 0 18px}
-header h1{font-size:30px;font-weight:700}header p{margin:2px 0 0;color:var(--mute)}
-.env{display:flex;flex-wrap:wrap;gap:8px;align-items:center}
-.chip{display:inline-flex;align-items:center;gap:6px;padding:4px 10px;border:1px solid var(--line);border-radius:999px;background:var(--surface);font-size:13px;color:var(--mute);text-decoration:none}
-.dot{width:8px;height:8px;border-radius:50%;background:var(--ok)}.dot.off{background:var(--bad)}.dot.run{background:var(--human)}
-.bar{display:flex;flex-wrap:wrap;gap:10px;margin-bottom:20px;align-items:center}
-.bar input{flex:1 1 240px;padding:10px 14px;border:1px solid var(--line);border-radius:10px;background:var(--surface);color:var(--ink);font:inherit}
-.f{padding:6px 12px;border:1px solid var(--line);border-radius:999px;background:transparent;color:var(--ink);font:inherit;font-size:13px;cursor:pointer}
-.f[aria-pressed=true]{background:var(--accent);color:var(--accent-ink);border-color:var(--accent)}.f:disabled{opacity:.45;cursor:not-allowed}
-button:focus-visible,input:focus-visible,textarea:focus-visible,.card:focus-visible,summary:focus-visible{outline:2px solid var(--accent);outline-offset:2px}
-.recent{display:flex;gap:10px;overflow:auto;margin-bottom:22px;padding-bottom:4px}
-.recent button{flex:0 0 auto;display:flex;gap:8px;align-items:center;padding:8px 12px;border:1px solid var(--line);border-radius:10px;background:var(--surface);color:var(--ink);font:inherit;font-size:13px;cursor:pointer}
-.recent b{font-weight:600}.recent span{color:var(--mute)}
-.grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(300px,1fr));gap:16px}
-.card{background:var(--surface);border:1px solid var(--line);border-radius:14px;padding:18px;display:flex;flex-direction:column;gap:12px;box-shadow:var(--shadow);cursor:pointer;text-align:left}
-.card:hover{border-color:var(--accent)}
-.card h3{font-size:18px}.card p{margin:0;color:var(--mute);font-size:14px;display:-webkit-box;-webkit-line-clamp:3;-webkit-box-orient:vertical;overflow:hidden;min-height:63px}
-.line{display:flex;align-items:center;height:14px}
-.n{width:12px;height:12px;border-radius:50%;background:var(--line);flex:0 0 auto}
-.n.agent{background:var(--accent)}.n.human_approval,.n.user_input{background:var(--human);border-radius:3px;transform:rotate(45deg)}
-.n.mcp_call,.n.mcp_tools{background:var(--mcp)}.n.python,.n.shell{background:var(--mute)}
-.s{height:2px;background:var(--line);flex:1 1 4px;min-width:3px}
-.tags{display:flex;flex-wrap:wrap;gap:6px}
-.tag{font-size:12px;padding:2px 8px;border-radius:6px;border:1px solid var(--line);color:var(--mute)}
-.tag.h{color:var(--human);border-color:var(--human)}.tag.m{color:var(--mcp);border-color:var(--mcp)}.tag.a{color:var(--accent);border-color:var(--accent)}.tag.bad{color:var(--bad);border-color:var(--bad)}
-.foot{display:flex;justify-content:space-between;align-items:center;gap:8px;margin-top:auto;color:var(--mute);font-size:13px}
-.btn{padding:8px 16px;border-radius:9px;border:1px solid var(--accent);background:var(--accent);color:var(--accent-ink);font:inherit;font-weight:600;cursor:pointer}
-.btn.ghost{background:transparent;color:var(--ink);border-color:var(--line)}.btn.stopb{background:transparent;color:var(--bad);border-color:var(--bad)}.note{font-size:13px;color:var(--mute);margin:0}.voice{display:flex;align-items:center;gap:12px;flex-wrap:wrap}.vst{color:var(--mute);font-size:14px}.verr{color:var(--bad);border:1px solid var(--bad);border-radius:6px;padding:2px 10px;font-size:13px}.btn:disabled{opacity:.45;cursor:not-allowed}
-.empty{padding:40px;text-align:center;color:var(--mute);border:1px dashed var(--line);border-radius:12px;grid-column:1/-1}
-dialog{border:none;padding:0;background:transparent;max-width:none;max-height:none;margin:0 0 0 auto;height:100%}
-dialog::backdrop{background:rgba(10,20,17,.45)}
-body:has(dialog[open]){overflow:hidden}
-*{scrollbar-width:thin;scrollbar-color:var(--line) transparent}
-.panel{background:var(--surface);color:var(--ink);width:min(clamp(520px,44vw,860px),100vw);height:100%;overflow-y:auto;overflow-x:hidden;padding:24px;display:flex;flex-direction:column;gap:16px;border-left:1px solid var(--line)}
-.panel h2{font-size:24px}.panel .x{align-self:flex-end}
-label{display:block;font-size:13px;color:var(--mute);margin-bottom:4px}
-.panel input[type=text],.panel textarea.in{width:100%;padding:9px 12px;border:1px solid var(--line);border-radius:8px;background:var(--bg);color:var(--ink);font:inherit}
-.form{display:grid;gap:10px}.row{display:flex;gap:8px;flex-wrap:wrap}
-ol.steps{list-style:none;margin:0;padding:0;display:grid;gap:2px}
-ol.steps li{display:flex;gap:10px;align-items:flex-start;padding:7px 8px;border-radius:8px;font-size:14px}
-ol.steps li .st{width:18px;flex:0 0 18px;text-align:center;font-weight:700;color:var(--mute)}
-ol.steps li.run{background:color-mix(in srgb,var(--accent) 12%,transparent)}ol.steps li.run .st{color:var(--accent)}
-ol.steps li.stop .st{color:var(--human)}ol.steps li.ok .st{color:var(--ok)}ol.steps li.err .st{color:var(--bad)}ol.steps li.wait{background:color-mix(in srgb,var(--human) 16%,transparent)}ol.steps li.wait .st{color:var(--human)}
-ol.steps small{display:block;color:var(--mute);font-family:"IBM Plex Mono",ui-monospace,Consolas,monospace;font-size:12px}
-.gate{border:1px solid var(--human);border-radius:10px;padding:12px;display:grid;gap:10px}
-.pre{font-size:13px;color:var(--bad);border:1px solid var(--bad);border-radius:8px;padding:8px 12px}
-.pre ul{margin:4px 0 0;padding-left:18px}
-.res{border:1px solid var(--ok);border-radius:10px;padding:12px;color:var(--ok)}.res.bad{border-color:var(--bad);color:var(--bad)}.res.stop{border-color:var(--human);color:var(--human)}
-pre.y{margin:0;padding:12px;border:1px solid var(--line);border-radius:10px;background:var(--bg);font:12px/1.55 "IBM Plex Mono",ui-monospace,Consolas,monospace;white-space:pre-wrap;overflow-wrap:anywhere;tab-size:2}
-.y .k{color:var(--accent)}.y .c{color:var(--mute);font-style:italic}.y .q{color:var(--mcp)}
-.ytop{display:flex;justify-content:space-between;align-items:center;gap:8px;color:var(--mute);font-size:13px}
-.ta{width:100%;min-height:260px;height:42vh;resize:vertical;padding:12px;border:1px solid var(--line);border-radius:10px;background:var(--bg);color:var(--ink);font:13px/20px "IBM Plex Mono",ui-monospace,Consolas,monospace;white-space:pre;overflow:auto;tab-size:2}
-.pi{display:block;width:100%;text-align:left;border:0;background:transparent;color:var(--ink);font:inherit;font-size:13px;padding:5px 8px;border-radius:6px;cursor:pointer}
-.pi:hover{background:var(--bg)}.pi.error{color:var(--bad)}.pi.warn{color:var(--human)}
-.okmsg{color:var(--ok)}.badmsg{color:var(--bad)}.dirty{color:var(--human)}
-.rb{display:inline-block;padding:2px 10px;border-radius:999px;font-size:13px;font-weight:600;border:1px solid}
-.rb.ok{color:var(--ok)}.rb.error,.rb.interrupted{color:var(--bad)}.rb.rejected,.rb.cancelled{color:var(--human)}
-.hist{display:grid;gap:4px}.hist button{display:flex;justify-content:space-between;gap:8px;padding:8px 10px;border:1px solid var(--line);border-radius:8px;background:transparent;color:var(--ink);font:inherit;font-size:13px;cursor:pointer;text-align:left}
-.hist button:hover{border-color:var(--accent)}.hist .ok i{color:var(--ok)}.hist .error i,.hist .interrupted i{color:var(--bad)}.hist .rejected i,.hist .cancelled i{color:var(--human)}.hist i{font-style:normal;font-weight:700}
-dialog.full{width:100vw;height:100vh;margin:0}
-.fp{background:var(--bg);color:var(--ink);width:100vw;height:100vh;display:flex;flex-direction:column}
-.fh{display:flex;flex-wrap:wrap;gap:8px 16px;justify-content:space-between;align-items:center;padding:12px 20px;background:var(--surface);border-bottom:1px solid var(--line)}
-.fh h2{font-size:20px;display:flex;gap:12px;align-items:center;flex-wrap:wrap}.fh .meta{font-size:13px;color:var(--mute);margin-top:2px}
-.edb{flex:1;min-height:0;display:grid;grid-template-columns:1fr 380px;background:var(--surface)}
-.edw{display:flex;min-height:0;border-right:1px solid var(--line)}
-.eg{margin:0;padding:12px 8px 12px 12px;text-align:right;color:var(--mute);font:13px/20px "IBM Plex Mono",ui-monospace,Consolas,monospace;overflow:hidden;user-select:none;background:var(--bg);min-width:48px}
-.ta.full{flex:1;height:100%;border:0;border-radius:0;resize:none;min-height:0}
-#fpl{padding:12px;overflow:auto;font-size:13px;flex:1;min-height:0}#fpl h3{font-size:15px;margin-bottom:8px}
-#side{display:flex;flex-direction:column;min-height:0;background:var(--surface)}#side [hidden]{display:none!important}
-.tabs.sd{padding:8px 12px 0}
-#asp{flex:1;min-height:0;display:flex;flex-direction:column;gap:10px;padding:12px;font-size:13px}
-#alog{flex:1 1 120px;min-height:80px;overflow:auto;display:grid;gap:8px;align-content:start}
-.am{padding:8px 10px;border-radius:8px;border:1px solid var(--line);white-space:pre-wrap;word-break:break-word}
-.am.user{background:var(--bg)}.am.bot{border-color:var(--accent)}.am.err{color:var(--bad);border-color:var(--bad)}.am.st{color:var(--mute);border-style:dashed}
-#aprop{flex:0 1 auto;max-height:66%;overflow:auto}
-.prop{border:1px solid var(--accent);border-radius:10px;padding:10px;display:grid;gap:8px}
-.df{font:12px/1.5 "IBM Plex Mono",ui-monospace,Consolas,monospace;border:1px solid var(--line);border-radius:8px;overflow:auto;max-height:150px;background:var(--bg)}
-.dl{display:flex;gap:8px;padding:0 8px;white-space:pre}.dl i{font-style:normal;width:10px;flex:0 0 10px;color:var(--mute)}
-.dl.add{background:color-mix(in srgb,var(--ok) 16%,transparent)}.dl.add i{color:var(--ok)}
-.dl.del{background:color-mix(in srgb,var(--bad) 14%,transparent)}.dl.del i{color:var(--bad)}.dl.gap{color:var(--mute)}
-#atx{width:100%;padding:9px 12px;border:1px solid var(--line);border-radius:8px;background:var(--bg);color:var(--ink);font:inherit;resize:vertical}
-/* vue liste */
-.grid.lst{display:block}.lw{overflow:auto;border:1px solid var(--line);border-radius:12px;background:var(--surface)}
-.lt{width:100%;border-collapse:collapse;font-size:14px}.lt th,.lt td{text-align:left;padding:10px 14px;border-bottom:1px solid var(--line);vertical-align:middle}
-.lt thead th{color:var(--mute);font-weight:600;font-size:13px}.lt tbody tr:last-child>*{border-bottom:0}.lt tbody tr:hover{background:var(--bg)}
-.lt small{display:block;color:var(--mute);font:12px "IBM Plex Mono",ui-monospace,Consolas,monospace}.lt .act{white-space:nowrap;text-align:right}.lt .act button{margin-left:6px}
-.lnk{border:0;background:transparent;color:var(--ink);font:inherit;font-weight:600;cursor:pointer;padding:0;text-align:left}.lnk:hover{color:var(--accent);text-decoration:underline}
-.f.danger{color:var(--bad);border-color:var(--bad)}.sr-only{position:absolute;width:1px;height:1px;overflow:hidden;clip:rect(0 0 0 0);white-space:nowrap}
-dialog.modal{margin:auto;height:auto;width:min(520px,94vw)}
-.mp{background:var(--surface);color:var(--ink);padding:24px;border-radius:14px;border:1px solid var(--line);display:grid;gap:14px}.mp h2{font-size:22px}
-.mp input[type=text]{width:100%;padding:9px 12px;border:1px solid var(--line);border-radius:8px;background:var(--bg);color:var(--ink);font:inherit}
-fieldset{border:0;margin:0;padding:0;display:grid;gap:8px}
-.opt{display:flex;gap:10px;align-items:flex-start;padding:8px 10px;border:1px solid var(--line);border-radius:8px;color:var(--ink);font-size:14px;cursor:pointer;margin:0}
-.opt small{display:block;color:var(--mute);font-size:12px}.opt:has(input:checked){border-color:var(--accent)}
-.tabs{display:flex;gap:4px;padding:10px 20px 0;background:var(--surface);border-bottom:1px solid var(--line)}
-.tabs button{border:0;border-bottom:3px solid transparent;background:transparent;color:var(--mute);font:inherit;padding:8px 12px;cursor:pointer}
-.tabs button[aria-selected=true]{color:var(--ink);border-color:var(--accent);font-weight:600}
-.rvb{flex:1;overflow:auto;padding:20px;max-width:1000px;width:100%;margin:0 auto}
-.sr{background:var(--surface);border:1px solid var(--line);border-radius:10px;margin-bottom:8px}
-.sr summary{display:grid;grid-template-columns:22px 1fr 90px;gap:10px;align-items:center;padding:10px 14px;cursor:pointer;list-style:none}
-.sr summary::-webkit-details-marker{display:none}
-.sr .ic{font-weight:700;text-align:center}.sr.ok .ic{color:var(--ok)}.sr.error{border-color:var(--bad)}.sr.error .ic{color:var(--bad)}.sr.skipped,.sr.notrun{opacity:.55}.sr.rejected .ic,.sr.cancelled .ic{color:var(--human)}
-.sr small{display:block;color:var(--mute);font:12px "IBM Plex Mono",ui-monospace,Consolas,monospace}
-.sr .bar2{height:6px;border-radius:3px;background:var(--line);overflow:hidden}.sr .bar2 b{display:block;height:100%;background:var(--accent)}
-.sr .tm{text-align:right;font-size:12px;color:var(--mute);margin-bottom:3px}
-.sr pre{margin:0;padding:12px 14px;border-top:1px solid var(--line);font:12px/1.55 "IBM Plex Mono",ui-monospace,Consolas,monospace;white-space:pre-wrap;word-break:break-word}
-.sr.error pre{color:var(--bad)}
-.fl{display:grid;grid-template-columns:260px 1fr;gap:16px}.fl .lst{display:grid;gap:6px;align-content:start}
-.fl .lst button{text-align:left;padding:10px 12px;border:1px solid var(--line);border-radius:8px;background:var(--surface);color:var(--ink);font:inherit;font-size:13px;cursor:pointer;word-break:break-all}
-.fl .lst button[aria-pressed=true]{border-color:var(--accent)}.fl .lst span{display:block;color:var(--mute);font-size:12px}
-.jr{margin:0;padding:14px;background:var(--surface);border:1px solid var(--line);border-radius:10px;font:12px/1.7 "IBM Plex Mono",ui-monospace,Consolas,monospace;white-space:pre-wrap;overflow-wrap:anywhere}
-.jr .ok{color:var(--ok)}.jr .er{color:var(--bad)}.jr .t{color:var(--mute)}
-.kv{display:grid;grid-template-columns:max-content 1fr;gap:6px 16px;background:var(--surface);border:1px solid var(--line);border-radius:10px;padding:14px;font-size:14px}.kv b{color:var(--mute);font-weight:500}
-@media(max-width:760px){.edb{grid-template-columns:1fr;grid-template-rows:1fr 260px}.edw{border-right:0;border-bottom:1px solid var(--line)}.fl{grid-template-columns:1fr}.sr summary{grid-template-columns:22px 1fr}.sr summary .bw{display:none}}
-@media(prefers-reduced-motion:reduce){*{transition:none!important}}
-</style></head><body><div class="wrap">
+<link rel="stylesheet" href="/portal.css">
+</head><body><div class="page">
 <header><div><h1>FlowPortal</h1><p>Lancez un workflow en un clic. Chaque carte est un fichier YAML.</p></div>
-<div class="env"><span class="chip" id="c1"></span><span class="chip" id="c2"></span><a class="chip" href="/index.html">Interface classique</a><button class="f" id="th">Thème</button></div></header>
-<div id="alert"></div>
-<div class="bar"><input id="q" type="search" placeholder="Rechercher un workflow" aria-label="Rechercher">
-<button class="f" data-k="all" aria-pressed="true">Tous</button><button class="f" data-k="agent" aria-pressed="false">Avec CSAgent</button><button class="f" data-k="human" aria-pressed="false">Validation humaine</button><button class="f" data-k="mcp" aria-pressed="false">MCP</button><button class="f" data-k="solo" aria-pressed="false">Sans IA</button><button class="f" id="vwb" type="button">Vue liste</button><button class="btn" id="newb" type="button">+ Nouveau workflow</button></div>
-<div class="recent" id="rec"></div>
-<div class="grid" id="grid"></div>
+<div class="status-chips"><span class="status-chip" id="status-chip-workflow-count"></span><span class="status-chip" id="status-chip-engine-state"></span><a class="status-chip" href="/index.html">Interface classique</a><button class="button-secondary" id="theme-toggle-button">Thème</button></div></header>
+<div id="notice-banner"></div>
+<div class="toolbar"><input id="search-input" type="search" placeholder="Rechercher un workflow" aria-label="Rechercher">
+<button class="button-secondary" data-filter="all" aria-pressed="true">Tous</button><button class="button-secondary" data-filter="agent" aria-pressed="false">Avec CSAgent</button><button class="button-secondary" data-filter="human" aria-pressed="false">Validation humaine</button><button class="button-secondary" data-filter="mcp" aria-pressed="false">MCP</button><button class="button-secondary" data-filter="solo" aria-pressed="false">Sans IA</button><button class="button-secondary" id="view-mode-toggle-button" type="button">Vue liste</button><button class="button-primary" id="new-workflow-button" type="button">+ Nouveau workflow</button></div>
+<div class="recent-runs" id="recent-runs-bar"></div>
+<div class="workflow-grid" id="workflow-grid"></div>
 </div>
 
-<dialog id="dlg"><div class="panel" id="pn"></div></dialog>
+<dialog id="workflow-panel-dialog"><div class="workflow-panel" id="workflow-panel"></div></dialog>
 
-<dialog id="ed" class="full"><div class="fp"><div class="fh"><div><h2 id="et"></h2><span id="fst"></span></div><div class="row"><button class="f" id="erv">Annuler les modifications</button><button class="btn" id="esv">Enregistrer</button><button class="f" id="ecl">Fermer</button></div></div><div class="edb"><div class="edw"><pre class="eg" id="eg" aria-hidden="true"></pre><textarea class="ta full" id="eta" spellcheck="false" wrap="off" aria-label="Éditeur YAML"></textarea></div><aside id="side"><div class="tabs sd" role="tablist"><button role="tab" id="sdp" aria-selected="true">Problèmes</button><button role="tab" id="sda" aria-selected="false">Assistant</button></div><div id="fpl"></div>
-<div id="asp" hidden><div id="alog" aria-live="polite"></div><div id="aprop"></div><div id="agate"></div>
-<div><textarea id="atx" rows="3" placeholder="Décrivez ce que le workflow doit faire, ou ce qu'il faut modifier…" aria-label="Demande à CSAgent"></textarea>
-<div class="voice" style="margin:6px 0"><button class="btn ghost" id="amic" type="button" aria-pressed="false">🎙 Dicter</button><span class="vst" id="avst" role="status" aria-live="polite"></span><span class="verr" id="averr" role="alert" hidden></span></div>
-<div class="row"><button class="btn" id="asend" type="button">Envoyer à CSAgent</button><button class="btn stopb" id="astop" type="button" hidden>Arrêter</button><span class="note" style="align-self:center">Ctrl + Entrée pour envoyer</span></div></div></div></aside></div></div></dialog>
+<dialog id="fullscreen-editor-dialog" class="fullscreen"><div class="fullscreen-panel"><div class="fullscreen-header"><div><h2 id="fullscreen-editor-title"></h2><span id="fullscreen-editor-status"></span></div><div class="button-row"><button class="button-secondary" id="fullscreen-editor-revert-button">Annuler les modifications</button><button class="button-primary" id="fullscreen-editor-save-button">Enregistrer</button><button class="button-secondary" id="fullscreen-editor-close-button">Fermer</button></div></div><div class="editor-body"><div class="editor-wrap"><pre class="editor-highlight" id="fullscreen-editor-highlight" aria-hidden="true"></pre><textarea class="yaml-textarea fullscreen" id="fullscreen-editor-textarea" spellcheck="false" wrap="off" aria-label="Éditeur YAML"></textarea></div><aside id="fullscreen-editor-side"><div class="tab-bar side-tabs" role="tablist"><button role="tab" id="fullscreen-tab-issues" aria-selected="true">Problèmes</button><button role="tab" id="fullscreen-tab-assistant" aria-selected="false">Assistant</button></div><div id="fullscreen-issue-list"></div>
+<div id="assistant-pane" hidden><div id="assistant-messages" aria-live="polite"></div><div id="assistant-proposal"></div><div id="assistant-approval-gate"></div>
+<div><textarea id="assistant-textarea" rows="3" placeholder="Décrivez ce que le workflow doit faire, ou ce qu'il faut modifier…" aria-label="Demande à CSAgent"></textarea>
+<div class="voice-controls" style="margin:6px 0"><button class="button-primary is-ghost" id="assistant-mic-button" type="button" aria-pressed="false">🎙 Dicter</button><span class="voice-status" id="assistant-voice-status" role="status" aria-live="polite"></span><span class="voice-error" id="assistant-voice-error" role="alert" hidden></span></div>
+<div class="button-row"><button class="button-primary" id="assistant-send-button" type="button">Envoyer à CSAgent</button><button class="button-primary is-danger" id="assistant-stop-button" type="button" hidden>Arrêter</button><span class="hint-text" style="align-self:center">Ctrl + Entrée pour envoyer</span></div></div></div></aside></div></div></dialog>
 
-<dialog id="rn" class="modal"><form class="mp" id="rnf"><h2 id="rnt"></h2>
-<div><label for="rnn">Nouveau nom du fichier</label><input type="text" id="rnn" autocomplete="off" spellcheck="false"><p class="note" id="rnh" style="margin-top:4px"></p></div>
-<div class="pre" id="rne" role="alert" hidden></div>
-<div class="row"><button class="btn" id="rnok" type="submit"></button><button class="f" id="rnno" type="button">Annuler</button></div></form></dialog>
+<dialog id="rename-dialog" class="modal"><form class="modal-panel" id="rename-form"><h2 id="rename-title"></h2>
+<div><label for="rename-name-input">Nouveau nom du fichier</label><input type="text" id="rename-name-input" autocomplete="off" spellcheck="false"><p class="hint-text" id="rename-hint" style="margin-top:4px"></p></div>
+<div class="message-box" id="rename-error" role="alert" hidden></div>
+<div class="button-row"><button class="button-primary" id="rename-submit-button" type="submit"></button><button class="button-secondary" id="rename-cancel-button" type="button">Annuler</button></div></form></dialog>
 
-<dialog id="dd" class="modal"><div class="mp"><h2 id="ddt"></h2><p class="note">Le fichier est déplacé dans <b>workflows/.corbeille/</b> : vous pourrez le récupérer à la main. L'historique des lancements est conservé.</p><div class="pre" id="dde" role="alert" hidden></div><div class="row"><button class="btn stopb" id="ddok" type="button">Supprimer</button><button class="f" id="ddno" type="button">Annuler</button></div></div></dialog>
+<dialog id="delete-dialog" class="modal"><div class="modal-panel"><h2 id="delete-title"></h2><p class="hint-text">Le fichier est déplacé dans <b>workflows/.corbeille/</b> : vous pourrez le récupérer à la main. L'historique des lancements est conservé.</p><div class="message-box" id="delete-error" role="alert" hidden></div><div class="button-row"><button class="button-primary is-danger" id="delete-confirm-button" type="button">Supprimer</button><button class="button-secondary" id="delete-cancel-button" type="button">Annuler</button></div></div></dialog>
 
-<dialog id="nw" class="modal"><form class="mp" id="nwf"><h2>Nouveau workflow</h2>
-<div><label for="nwn">Nom du fichier</label><input type="text" id="nwn" placeholder="mon-workflow" autocomplete="off" spellcheck="false"><p class="note" style="margin-top:4px">Enregistré dans le dossier workflows (extension .yaml ajoutée si besoin).</p></div>
-<fieldset id="nwt"><legend class="note" style="padding:0 0 4px">Point de départ</legend></fieldset>
-<div class="pre" id="nwe" role="alert" hidden></div>
-<div class="row"><button class="btn" id="nwok" type="submit">Créer</button><button class="f" id="nwno" type="button">Annuler</button></div></form></dialog>
+<dialog id="new-workflow-dialog" class="modal"><form class="modal-panel" id="new-workflow-form"><h2>Nouveau workflow</h2>
+<div><label for="new-workflow-name-input">Nom du fichier</label><input type="text" id="new-workflow-name-input" placeholder="mon-workflow" autocomplete="off" spellcheck="false"><p class="hint-text" style="margin-top:4px">Enregistré dans le dossier workflows (extension .yaml ajoutée si besoin).</p></div>
+<fieldset id="new-workflow-templates"><legend class="hint-text" style="padding:0 0 4px">Point de départ</legend></fieldset>
+<div class="message-box" id="new-workflow-error" role="alert" hidden></div>
+<div class="button-row"><button class="button-primary" id="new-workflow-submit-button" type="submit">Créer</button><button class="button-secondary" id="new-workflow-cancel-button" type="button">Annuler</button></div></form></dialog>
 
-<dialog id="rvw" class="full"><div class="fp"><div class="fh"><div><h2 id="rt"></h2><div class="meta" id="rm"></div></div><div class="row"><button class="btn" id="rrl">Relancer</button><button class="f" id="rcl">Fermer</button></div></div><div class="tabs" role="tablist" id="rtb"></div><div class="rvb" id="rbd"></div></div></dialog>
+<dialog id="run-result-dialog" class="fullscreen"><div class="fullscreen-panel"><div class="fullscreen-header"><div><h2 id="run-result-title"></h2><div class="run-meta" id="run-result-meta"></div></div><div class="button-row"><button class="button-primary" id="run-result-relaunch-button">Relancer</button><button class="button-secondary" id="run-result-close-button">Fermer</button></div></div><div class="tab-bar" role="tablist" id="run-result-tabs"></div><div class="run-result-body" id="run-result-body"></div></div></dialog>
 
 <script type="text/javascript" src="/eel.js"></script>
-<script>
-"use strict";
-const $=s=>document.querySelector(s);
-const esc=s=>String(s==null?"":s).replace(/&/g,"&amp;").replace(/</g,"&lt;").replace(/>/g,"&gt;").replace(/"/g,"&quot;");
-const T={agent:"Agent",file_write:"Écrit un fichier",file_read:"Lit un fichier",python:"Python",shell:"Commande",http_get:"HTTP GET",http_post:"HTTP POST",http_put:"HTTP PUT",http_delete:"HTTP DELETE",human_approval:"Validation",user_input:"Saisie",mcp_call:"Appel MCP",mcp_tools:"Outils MCP",log:"Journal",end:"Fin",transform:"Transformation"};
-const BL={ok:"Réussi",error:"Échoué",rejected:"Refusé",interrupted:"Interrompu",cancelled:"Arrêté"};
-const SYM={ok:"✓",error:"✕",rejected:"⏸",interrupted:"✕",cancelled:"■"};
-const newAssist=()=>({busy:false,log:[],proposal:null,status:"",gate:null,gateDrawn:0,base:"",armed:false});
-const S={cards:[],recent:[],busy:false,filter:"all",q:"",cur:null,live:null,drafts:{},saved:{},hist:[],assist:newAssist(),voice:null,view:"cards"};
-const card=f=>S.cards.find(c=>c.filename==f);
-const call=async(fn,...a)=>{try{return await eel[fn](...a)()}catch(e){return{ok:false,error:"Erreur de communication : "+(e&&e.message||e)}}};
-const fd=s=>{s=+s||0;return s<60?s.toFixed(1).replace(".",",")+" s":Math.floor(s/60)+" min "+String(Math.round(s%60)).padStart(2,"0")+" s"};
-function ago(iso){if(!iso)return"jamais lancé";const t=new Date(iso),d=(Date.now()-t)/1000;if(d<60)return"à l'instant";if(d<3600)return"il y a "+Math.floor(d/60)+" min";if(d<86400)return"il y a "+Math.floor(d/3600)+" h";if(d<172800)return"hier";return"il y a "+Math.floor(d/86400)+" j"}
-const when=iso=>{if(!iso)return"";const t=new Date(iso);return t.toLocaleDateString("fr-FR")+" "+t.toLocaleTimeString("fr-FR",{hour:"2-digit",minute:"2-digit"})};
-
-async function boot(){for(let i=0;i<40;i++){const r=await call("portal_list");if(r&&r.cards){S.cards=r.cards;S.recent=r.recent||[];S.busy=!!r.busy;draw();rec();env();return}await new Promise(k=>setTimeout(k,250))}
- $("#alert").innerHTML='<div class="pre" style="margin-bottom:16px">Impossible de joindre FlowPortal. Fermez cette page et relancez l\'application.</div>'}
-/* ── liste ─────────────────────────────────────────────────────────── */
-async function load(){const r=await call("portal_list");if(r&&r.cards){S.cards=r.cards;S.recent=r.recent||[];S.busy=!!r.busy}draw();rec();env()}
-function env(){const miss=S.cards.filter(c=>!c.ready).length;$("#c1").innerHTML='<i class="dot"></i>'+S.cards.length+" workflow"+(S.cards.length>1?"s":"");
- $("#c2").innerHTML='<i class="dot '+(S.live&&S.live.running?"run":miss?"off":"")+'"></i>'+(S.live&&S.live.running?"Lancement en cours":miss?miss+" avec prérequis manquants":"Prérequis réunis")}
-function line(c){const st=c.steps.filter(s=>s.type!="end");return'<div class="line" aria-hidden="true">'+st.map((s,i)=>(i?'<i class="s"></i>':'')+'<i class="n '+esc(s.type)+'"></i>').join("")+'</div>'}
-function tags(c){return'<div class="tags">'+(c.tags.agent?'<span class="tag a">CSAgent</span>':'')+(c.tags.human?'<span class="tag h">Validation humaine</span>':'')+(c.tags.mcp?'<span class="tag m">MCP</span>':'')+(c.error?'<span class="tag bad">Illisible</span>':!c.ready?'<span class="tag bad">Prérequis manquant</span>':'')+'<span class="tag">'+c.steps.length+' étapes</span></div>'}
-function cardH(c){return'<div class="card" tabindex="0" role="button" data-f="'+esc(c.filename)+'"><h3>'+esc(c.title)+'</h3><p>'+esc(c.summary||"Pas de description.")+'</p>'+line(c)+tags(c)+'<div class="foot"><span>'+ago(c.last_run&&c.last_run.started)+'</span><button class="btn" '+(c.ready&&!S.busy?'':'disabled')+' data-run="'+esc(c.filename)+'">Lancer</button></div></div>'}
-function rowH(c){const f=esc(c.filename);return'<tr><th scope="row"><button class="lnk" data-open="'+f+'">'+esc(c.title)+'</button><small>'+f+'</small></th><td>'+c.steps.length+'</td><td>'+ago(c.last_run&&c.last_run.started)+(c.error?' · <span class="badmsg">illisible</span>':!c.ready?' · <span class="badmsg">prérequis manquant</span>':'')+'</td><td class="act"><button class="f" data-run="'+f+'" '+(c.ready&&!S.busy?'':'disabled')+'>Lancer</button><button class="f" data-edit="'+f+'">Modifier</button><button class="f" data-dup="'+f+'">Dupliquer</button><button class="f" data-ren="'+f+'">Renommer</button><button class="f danger" data-del="'+f+'">Supprimer</button></td></tr>'}
-function draw(){const q=S.q,list=S.view=="list";const L=S.cards.filter(c=>(S.filter=="all"||(S.filter=="solo"?!c.tags.agent:c.tags[S.filter]))&&(c.title+" "+c.description+" "+c.filename).toLowerCase().includes(q));
- $("#grid").classList.toggle("lst",list);const v=$("#vwb");v.textContent=list?"Vue cartes":"Vue liste";
- $("#grid").innerHTML=S.cards.length==0?'<div class="empty">Aucun workflow dans le dossier workflows. Cliquez sur « Nouveau workflow » ou ajoutez un fichier .yaml.</div>':L.length?(list?'<div class="lw"><table class="lt"><thead><tr><th scope="col">Workflow</th><th scope="col">Étapes</th><th scope="col">Dernier lancement</th><th scope="col"><span class="sr-only">Actions</span></th></tr></thead><tbody>'+L.map(rowH).join("")+'</tbody></table></div>':L.map(cardH).join("")):'<div class="empty">Aucun workflow ne correspond. Effacez la recherche ou choisissez « Tous ».</div>'}
-function rec(){$("#rec").innerHTML=S.recent.map(r=>{const c=card(r.file);return'<button data-r="'+esc(r.id)+'"><b>'+esc(c?c.title:r.name)+'</b><span>'+ago(r.started)+' · '+BL[r.status]+'</span></button>'}).join("")}
-
-/* ── panneau ───────────────────────────────────────────────────────── */
-function hl(l){const m=l.match(/^(\s*(?:- )?)([A-Za-z_][\w-]*)(:)(.*)$/);if(/^\s*#/.test(l))return'<span class="c">'+esc(l)+'</span>';
- if(m){let r=m[4],c=r.indexOf(" #"),tail="";if(c>-1){tail='<span class="c">'+esc(r.slice(c))+'</span>';r=r.slice(0,c)}
-  return esc(m[1])+'<span class="k">'+esc(m[2])+'</span>:'+(/^\s*["'][^"']*["']\s*$/.test(r)?'<span class="q">'+esc(r)+'</span>':esc(r))+tail}return esc(l)}
-async function openCard(f,run){const c=card(f);if(!c)return;S.cur=c;S.hist=await call("portal_runs",f,8);if(!Array.isArray(S.hist))S.hist=[];
- const inp=Object.entries(c.inputs);
- $("#pn").innerHTML='<button class="f x" id="cl">Fermer</button><h2>'+esc(c.title)+'</h2><p style="margin:0;color:var(--mute)">'+esc(c.description||"")+'</p>'+tags(c)+
- (c.missing.length?'<div class="pre"><b>Ce workflow ne peut pas être lancé :</b><ul>'+c.missing.map(m=>'<li>'+esc(m)+'</li>').join("")+'</ul></div>':'')+
- (inp.length?'<div class="form">'+inp.map(([k,v])=>'<div><label for="i_'+esc(k)+'">'+esc(k)+'</label><input type="text" id="i_'+esc(k)+'" data-k="'+esc(k)+'" value="'+esc(v)+'"></div>').join("")+'</div>':'<p style="margin:0;color:var(--mute)">Aucun paramètre.</p>')+
- '<div class="row"><button class="btn" id="go">Lancer le workflow</button><button class="btn stopb" id="stop" hidden>Arrêter</button><button class="btn ghost" id="yb" aria-expanded="false">Voir le YAML</button><button class="btn ghost" id="dupb">Dupliquer</button><button class="btn ghost" id="renb">Renommer</button><button class="btn stopb" id="delb">Supprimer</button></div><p class="note" id="stopnote" hidden></p><div id="yw" hidden></div><div id="gate"></div><div id="out"></div>'+
- '<ol class="steps" id="ol">'+c.steps.map((s,i)=>'<li id="s'+i+'"><span class="st">·</span><span>'+esc(s.label)+'<small>'+esc(s.id)+' · '+esc(T[s.type]||s.type)+'</small></span></li>').join("")+'</ol>'+
- '<div><h3 style="font-size:16px;margin:0 0 8px">Derniers lancements</h3><div id="hs"></div></div>';
- hist();const d=$("#dlg");if(!d.open)d.showModal();
- $("#cl").onclick=()=>d.close();$("#go").onclick=()=>launch();$("#stop").onclick=()=>stopRun();$("#yb").onclick=()=>yamlToggle();$("#delb").onclick=()=>delAsk(c.filename);$("#dupb").onclick=()=>nameAsk("dup",c.filename);$("#renb").onclick=()=>nameAsk("ren",c.filename);
- $("#hs").onclick=e=>{const b=e.target.closest("[data-r]");if(b)showRun(b.dataset.r)};
- syncGo();if(S.live&&S.live.file==f)liveRedraw();if(run)launch()}
-function syncGo(){const g=$("#go");if(!g||!S.cur)return;const c=S.cur;g.disabled=!c.ready||S.busy||(S.live&&S.live.running)}
-function hist(){const e=$("#hs");if(!e)return;e.className="hist";e.innerHTML=S.hist.length?S.hist.map(r=>'<button class="'+r.status+'" data-r="'+esc(r.id)+'"><span>'+when(r.started)+' · '+fd(r.duration)+'</span><i>'+SYM[r.status]+' '+BL[r.status]+'</i></button>').join(""):'<p style="margin:0;color:var(--mute);font-size:14px">Aucun lancement pour l\'instant.</p>'}
-async function launch(){const c=S.cur;if(!c||(S.live&&S.live.running))return;const vals={};document.querySelectorAll("#pn input[data-k]").forEach(i=>vals[i.dataset.k]=i.value);
- const r=await call("portal_run",c.filename,vals);if(!r.ok){$("#out").innerHTML='<div class="pre">'+esc(r.error)+'</div>';return}
- S.live={file:c.filename,running:true,stopping:false,st:{},warn:[],gate:null,runId:null};S.busy=true;liveRedraw();env();draw()}
-function liveRedraw(){const L=S.live;if(!L||!S.cur||S.cur.filename!=L.file||!$("#ol"))return;
- S.cur.steps.forEach((s,i)=>{const e=$("#s"+i);if(!e)return;const v=L.st[s.id]||"";e.className=v;e.querySelector(".st").textContent={run:"▶",ok:"✓",err:"✕",wait:"⏸",skip:"–",stop:"■"}[v]||"·"});
- $("#go").disabled=!!L.running||S.busy||!S.cur.ready;$("#go").textContent=L.running?"En cours…":"Relancer";
- const sb=$("#stop"),sn=$("#stopnote");sb.hidden=!L.running;sb.disabled=!!L.stopping;sb.textContent=L.stopping?"Arrêt en cours…":"Arrêter";sn.hidden=!L.stopping;sn.textContent="Les scripts, commandes et étapes CSAgent s'interrompent tout de suite ; les autres étapes se terminent d'abord.";
- const g=$("#gate"),G=L.gate;
- if(L.gateDrawn!==G||(G&&!g.firstChild)){L.gateDrawn=G;if(!G)Voice.abort();g.innerHTML="";
- if(G&&G.kind=="approval"){g.innerHTML='<div class="gate"><b>Votre décision est attendue</b><span>'+esc(G.message)+'</span><div class="row"><button class="btn" id="ap">Approuver</button><button class="btn ghost" id="rj">Refuser</button></div></div>';
-  $("#ap").onclick=()=>answer("approved");$("#rj").onclick=()=>answer("rejected");$("#ap").focus()}
- if(G&&G.kind=="input"){g.innerHTML='<div class="gate"><b>'+esc(G.prompt)+'</b><textarea class="in" id="itx" rows="4" aria-label="'+esc(G.prompt)+'" style="width:100%;padding:9px 12px;border:1px solid var(--line);border-radius:8px;background:var(--bg);color:var(--ink);font:inherit"></textarea>'+
-   (G.voice?'<div class="voice"><button class="btn ghost" id="mic" type="button" aria-pressed="false">🎙 Dicter</button><span class="vst" id="vst" role="status" aria-live="polite"></span><span class="verr" id="verr" role="alert" hidden></span></div>':'')+
-   '<div class="row"><button class="btn" id="iok">Valider</button><button class="btn ghost" id="ino">Annuler</button><span class="note" style="align-self:center">Ctrl + Entrée pour valider</span></div></div>';
-  const tx=$("#itx");tx.value=G.def||"";tx.focus();tx.oninput=voiceUI;
-  tx.onkeydown=e=>{if(e.key=="Enter"&&(e.ctrlKey||e.metaKey)){e.preventDefault();if(!$("#iok").disabled)$("#iok").click()}};
-  if(G.voice){S.voice={state:"idle",msg:"",err:"",secs:0,target:"gate"};$("#mic").onclick=()=>S.voice.state=="recording"?Voice.stop():Voice.start()}
-  $("#iok").onclick=async()=>{const t=$("#itx").value;Voice.abort();L.gate=null;liveRedraw();await call("submit_input",t,false)};
-  $("#ino").onclick=async()=>{Voice.abort();L.gate=null;liveRedraw();await call("submit_input","",true)};voiceUI()}}
- if(L.warn.length)$("#out").innerHTML='<div class="pre" style="color:var(--human);border-color:var(--human)">'+L.warn.map(esc).join("<br>")+'</div>'}
-async function stopRun(){const L=S.live;if(!L||!L.running||L.stopping)return;L.stopping=true;L.gate=null;liveRedraw();const r=await call("portal_stop");if(!r.ok){L.stopping=false;liveRedraw();$("#out").innerHTML='<div class="pre">'+esc(r.error)+'</div>'}}
-async function answer(a){const L=S.live;L.gate=null;if(L.waitId)L.st[L.waitId]="run";liveRedraw();await call("resolve_approval",a)}
-
-/* ── dictée : enregistrement dans le navigateur, transcription par CSAgent (côté Python) ── */
-const VOICE_MAX=20*60;
-const mmss=n=>String(Math.floor(n/60)).padStart(2,"0")+":"+String(n%60).padStart(2,"0");
-function voiceUI(){if(S.voice&&S.voice.target=="asst"){asstUI();return}const G=S.live&&S.live.gate;if(!G||G.kind!="input")return;const v=S.voice,tx=$("#itx"),ok=$("#iok");if(!tx||!ok)return;
- ok.disabled=(v&&v.state!="idle")||(G.required&&!tx.value.trim());if(!G.voice||!v)return;
- const mic=$("#mic");mic.className="btn "+(v.state=="recording"?"stopb":"ghost");mic.setAttribute("aria-pressed",v.state=="recording");mic.disabled=v.state=="transcribing";
- mic.textContent=v.state=="recording"?"⏹ Arrêter ("+mmss(v.secs)+")":v.state=="transcribing"?"… Transcription":"🎙 Dicter";
- $("#vst").textContent=v.state=="recording"?"Enregistrement en cours… parlez, puis cliquez sur Arrêter.":v.msg;
- const er=$("#verr");er.hidden=!v.err;er.textContent=v.err}
-const Voice={rec:null,stream:null,chunks:[],timer:null,t0:0,discard:false,
- supported(){return!!(navigator.mediaDevices&&navigator.mediaDevices.getUserMedia&&window.MediaRecorder)},
- release(){clearInterval(Voice.timer);if(Voice.stream){Voice.stream.getTracks().forEach(t=>t.stop());Voice.stream=null}},
- async start(){const v=S.voice;v.err="";v.msg="";
-  if(!Voice.supported()){v.err="Le micro n'est pas disponible dans ce navigateur (la page doit être ouverte en localhost).";voiceUI();return}
-  try{Voice.stream=await navigator.mediaDevices.getUserMedia({audio:true})}catch(e){v.err="Micro refusé ou introuvable ("+((e&&e.name)||e)+"). Autorisez le micro puis réessayez.";voiceUI();return}
-  const mime=["audio/webm;codecs=opus","audio/webm","audio/ogg;codecs=opus","audio/mp4"].find(t=>window.MediaRecorder.isTypeSupported(t))||"";
-  Voice.chunks=[];Voice.discard=false;Voice.rec=new MediaRecorder(Voice.stream,mime?{mimeType:mime}:undefined);
-  Voice.rec.ondataavailable=e=>{if(e.data&&e.data.size)Voice.chunks.push(e.data)};
-  Voice.rec.onstop=()=>Voice.finish(Voice.rec.mimeType||mime||"audio/webm");Voice.rec.start(1000);
-  v.state="recording";v.secs=0;Voice.t0=Date.now();
-  Voice.timer=setInterval(()=>{v.secs=Math.floor((Date.now()-Voice.t0)/1000);if(v.secs>=VOICE_MAX)Voice.stop();voiceUI()},500);voiceUI()},
- stop(){if(Voice.rec&&Voice.rec.state!="inactive")Voice.rec.stop();Voice.release()},
- abort(){if(!S.voice)return;Voice.discard=true;if(Voice.rec&&Voice.rec.state!="inactive"){try{Voice.rec.stop()}catch(e){}}Voice.release();S.voice.state="idle"},
- async finish(mime){Voice.release();const v=S.voice;if(Voice.discard||!v){if(v)v.state="idle";voiceUI();return}
-  const blob=new Blob(Voice.chunks,{type:mime});v.state="transcribing";v.msg="Envoi de l'enregistrement…";voiceUI();
-  const b64=await new Promise(res=>{const fr=new FileReader();fr.onloadend=()=>res(String(fr.result).split(",")[1]||"");fr.readAsDataURL(blob)});
-  const r=await call("audio_upload",b64,mime);if(!r||!r.ok){v.state="idle";v.msg="";v.err=(r&&r.error)||"Envoi impossible."}voiceUI()}};
-
-/* ── événements du moteur ──────────────────────────────────────────── */
-function receiveEvent(ev){const L=S.live,t=ev&&ev.type,id=ev&&ev.step_id;
- if(t=="portal_run_saved"){if(L){L.running=false;L.runId=ev.run_id}S.busy=false;finishLive(ev);return}
- if(t&&t.indexOf("assist_")==0){assistEv(ev);return}
- if(S.voice&&(t=="user_input_progress"||t=="user_input_transcribed"||t=="user_input_error")){voiceEv(ev);return}
- if(!L||!L.running)return;
- if(t=="step_start")L.st[id]="run";
- else if(t=="step_done")L.st[id]="ok";
- else if(t=="step_error")L.st[id]="err";
- else if(t=="step_skip")L.st[id]="skip";
- else if(t=="workflow_cancelled"){if(id)L.st[id]="stop";L.gate=null}
- else if(t=="workflow_warning")L.warn.push(ev.message);
- else if(t=="human_approval_required"){L.waitId=Object.keys(L.st).find(k=>L.st[k]=="run");if(L.waitId)L.st[L.waitId]="wait";L.gate={kind:"approval",message:ev.message||"Approuver ?"}}
- else if(t=="user_input_required"){L.waitId=Object.keys(L.st).find(k=>L.st[k]=="run");if(L.waitId)L.st[L.waitId]="wait";L.gate={kind:"input",prompt:ev.prompt||"Saisie demandée",def:ev.default||"",required:ev.required!==false,voice:!!ev.voice}}
- liveRedraw()}
-function voiceEv(ev){const v=S.voice,t=ev.type,as=v.target=="asst",tx=as?$("#atx"):$("#itx");
- if(t=="user_input_progress"){v.msg=ev.total>1?"Transcription… partie "+ev.part+"/"+ev.total:"Transcription en cours…"}
- else if(t=="user_input_transcribed"){const x=String(ev.text||"").trim();v.state="idle";
-  if(x&&tx){tx.value=tx.value.trim()?tx.value.replace(/\s+$/,"")+"\n"+x:x;v.msg=as?"Transcription terminée : relisez, corrigez si besoin, puis envoyez.":"Transcription terminée : relisez et corrigez le texte avant de valider."}else{v.msg="";v.err="Aucune parole détectée."}
-  if(tx)tx.focus()}
- else{v.state="idle";v.msg="";v.err=ev.message||"Transcription impossible."}
- voiceUI()}
-async function finishLive(ev){const L=S.live;await load();if(!L||!S.cur||S.cur.filename!=L.file){env();return}
- S.hist=await call("portal_runs",L.file,8);if(!Array.isArray(S.hist))S.hist=[];hist();
- const r=S.hist[0];const o=$("#out");if(!o)return;
- if(r){o.innerHTML='<div class="res '+(r.status=="ok"?"":r.status=="rejected"||r.status=="cancelled"?"stop":"bad")+'"><b>'+BL[r.status]+'</b> en '+fd(r.duration)+(r.error?' · '+esc(r.error):'')+'<div class="row" style="margin-top:8px"><button class="btn" id="vr">Voir le résultat</button></div></div>';$("#vr").onclick=()=>showRun(r.id)}
- const sb=$("#stop"),sn=$("#stopnote");if(sb)sb.hidden=true;if(sn)sn.hidden=true;
- $("#go").textContent="Relancer";syncGo();env()}
-eel.expose(receiveEvent,"receiveEvent");
-
-/* ── YAML : lecture, édition, plein écran ──────────────────────────── */
-const cur=()=>{const f=S.cur.filename;return f in S.drafts?S.drafts[f]:S.saved[f]};
-const dirty=()=>{const f=S.cur.filename;return f in S.drafts&&S.drafts[f]!==S.saved[f]};
-let probs={P:[],e:0,w:0},ckT=null,ckSeq=0;
-async function yamlToggle(){const y=$("#yw"),b=$("#yb"),op=y.hidden;y.hidden=!op;b.setAttribute("aria-expanded",op);b.textContent=op?"Masquer le YAML":"Voir le YAML";
- if(!op)return;const f=S.cur.filename;if(!(f in S.saved)){const r=await call("portal_read",f);if(!r.ok){y.innerHTML='<div class="pre">'+esc(r.error)+'</div>';return}S.saved[f]=r.yaml}
- pview(dirty()?"edit":"view")}
-function pview(mode){const y=$("#yw"),f=S.cur.filename,n=cur().split("\n").length;
- if(mode=="view"){y.innerHTML='<div class="ytop"><span>workflows/'+esc(f)+' · '+n+' lignes</span><span class="row"><button class="f" id="e1">Modifier</button><button class="f" id="cp">Copier</button></span></div><pre class="y" tabindex="0">'+S.saved[f].split("\n").map(hl).join("\n")+'</pre>';
-  $("#e1").onclick=()=>pview("edit");$("#cp").onclick=async()=>{try{await navigator.clipboard.writeText(S.saved[f]);$("#cp").textContent="Copié"}catch(e){$("#cp").textContent="Copie impossible"}setTimeout(()=>{const c=$("#cp");if(c)c.textContent="Copier"},1500)}}
- else{y.innerHTML='<div class="ytop"><span id="pst"></span><span class="row"><button class="f" id="fa">Assistant</button><button class="f" id="fs">Plein écran</button><button class="f" id="vw">Lecture</button></span></div><textarea class="ta" id="pta" spellcheck="false" wrap="off" aria-label="Éditeur YAML"></textarea><div class="row"><button class="btn" id="sv">Enregistrer</button><button class="btn ghost" id="rv">Annuler les modifications</button></div><div id="pl"></div>';
-  wire($("#pta"),false);$("#sv").onclick=save;$("#rv").onclick=revert;$("#fs").onclick=()=>full();$("#fa").onclick=()=>full("a");$("#vw").onclick=()=>pview("view");$("#pl").onclick=e=>{const b=e.target.closest("[data-l]");if(b)jump($("#pta"),+b.dataset.l)};check()}}
-function plist(P){return P.length?P.map(p=>'<button class="pi '+p.level+'" data-l="'+(p.line||1)+'">'+(p.line?"L"+p.line+" · ":"")+esc(p.message)+'</button>').join(""):'<span class="okmsg">Aucun problème détecté.</span>'}
-function status(){const d=dirty(),f=S.cur.filename;return(S.cur.isNew?'<span class="dirty">Nouveau workflow (non enregistré)</span> · ':d?'<span class="dirty">Modifications non enregistrées</span> · ':(S.cur.justSaved?'<span class="okmsg">Enregistré</span> · ':''))+(probs.e?'<span class="badmsg">'+probs.e+' erreur'+(probs.e>1?'s':'')+'</span>':'<span class="okmsg">Structure valide</span>')+(probs.w?' · '+probs.w+' avertissement'+(probs.w>1?'s':''):'')}
-function refresh(){if(!S.cur)return;const d=dirty(),n=cur().split("\n").length,set=(i,h)=>{const e=$(i);if(e)e.innerHTML=h};
- set("#pst",status());set("#pl",plist(probs.P));set("#fst",status());set("#fpl","<h3>Problèmes</h3>"+plist(probs.P));if($("#eg"))$("#eg").textContent=Array.from({length:n},(_,i)=>i+1).join("\n");
- ["#sv","#esv"].forEach(s=>{const b=$(s);if(b)b.disabled=!(d||S.cur.isNew)||probs.e>0});["#rv","#erv"].forEach(s=>{const b=$(s);if(b)b.disabled=!d})}
-function check(){clearTimeout(ckT);if(!S.cur)return;const seq=++ckSeq,text=cur();ckT=setTimeout(async()=>{const r=await call("portal_check",text);if(!S.cur||seq!=ckSeq||!r.issues&&!r.ok&&r.error)return;
-  const P=(r.issues||[]).sort((a,b)=>(a.line||0)-(b.line||0));probs={P,e:P.filter(p=>p.level=="error").length,w:P.filter(p=>p.level!="error").length};refresh()},150);refresh()}
-function jump(ta,l){const L=ta.value.split("\n");let o=0;for(let i=0;i<l-1;i++)o+=L[i].length+1;ta.focus();ta.setSelectionRange(o,o+(L[l-1]||"").length);ta.scrollTop=Math.max(0,(l-4)*20)}
-function wire(ta,isFull){ta.value=cur();ta.oninput=()=>{S.drafts[S.cur.filename]=ta.value;S.cur.justSaved=false;const o=isFull?$("#pta"):$("#eta");if(o)o.value=ta.value;check()};
- ta.onkeydown=e=>{if(e.key=="Tab"){e.preventDefault();ta.setRangeText("  ",ta.selectionStart,ta.selectionEnd,"end");ta.dispatchEvent(new Event("input"))}if((e.ctrlKey||e.metaKey)&&e.key=="s"){e.preventDefault();save()}};
- if(isFull)ta.onscroll=()=>{$("#eg").scrollTop=ta.scrollTop}}
-async function save(){if(!(dirty()||S.cur.isNew)||probs.e)return;
- if(S.cur.isNew){const f=S.cur.filename,text=cur(),r=await call("portal_create",f,text);
-  if(!r.ok){probs={P:r.issues||[{level:"error",line:null,message:r.error}],e:1,w:0};refresh();return}
-  S.saved[f]=text;delete S.drafts[f];await load();await openCard(f);$("#ed").close();return}
- const f=S.cur.filename,r=await call("portal_save",f,S.drafts[f]);
- if(!r.ok){probs={P:r.issues||[{level:"error",line:null,message:r.error}],e:1,w:0};refresh();return}
- S.saved[f]=S.drafts[f];delete S.drafts[f];await load();const wasFull=$("#ed").open,panel=$("#dlg").open,keep=panel&&$("#yw")&&!$("#yw").hidden;
- if(panel){await openCard(f);if(keep)await yamlToggle()}else S.cur=card(f)||S.cur;S.cur.justSaved=true;if(wasFull)$("#ed").close();if($("#pst"))refresh();
- setTimeout(()=>{if(S.cur){S.cur.justSaved=false;if($("#pst"))refresh()}},2500)}
-function revert(){delete S.drafts[S.cur.filename];if($("#pta"))$("#pta").value=cur();if($("#eta"))$("#eta").value=cur();check()}
-let armed=false;
-function full(tab){armed=false;$("#et").textContent=(S.cur.isNew?"Nouveau · ":"")+"workflows/"+S.cur.filename;$("#ecl").textContent="Fermer";wire($("#eta"),true);$("#esv").onclick=save;$("#erv").onclick=revert;
- $("#fpl").onclick=e=>{const b=e.target.closest("[data-l]");if(b)jump($("#eta"),+b.dataset.l)};$("#ed").showModal();check();sideTab(tab==="a"?"a":"p");if(tab!=="a")$("#eta").focus()}
-$("#ecl").onclick=()=>{if(dirty()&&!armed){armed=true;$("#ecl").textContent="Fermer sans enregistrer";return}$("#ed").close()};
-$("#ed").addEventListener("close",()=>{const A=S.assist;if(A&&A.busy)call("portal_stop");Voice.abort();S.voice=null;S.assist=newAssist();call("portal_assist_voice",false);
- if(S.cur&&S.cur.isNew){const f=S.cur.filename;delete S.drafts[f];delete S.saved[f];S.cur=null;return}
- if(S.cur&&$("#yw")&&!$("#yw").hidden)pview(dirty()?"edit":"view")});
-
-/* ── liste : modifier, supprimer ───────────────────────────────────── */
-let noteT=null;
-function note(m,bad){const a=$("#alert");a.innerHTML='<div class="'+(bad?"pre":"res")+'" style="margin-bottom:16px" role="status">'+esc(m)+'</div>';clearTimeout(noteT);noteT=setTimeout(()=>{a.innerHTML=""},8000)}
-async function editCard(f){const c=card(f);if(!c)return;S.cur=c;if(!(f in S.saved)){const r=await call("portal_read",f);if(!r.ok){note(r.error,true);return}S.saved[f]=r.yaml}probs={P:[],e:0,w:0};full()}
-let delF=null;
-function delAsk(f){const c=card(f);if(!c)return;if(S.busy||(S.live&&S.live.running)){note("Un lancement est en cours : attendez la fin ou arrêtez-le avant de supprimer.",true);return}
- delF=f;$("#ddt").textContent="Supprimer « "+c.title+" » ?";$("#dde").hidden=true;$("#dd").showModal();$("#ddno").focus()}
-$("#ddno").onclick=()=>$("#dd").close();
-$("#ddok").onclick=async()=>{const f=delF,r=await call("portal_delete",f);if(!r.ok){$("#dde").textContent=r.error||"Suppression impossible.";$("#dde").hidden=false;return}
- delete S.drafts[f];delete S.saved[f];$("#dd").close();if($("#dlg").open)$("#dlg").close();if(S.cur&&S.cur.filename==f)S.cur=null;await load();
- note("« "+f+" » a été déplacé dans workflows/.corbeille/ : vous pouvez le récupérer à la main.")};
-/* renommer / dupliquer : même boîte de dialogue */
-let nmMode="ren",nmF=null;
-function nameAsk(mode,f){const c=card(f);if(!c)return;if(mode=="ren"&&(S.busy||(S.live&&S.live.running))){note("Un lancement est en cours : attendez la fin ou arrêtez-le avant de renommer.",true);return}
- nmMode=mode;nmF=f;const stem=f.replace(/\.ya?ml$/i,"");let v=stem;
- if(mode=="dup"){v=stem+"-copie";for(let i=2;S.cards.some(x=>x.filename.toLowerCase()==(v+".yaml").toLowerCase());i++)v=stem+"-copie-"+i}
- $("#rnt").textContent=(mode=="ren"?"Renommer « ":"Dupliquer « ")+c.title+" »";$("#rnok").textContent=mode=="ren"?"Renommer":"Dupliquer";
- $("#rnh").textContent=mode=="ren"?"L'historique des lancements suit le fichier. Si le nom interne (name:) était identique à l'ancien nom, il est mis à jour.":"Le nom interne (name:) de la copie prend le nouveau nom, pour distinguer les deux cartes.";
- $("#rnn").value=v;$("#rne").hidden=true;$("#rn").showModal();$("#rnn").focus();$("#rnn").select()}
-$("#rnno").onclick=()=>$("#rn").close();
-$("#rnf").onsubmit=async e=>{e.preventDefault();const er=$("#rne"),bad=m=>{er.textContent=m;er.hidden=false};er.hidden=true;
- let n=$("#rnn").value.trim();if(!n)return bad("Donnez un nom au fichier.");if(!/\.ya?ml$/i.test(n))n+=".yaml";
- if(n==nmF&&nmMode=="ren")return bad("Le nouveau nom est identique à l'ancien.");
- if(S.cards.some(c=>c.filename.toLowerCase()==n.toLowerCase()&&!(nmMode=="ren"&&c.filename==nmF)))return bad("Un workflow porte déjà ce nom : « "+n+" ».");
- const r=await call(nmMode=="ren"?"portal_rename":"portal_duplicate",nmF,n);if(!r.ok)return bad(r.error||"Opération impossible.");
- $("#rn").close();
- if(nmMode=="ren"){delete S.drafts[nmF];delete S.saved[nmF];if($("#dlg").open)$("#dlg").close();if(S.cur&&S.cur.filename==nmF)S.cur=null}
- await load();note(nmMode=="ren"?"« "+nmF+" » est maintenant « "+r.filename+" ».":"« "+nmF+" » a été dupliqué en « "+r.filename+" ».")};
-$("#vwb").onclick=()=>{S.view=S.view=="list"?"cards":"list";try{localStorage.setItem("fp-view",S.view)}catch(e){}draw()};
-try{if(localStorage.getItem("fp-view")=="list")S.view="list"}catch(e){}
-
-/* ── nouveau workflow ──────────────────────────────────────────────── */
-let TPL=[];
-async function newOpen(){if(!TPL.length){const r=await call("portal_templates");TPL=Array.isArray(r)?r:[]}
- const all=TPL.concat([{id:"__assist",label:"Décrire à CSAgent",description:"Parlez ou écrivez ce que doit faire le workflow ; vous relisez la proposition avant de l'appliquer."}]);
- $("#nwt").innerHTML='<legend class="note" style="padding:0 0 4px">Point de départ</legend>'+all.map((t,i)=>'<label class="opt"><input type="radio" name="tpl" value="'+esc(t.id)+'"'+(i==0?" checked":"")+'><span><b>'+esc(t.label)+'</b><small>'+esc(t.description)+'</small></span></label>').join("");
- $("#nwn").value="";$("#nwe").hidden=true;$("#nw").showModal();$("#nwn").focus()}
-async function newSubmit(e){e.preventDefault();const er=$("#nwe"),bad=m=>{er.textContent=m;er.hidden=false};er.hidden=true;
- let f=$("#nwn").value.trim();if(!f)return bad("Donnez un nom au fichier.");if(!/\.ya?ml$/i.test(f))f+=".yaml";
- if(S.cards.some(c=>c.filename.toLowerCase()==f.toLowerCase()))return bad("Un workflow porte déjà ce nom : « "+f+" ».");
- const pick=document.querySelector('input[name=tpl]:checked'),mode=pick?pick.value:"vide",r=await call("portal_template",mode=="__assist"?"vide":mode,f);
- if(!r.ok)return bad(r.error||"Création impossible.");
- $("#nw").close();S.saved[f]=r.yaml;delete S.drafts[f];S.cur={filename:f,title:f.replace(/\.ya?ml$/i,""),isNew:true,steps:[],inputs:{},missing:[],ready:true,tags:{}};
- probs={P:[],e:0,w:0};full(mode=="__assist"?"a":"p")}
-$("#newb").onclick=newOpen;$("#nwf").onsubmit=newSubmit;$("#nwno").onclick=()=>$("#nw").close();
-
-/* ── assistant CSAgent ─────────────────────────────────────────────── */
-function sideTab(k){const a=k=="a";$("#sdp").setAttribute("aria-selected",!a);$("#sda").setAttribute("aria-selected",a);$("#fpl").hidden=a;$("#asp").hidden=!a;asstDraw();if(a){asstUI();$("#atx").focus()}}
-$("#sdp").onclick=()=>sideTab("p");$("#sda").onclick=()=>sideTab("a");
-function asstDraw(){const A=S.assist;if(!A||!$("#alog"))return;
- $("#sda").textContent="Assistant"+(A.busy||A.proposal?" ●":"");
- const L=$("#alog");L.innerHTML=(A.log.length||A.busy?"":'<p class="note">Décrivez en une ou deux phrases ce que doit faire le workflow, ou ce qu\'il faut changer. CSAgent prépare une proposition que vous relisez avant de l\'appliquer ; rien n\'est enregistré sans votre accord.</p>')+
-  A.log.map(m=>'<div class="am '+m.r+'">'+esc(m.t)+'</div>').join("")+(A.busy?'<div class="am st" role="status">'+esc(A.status||"CSAgent travaille…")+'</div>':'');L.scrollTop=L.scrollHeight;
- const P=A.proposal,pe=$("#aprop");
- if(!P)pe.innerHTML="";
- else{const er=P.issues.filter(i=>i.level=="error").length;
-  pe.innerHTML='<div class="prop"><b>Proposition de CSAgent</b>'+(P.answer?'<span>'+esc(P.answer)+'</span>':'')+'<div class="df" tabindex="0" aria-label="Différences proposées">'+P.diff.map(r=>'<div class="dl '+r.op+'"><i>'+({add:"+",del:"−"}[r.op]||" ")+'</i><span>'+esc(r.text||"")+'</span></div>').join("")+'</div>'+
-   (P.issues.length?'<div class="pre">'+(er?'<b>'+er+' erreur'+(er>1?'s':'')+' de validation restante'+(er>1?'s':'')+'</b> : vous pourrez les corriger dans l\'éditeur.':'<b>Avertissements</b>')+'<ul>'+P.issues.slice(0,6).map(i=>'<li>'+(i.line?"L"+i.line+" · ":"")+esc(i.message)+'</li>').join("")+'</ul></div>':'')+
-   '<div class="row"><button class="btn" id="aok">'+(A.armed?"Appliquer quand même":"Appliquer dans l\'éditeur")+'</button><button class="btn ghost" id="ano">Rejeter</button></div>'+(A.armed?'<p class="note">Vous avez modifié le texte depuis la demande : l\'appliquer remplace ces modifications.</p>':'<p class="note">L\'application modifie seulement l\'éditeur ; enregistrez ensuite comme d\'habitude.</p>')+'</div>';
-  $("#aok").onclick=asstApply;$("#ano").onclick=()=>{A.proposal=null;A.armed=false;A.log.push({r:"bot",t:"Proposition rejetée."});asstDraw()}}
- const G=A.gate,ge=$("#agate");
- if(A.gateDrawn!==G){A.gateDrawn=G;ge.innerHTML=G?'<div class="gate"><b>CSAgent demande votre accord</b><span>'+esc(G.message)+'</span><div class="row"><button class="btn" id="aap">Approuver</button><button class="btn ghost" id="arj">Refuser</button></div></div>':"";
-  if(G){$("#aap").onclick=()=>asstAnswer("approved");$("#arj").onclick=()=>asstAnswer("rejected");$("#aap").focus()}}
- asstUI()}
-async function asstAnswer(a){S.assist.gate=null;asstDraw();await call("resolve_approval",a)}
-function asstUI(){const A=S.assist,tx=$("#atx");if(!A||!tx)return;const v=S.voice&&S.voice.target=="asst"?S.voice:null,rec=!!v&&v.state=="recording",trn=!!v&&v.state=="transcribing";
- $("#asend").disabled=A.busy||rec||trn||!tx.value.trim();$("#astop").hidden=!A.busy;$("#astop").disabled=A.status=="Arrêt en cours…";
- const mic=$("#amic");mic.className="btn "+(rec?"stopb":"ghost");mic.setAttribute("aria-pressed",rec);mic.disabled=trn||A.busy;
- mic.textContent=rec?"⏹ Arrêter ("+mmss(v.secs)+")":trn?"… Transcription":"🎙 Dicter";
- $("#avst").textContent=rec?"Enregistrement en cours… parlez, puis cliquez sur Arrêter.":(v?v.msg:"");
- const er=$("#averr");er.hidden=!(v&&v.err);er.textContent=v&&v.err||""}
-async function asstSend(){const A=S.assist,tx=$("#atx"),t=tx.value.trim();if(!t||A.busy)return;
- A.log.push({r:"user",t});tx.value="";A.busy=true;A.status="Envoi à CSAgent…";A.proposal=null;A.armed=false;A.base=cur();asstDraw();
- const r=await call("portal_assist",A.base,t);if(!r.ok){A.busy=false;A.status="";A.log.push({r:"err",t:r.error||"Envoi impossible."});asstDraw()}}
-function asstApply(){const A=S.assist,P=A.proposal;if(!P||!S.cur)return;
- if(cur()!==P.base&&!A.armed){A.armed=true;asstDraw();return}
- const f=S.cur.filename;S.drafts[f]=P.draft;S.cur.justSaved=false;if($("#eta"))$("#eta").value=P.draft;if($("#pta"))$("#pta").value=P.draft;
- A.proposal=null;A.armed=false;A.log.push({r:"bot",t:"Proposition appliquée dans l'éditeur (non enregistrée)."});check();asstDraw();$("#eta").focus()}
-function asstTxt(x){if(x==null)return"";if(typeof x=="string")return x;return String(x.name||x.tool||x.text||"")}
-function assistEv(ev){const A=S.assist;if(!A||!A.busy)return;const t=ev.type;
- if(t=="assist_status"){A.status=ev.text||"";asstDraw()}
- else if(t=="assist_event"){const e=ev.event||{},k=e.type||"";
-  if(k=="human_approval_required"){A.gate={message:e.message||"Approuver ?"};A.status="CSAgent attend votre accord."}
-  else if(k=="agent_thought"){const x=asstTxt(e.data).replace(/\s+/g," ").trim();if(x)A.status=x.slice(0,160)}
-  else if(k=="agent_call"){const x=asstTxt(e.data);if(x)A.status="CSAgent utilise : "+x.slice(0,80)}
-  asstDraw()}
- else if(t=="assist_done"){A.busy=false;A.status="";A.gate=null;
-  if(!ev.ok)A.log.push({r:"err",t:ev.error||"L'assistant a échoué."});
-  else if(!ev.changed)A.log.push({r:"bot",t:"CSAgent n'a rien modifié."+(ev.answer?"\n"+ev.answer:"")});
-  else{A.proposal={draft:ev.draft,diff:ev.diff||[],issues:ev.issues||[],answer:ev.answer||"",base:A.base};A.armed=false}
-  asstDraw()}}
-$("#asend").onclick=asstSend;$("#astop").onclick=async()=>{const A=S.assist;A.status="Arrêt en cours…";asstDraw();await call("portal_stop")};
-$("#atx").oninput=asstUI;$("#atx").onkeydown=e=>{if(e.key=="Enter"&&(e.ctrlKey||e.metaKey)){e.preventDefault();if(!$("#asend").disabled)asstSend()}};
-$("#amic").onclick=async()=>{const v=S.voice;if(v&&v.target=="asst"&&v.state=="recording"){Voice.stop();return}
- S.voice={state:"idle",msg:"",err:"",secs:0,target:"asst"};const r=await call("portal_assist_voice",true);
- if(!r.ok){S.voice.err=r.error||"Dictée indisponible.";voiceUI();return}Voice.start()};
-
-/* ── résultat d'un lancement ───────────────────────────────────────── */
-let cr=null,tab="steps",sf=0;
-async function showRun(id){const r=await call("portal_run_detail",id);if(!r.ok){alert(r.error);return}cr=r.run;tab="steps";sf=0;const c=card(cr.file);
- $("#rt").innerHTML=esc(c?c.title:cr.name)+' <span class="rb '+cr.status+'">'+BL[cr.status]+'</span>';
- const ok=cr.steps.filter(s=>s.status=="ok").length;$("#rm").textContent="Lancé le "+when(cr.started)+" · durée "+fd(cr.duration)+" · "+ok+" étape"+(ok>1?"s":"")+" sur "+cr.steps.length+" terminée"+(ok>1?"s":"")+" · "+cr.files.length+" fichier"+(cr.files.length>1?"s":"");
- $("#rrl").onclick=()=>{$("#rvw").close();openCard(cr.file,true)};$("#rcl").onclick=()=>$("#rvw").close();$("#rrl").disabled=!c||!c.ready||S.busy;
- if(!$("#rvw").open)$("#rvw").showModal();tabs()}
-function tabs(){const r=cr,L=[["steps","Étapes"],["files","Fichiers ("+r.files.length+")"],["log","Journal"],["in","Entrées"]];
- $("#rtb").innerHTML=L.map(([k,l])=>'<button role="tab" data-t="'+k+'" aria-selected="'+(k==tab)+'">'+l+'</button>').join("");$("#rtb").onclick=e=>{const b=e.target.closest("[data-t]");if(b){tab=b.dataset.t;tabs()}};body()}
-async function body(){const r=cr,b=$("#rbd"),mx=Math.max(...r.steps.map(s=>+s.duration||0),.1);
- if(tab=="steps"){const f=r.steps.find(s=>s.status=="error");
-  b.innerHTML=(f?'<div class="pre" style="margin-bottom:14px"><b>L\'étape « '+esc(f.id)+' » a échoué.</b> '+esc((f.output||"").split("\n")[0])+'</div>':(r.error?'<div class="pre" style="margin-bottom:14px">'+esc(r.error)+'</div>':''))+
-  (r.warnings&&r.warnings.length?'<div class="pre" style="margin-bottom:14px;color:var(--human);border-color:var(--human)">'+r.warnings.map(esc).join("<br>")+'</div>':'')+
-  r.steps.map(s=>'<details class="sr '+s.status+'" '+(s.status=="error"?"open":"")+'><summary><span class="ic">'+({ok:"✓",error:"✕",skipped:"–",notrun:"–",rejected:"⏸",cancelled:"■"}[s.status]||"·")+'</span><span>'+esc(s.label)+'<small>'+esc(s.id)+' · '+esc(T[s.type]||s.type)+'</small></span><span class="bw"><div class="tm">'+(s.status=="notrun"||s.status=="skipped"?"":fd(s.duration))+'</div><div class="bar2"><b style="width:'+Math.max(3,(+s.duration||0)/mx*100)+'%"></b></div></span></summary>'+(s.output?'<pre>'+esc(s.output)+'</pre>':'<pre style="color:var(--mute)">'+(s.status=="notrun"?"Non exécutée.":s.status=="skipped"?"Étape ignorée (condition skip_if).":"Pas de sortie.")+'</pre>')+'</details>').join("")}
- if(tab=="files"){if(!r.files.length){b.innerHTML='<div class="empty">Ce lancement n\'a produit aucun fichier.</div>';return}const f=r.files[sf]||r.files[0];
-  b.innerHTML='<div class="fl"><div class="lst">'+r.files.map((x,i)=>'<button data-f2="'+i+'" aria-pressed="'+(i==sf)+'">'+esc(x.path)+'<span>'+(x.size==null?"absent":Math.max(1,Math.round(x.size/1024))+" Ko")+'</span></button>').join("")+'</div><div id="pv"><p style="color:var(--mute)">Chargement…</p></div></div>';
-  b.querySelector(".lst").onclick=e=>{const x=e.target.closest("[data-f2]");if(x){sf=+x.dataset.f2;body()}};
-  const p=await call("portal_file_preview",f.path),pv=$("#pv");if(!pv||tab!="files")return;
-  pv.innerHTML=(p.ok?(p.binary?'<div class="empty">Fichier binaire ('+Math.max(1,Math.round(p.size/1024))+' Ko) : ouvrez-le avec son application.</div>':'<pre class="jr">'+esc(p.text)+(p.truncated?"\n… (aperçu tronqué)":"")+'</pre>'):'<div class="empty">'+esc(p.error)+'</div>')+'<div class="row" style="margin-top:10px"><button class="btn" id="of" '+(p.ok?"":"disabled")+'>Ouvrir</button><span id="om" style="align-self:center;color:var(--mute);font-size:13px"></span></div>';
-  const of=$("#of");if(of)of.onclick=async()=>{const o=await call("portal_open_file",f.path);$("#om").textContent=o.ok?"Ouvert dans l'application par défaut.":o.error}}
- if(tab=="log"){let t=0,L=[];const off=x=>"+"+x.toFixed(1).replace(".",",")+" s";r.steps.forEach(s=>{if(s.status=="notrun"||s.status=="skipped"||s.status=="pending")return;L.push('<span class="t">'+off(t).padStart(9)+'</span>  ▶ '+esc(s.id)+' ('+esc(s.type)+')');t+=+s.duration||0;L.push('<span class="t">'+off(t).padStart(9)+'</span>  <span class="'+(s.status=="error"?"er":"ok")+'">'+(s.status=="error"?"✕ échec":s.status=="rejected"?"⏸ refusé":"✓ terminé")+'</span> '+esc(s.id)+' · '+fd(s.duration));if(s.status=="error")L.push('<span class="er">            '+esc((s.output||"").split("\n")[0])+'</span>')});
-  b.innerHTML='<div class="ytop" style="margin-bottom:8px"><span>'+L.length+' lignes · temps cumulés (les durées des étapes sont mesurées par le moteur)</span><button class="f" id="cj">Copier</button></div><pre class="jr">'+L.join("\n")+'</pre>';
-  $("#cj").onclick=async()=>{try{await navigator.clipboard.writeText(b.querySelector(".jr").textContent);$("#cj").textContent="Copié"}catch(e){$("#cj").textContent="Copie impossible"}}}
- if(tab=="in"){const e=Object.entries(r.inputs||{});b.innerHTML=e.length?'<div class="kv">'+e.map(([k,v])=>'<b>'+esc(k)+'</b><span>'+esc(v)+'</span>').join("")+'</div>':'<div class="empty">Ce workflow n\'a pas de paramètres.</div>'}}
-
-/* ── interactions générales ────────────────────────────────────────── */
-document.addEventListener("click",e=>{const r=e.target.closest("[data-run]");if(r){e.stopPropagation();openCard(r.dataset.run,true);return}
- const o=e.target.closest("[data-open]");if(o){openCard(o.dataset.open);return}const ed=e.target.closest("[data-edit]");if(ed){editCard(ed.dataset.edit);return}const dl=e.target.closest("[data-del]");if(dl){delAsk(dl.dataset.del);return}const du=e.target.closest("[data-dup]");if(du){nameAsk("dup",du.dataset.dup);return}const re=e.target.closest("[data-ren]");if(re){nameAsk("ren",re.dataset.ren);return}
- const rr=e.target.closest("#rec [data-r]");if(rr){showRun(rr.dataset.r);return}const c=e.target.closest(".card[data-f]");if(c)openCard(c.dataset.f)});
-document.addEventListener("keydown",e=>{if(e.key=="Enter"&&e.target.classList.contains("card"))openCard(e.target.dataset.f)});
-$("#q").oninput=e=>{S.q=e.target.value.toLowerCase();draw()};
-document.querySelectorAll(".bar .f[data-k]").forEach(b=>b.onclick=()=>{S.filter=b.dataset.k;document.querySelectorAll(".bar .f[data-k]").forEach(x=>x.setAttribute("aria-pressed",x==b));draw()});
-$("#th").onclick=()=>{const r=document.documentElement,n=(r.dataset.theme||(matchMedia("(prefers-color-scheme:dark)").matches?"dark":"light"))=="dark"?"light":"dark";r.dataset.theme=n;try{localStorage.setItem("fp-theme",n)}catch(e){}};
-try{const t=localStorage.getItem("fp-theme");if(t)document.documentElement.dataset.theme=t}catch(e){}
-if(typeof eel==="undefined"||!eel.portal_list){$("#alert").innerHTML='<div class="pre" style="margin-bottom:16px">Le portail doit être ouvert par FlowPortal : lancez <b>FlowPortal</b> (ou <b>python app.py</b>).</div>'}
-else{boot();setInterval(()=>{if(!(S.live&&S.live.running)&&!$("#dlg").open&&!$("#rvw").open&&!$("#ed").open&&!$("#nw").open&&!$("#dd").open&&!$("#rn").open)load()},30000)}
-</script></body></html>
+<script src="/core.js"></script>
+<script src="/html-template.js"></script>
+<script src="/state.js"></script>
+<script src="/workflow-list.js"></script>
+<script src="/workflow-panel.js"></script>
+<script src="/voice.js"></script>
+<script src="/engine-events.js"></script>
+<script src="/yaml-editor.js"></script>
+<script src="/workflow-actions.js"></script>
+<script src="/assistant.js"></script>
+<script src="/run-result.js"></script>
+<script src="/main.js"></script>
+</body></html>

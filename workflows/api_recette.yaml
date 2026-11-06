@@ -1,0 +1,196 @@
+# yaml-language-server: $schema=../csflow.schema.json
+# ════════════════════════════════════════════════════════════════════════════
+#  api-recette — tests de contrat d'une API HTTP (lecture seule)
+# ════════════════════════════════════════════════════════════════════════════
+#
+#  Ce que ça fait :
+#    1. interroge une URL 3 fois en GET (statuts, latences, content-type) ;
+#    2. compare la réponse JSON à un exemple attendu (clés en dérive) ;
+#    3. demande à CSAgent d'expliquer les anomalies (anomalies.md) ;
+#    4. produit un rapport HTML (badges ok/ko, latences, dérive des clés)
+#       + ouvre le navigateur par défaut.
+#
+#  Préréquis : un worker CSAgent démarré (./start_agent.sh ou start_agent.bat)
+#              pour l'étape « analyse ». Lecture seule : aucun requêtage
+#              POST, aucun fichier de l'utilisateur modifié.
+#
+#  Compatibilité Windows / Linux : HTTP en Python (urllib), chemins en « / »,
+#  navigateur par défaut via la stdlib webbrowser.
+#
+#  Sorties : tmp/recette/ (résultats, analyse, rapport HTML).
+#
+#  Mode par défaut : simulation — l'URL cible est l'API publique Open-Meteo,
+#  aucun paramètre de l'utilisateur requis.
+# ════════════════════════════════════════════════════════════════════════════
+name: api-recette
+description: >-
+  Tests de contrat d'une API : 3 requêtes GET (statuts, latences,
+  content-type), dérive des clés par rapport à un exemple JSON attendu,
+  analyse des anomalies par CSAgent, rapport HTML. Par défaut : simulation
+  sur l'API publique Open-Meteo.
+
+inputs:
+  source: simulation    # "simulation" (Open-Meteo) | "reel" (votre URL)
+  url: ""               # URL en mode reel, ex : "https://mon.service/api/sante"
+  exemple: ""           # chemin d'un exemple JSON attendu (optionnel), ex : "tmp/exemple.json"
+
+steps:
+
+  # ── 1. batterie de tests (Python, lecture seule) ───────────────────────────
+  - id: batterie
+    type: python
+    description: Trois requêtes GET et comparaison à l'exemple attendu
+    code: |
+      import json, pathlib, time, urllib.request
+      mode = "{{source}}".strip().lower()
+      if mode == "reel":
+          url = "{{url}}".strip()
+          if not url.startswith("http"):
+              raise SystemExit("Mode reel : l'input « url » doit être une URL http(s).")
+      else:
+          url = "https://api.open-meteo.com/v1/forecast?latitude=48.8566&longitude=2.3522&current_weather=true"
+      exemple = "{{exemple}}".strip()
+      dossier = pathlib.Path("tmp/recette")
+      dossier.mkdir(parents=True, exist_ok=True)
+
+      def requete():
+          t0 = time.perf_counter()
+          try:
+              with urllib.request.urlopen(url, timeout=30) as r:
+                  corps = r.read()
+                  ct = r.headers.get("Content-Type", "")
+                  statut = r.status
+          except Exception as exc:
+              return {"statut": "erreur", "detail": str(exc),
+                      "latence_ms": int((time.perf_counter() - t0) * 1000)}
+          return {"statut": statut, "latence_ms": int((time.perf_counter() - t0) * 1000),
+                  "content_type": ct, "taille_octets": len(corps), "corps": corps}
+
+      coups, dernier = [], None
+      for _ in range(3):
+          r = requete()
+          dernier = r
+          coups.append({"statut": r["statut"], "latence_ms": r["latence_ms"]})
+      if dernier is None or "corps" not in dernier:
+          raise SystemExit("Aucune réponse exploitable : " + str(dernier))
+
+      donnees = None
+      try:
+          donnees = json.loads(dernier["corps"].decode("utf-8"))
+      except Exception:
+          pass
+
+      derive = None
+      if exemple:
+          src = pathlib.Path(exemple)
+          if not src.is_file():
+              raise SystemExit("Exemple introuvable : " + exemple)
+          attendu = json.loads(src.read_text(encoding="utf-8"))
+          if isinstance(donnees, dict) and isinstance(attendu, dict):
+              manquant = sorted(set(attendu) - set(donnees))
+              extra = sorted(set(donnees) - set(attendu))
+              derive = {"cles_manquantes": manquant, "cles_inattendues": extra,
+                        "identique": not manquant and not extra}
+      lat = [c["latence_ms"] for c in coups]
+      resultats = {
+          "url": url,
+          "coups": coups,
+          "latence": {"min": min(lat), "moyenne": round(sum(lat) / len(lat)), "max": max(lat)},
+          "content_type": dernier.get("content_type", ""),
+          "json_valide": donnees is not None,
+          "derive": derive,
+      }
+      out = dossier / "resultats.json"
+      out.write_text(json.dumps(resultats, ensure_ascii=False, indent=2), encoding="utf-8")
+      print(f"3 requêtes : statuts {[c['statut'] for c in coups]}, latence moyenne {resultats['latence']['moyenne']} ms")
+
+  # ── 2. analyse des anomalies par CSAgent ───────────────────────────────────
+  - id: analyse
+    type: agent
+    description: Explication des anomalies (par CSAgent)
+    auto_confirm: true
+    prompt: |
+      Read the file tmp/recette/resultats.json — the results of a 3-shot
+      HTTP contract test (status codes, latencies in ms, content type,
+      optional JSON key drift versus an expected example).
+
+      Write the file tmp/recette/anomalies.md in French:
+        - « Verdict » : one line, is the API behaving normally?
+        - « Anomalies » : for each deviation (error status, high or
+          irregular latency, wrong content type, missing/unexpected
+          keys), explain what it likely means and what to check. If
+          there is nothing to report, say so explicitly.
+        - « Recommandations » : 3 bullets max, concrete next steps.
+
+      Do NOT modify any file except anomalies.md.
+
+  # ── 3. rapport HTML ────────────────────────────────────────────────────────
+  - id: rapport
+    type: python
+    description: Génération du rapport de recette
+    code: |
+      import html, json, pathlib
+      p = pathlib.Path
+      r = json.loads(p("tmp/recette/resultats.json").read_text(encoding="utf-8"))
+      an = p("tmp/recette/anomalies.md")
+      mode = "{{source}}".strip().lower()
+      ok = all(c["statut"] == 200 for c in r["coups"]) and r["json_valide"]
+
+      def badge(v):
+          return f'<span class="{"ok" if v else "ko"}">{"OK" if v else "KO"}</span>'
+
+      lignes = []
+      if mode == "simulation":
+          lignes.append('<div class="demo">MODE SIMULATION — cible : API publique Open-Meteo.</div>')
+      lignes.append('<h1>Réquette de contrat API</h1>')
+      lignes.append(f'<div class="sub">{html.escape(r["url"])} — {html.escape("{{now}}")}</div>')
+      lignes.append('<h2>Checks</h2><table><tr><th>Check</th><th>Résultat</th></tr>')
+      lignes.append(f'<tr><td>Statuts HTTP (3 requêtes)</td><td>{badge(ok)} '
+                    f'{html.escape(str([c["statut"] for c in r["coups"]]))}</td></tr>')
+      lignes.append(f'<tr><td>Réponse JSON valide</td><td>{badge(r["json_valide"])}</td></tr>')
+      lignes.append(f'<tr><td>Content-type</td><td>{html.escape(r["content_type"]) or "—"}</td></tr>')
+      lat = r["latence"]
+      lignes.append(f'<tr><td>Latence min / moy / max</td><td>{lat["min"]} / {lat["moyenne"]} / {lat["max"]} ms</td></tr>')
+      if r.get("derive") is not None:
+          d = r["derive"]
+          lignes.append(f'<tr><td>Clés vs exemple attendu</td><td>{badge(d["identique"])}</td></tr>')
+          if d["cles_manquantes"]:
+              lignes.append(f'<tr><td>Clés manquantes</td><td>{html.escape(", ".join(d["cles_manquantes"]))}</td></tr>')
+          if d["cles_inattendues"]:
+              lignes.append(f'<tr><td>Clés inattendues</td><td>{html.escape(", ".join(d["cles_inattendues"]))}</td></tr>')
+      lignes.append('</table>')
+      if an.is_file():
+          lignes.append('<h2>Analyse (CSAgent)</h2>')
+          for ligne in an.read_text(encoding="utf-8").splitlines():
+              if ligne.startswith("# "):
+                  continue
+              lignes.append(f'<p>{html.escape(ligne) or "&nbsp;"}</p>')
+      rapport = p("tmp/recette/rapport_recette.html")
+      rapport.write_text("<html><head><meta charset='utf-8'>"
+        "<style>body{font-family:system-ui,sans-serif;margin:2rem;color:#1e293b}"
+        "table{border-collapse:collapse;width:100%}td,th{border:1px solid #cbd5e1;padding:.45rem .7rem}"
+        "h1{color:#0f172a}.sub{color:#64748b}.demo{background:#fef3c7;border:1px solid #f59e0b;"
+        "padding:.6rem 1rem;border-radius:8px;font-weight:600}"
+        ".ok{color:#16a34a;font-weight:700}.ko{color:#dc2626;font-weight:700}</style></head><body>"
+        + "\n".join(lignes) + "</body></html>", encoding="utf-8")
+      print(rapport.resolve().as_uri())
+
+  # ── 4. ouvrir le rapport dans le navigateur par défaut ─────────────────────
+  - id: ouvrir
+    type: python
+    description: Ouverture du rapport dans le navigateur par défaut
+    continue_on_error: true
+    code: |
+      import webbrowser
+      if not webbrowser.open("{{rapport.output}}".strip()):
+          print("Aucun navigateur lancé : ouvrez tmp/recette/rapport_recette.html")
+
+  # ── 5. fin ──────────────────────────────────────────────────────────────────
+  - id: fin
+    type: log
+    level: success
+    message: "Terminé : rapport de recette dans tmp/recette/ (rapport_recette.html)."
+    next: end
+
+  - id: end
+    type: end

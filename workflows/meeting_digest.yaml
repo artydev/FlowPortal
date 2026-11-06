@@ -1,0 +1,232 @@
+# yaml-language-server: $schema=../csflow.schema.json
+# ════════════════════════════════════════════════════════════════════════════
+#  meeting-digest — synthèse de réunion : décisions, actions, responsables
+# ════════════════════════════════════════════════════════════════════════════
+#
+#  Ce que ça fait :
+#    1. prend la transcription de la réunion (input « transcription »,
+#       chemin d'un fichier .txt/.md — produite par n'importe quel outil
+#       de transcription ; vide = transcription fictive pour tester) ;
+#    2. demande à CSAgent la structuration : synthèse, décisions, actions
+#       avec responsables et échéances (structure.json) ;
+#    3. demande une VALIDATION HUMAINE de la structuration ;
+#    4. si approuvé : exporte un fichier Excel (XLSX généré en Python
+#       standard, sans aucune librairie) et une synthèse Markdown ;
+#    5. produit un rapport HTML et ouvre le navigateur par défaut.
+#
+#  Périmètre honnête : la transcription audio n'est PAS faite par ce flux
+#  (un LLM n'écoute pas) — fournissez un fichier texte ; la partie
+#  structuration/export est, elle, entièrement gérée ici.
+#
+#  Préréquis : un worker CSAgent démarré pour la structuration.
+#  Compatibilité Windows / Linux : XLSX et Markdown via la stdlib Python
+#  (zipfile), chemins en « / », navigateur par défaut.
+#
+#  Sorties : tmp/reunion/ (transcription copiée, structure.json, rapport)
+#            et tmp/reunion/export/ (reunion.xlsx + recap.md).
+# ════════════════════════════════════════════════════════════════════════════
+name: meeting-digest
+description: >-
+  Synthèse de réunion : transcription fournie (ou fictive), structuration
+  par CSAgent (synthèse, décisions, actions, responsables, échéances),
+  validation humaine, export Excel (XLSX en stdlib) et Markdown, rapport
+  HTML.
+
+inputs:
+  transcription: ""   # chemin du fichier texte de la réunion (vide = fictif, pour tester)
+
+steps:
+
+  # ── 1. préparation de la transcription (fournie ou fictive) ────────────────
+  - id: preparer
+    type: python
+    description: Capture de la transcription (ou fictive)
+    code: |
+      import pathlib, shutil
+      chemin = "{{transcription}}".strip()
+      fiction = chemin == ""
+      dossier = pathlib.Path("tmp/reunion")
+      dossier.mkdir(parents=True, exist_ok=True)
+      if fiction:
+          texte = (
+              "Transcription fictive — réunion de projet (2026-11-02).\n"
+              "MARTINE : nous allons retenir le plan A pour la livraison du module de paie.\n"
+              "KARIM : il faut aussi corriger le bug de saisie avant la fin du mois.\n"
+              "MARTINE : d accord, je m en occupe, échéance le 30 du mois.\n"
+              "KARIM : point décision : on bascule le staging en production le 15.\n"
+              "MARTINE : dernière action, préparer la note de version, responsable le QA, avant le 20.\n"
+          )
+          (dossier / "transcription.txt").write_text(texte, encoding="utf-8")
+          print("Transcription fictive préparée (input « transcription » vide).")
+      else:
+          src = pathlib.Path(chemin)
+          if not src.is_file():
+              raise SystemExit("Transcription introuvable : " + chemin)
+          if src.suffix.lower() not in (".txt", ".md", ".text"):
+              raise SystemExit("Format non pris en charge : " + src.suffix + " (attendu .txt ou .md).")
+          shutil.copy2(src, dossier / "transcription.txt")
+          print("Transcription copiée : tmp/reunion/transcription.txt")
+
+  # ── 2. structuration par CSAgent ───────────────────────────────────────────
+  - id: structurer
+    type: agent
+    description: Synthèse, décisions et actions (par CSAgent)
+    auto_confirm: true
+    prompt: |
+      Read the file tmp/reunion/transcription.txt — a meeting transcript
+      (possibly fictional).
+
+      Write the file tmp/reunion/structure.json as strict JSON:
+      {
+        "synthese": "<2-4 sentences, in French>",
+        "decisions": ["<decision 1>", ...],
+        "actions": [
+          {"action": "<what>", "responsable": "<name or role, or \"non précisé\">",
+           "echeance": "<date or \"non précisée\">"}
+        ]
+      }
+      Rules:
+        - Only content actually present in the transcript; do not invent
+          decisions, owners, or dates. When missing, use the fallback
+          values shown above.
+        - Keep names exactly as spoken in the transcript.
+
+      Do NOT modify any file except structure.json.
+
+  # ── 3. validation humaine ──────────────────────────────────────────────────
+  - id: valider
+    type: human_approval
+    description: Validation de la structuration
+    message: |
+      Structuration de la réunion prête à relire : tmp/reunion/structure.json
+
+      {{preparer.output}}
+
+      Approuvez pour exporter l'Excel et le Markdown ; refusez pour
+      garder uniquement la structuration JSON.
+    on_approve: exporter
+    on_reject: rapport
+
+  # ── 4. export XLSX (stdlib) + Markdown ─────────────────────────────────────
+  - id: exporter
+    type: python
+    description: Export Excel (XLSX en stdlib) et synthèse Markdown
+    code: |
+      import html, json, pathlib, zipfile
+      dossier = pathlib.Path("tmp/reunion/export")
+      dossier.mkdir(parents=True, exist_ok=True)
+      s = json.loads(pathlib.Path("tmp/reunion/structure.json").read_text(encoding="utf-8"))
+      lignes = [["Type", "Contenu", "Responsable", "Echeance"]]
+      for d in s.get("decisions", []):
+          lignes.append(["Decision", d, "", ""])
+      for a in s.get("actions", []):
+          lignes.append(["Action", a.get("action", ""), a.get("responsable", ""), a.get("echeance", "")])
+
+      def col(n):
+          out = ""
+          while n:
+              n, r = divmod(n - 1, 26)
+              out = chr(65 + r) + out
+          return out
+
+      def feuille(rows):
+          out = ['<?xml version="1.0" encoding="UTF-8" standalone="yes"?>',
+                 '<worksheet xmlns="http://schemas.openxmlformats.org/spreadsheetml/2006/main">',
+                 '<sheetData>']
+          for i, row in enumerate(rows, 1):
+              out.append(f'<row r="{i}">')
+              for j, v in enumerate(row, 1):
+                  out.append(f'<c r="{col(j)}{i}" t="inlineStr"><is><t xml:space="preserve">{html.escape(str(v))}</t></is></c>')
+              out.append('</row>')
+          out.append('</sheetData></worksheet>')
+          return "".join(out)
+
+      xlsx = dossier / "reunion.xlsx"
+      with zipfile.ZipFile(xlsx, "w", zipfile.ZIP_DEFLATED) as z:
+          z.writestr("[Content_Types].xml",
+              '<?xml version="1.0" encoding="UTF-8" standalone="yes"?>'
+              '<Types xmlns="http://schemas.openxmlformats.org/package/2006/content-types">'
+              '<Default Extension="rels" ContentType="application/vnd.openxmlformats-package.relationships+xml"/>'
+              '<Default Extension="xml" ContentType="application/xml"/>'
+              '<Override PartName="/xl/workbook.xml" ContentType="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet.main+xml"/>'
+              '<Override PartName="/xl/worksheets/sheet1.xml" ContentType="application/vnd.openxmlformats-officedocument.spreadsheetml.worksheet+xml"/>'
+              '</Types>')
+          z.writestr("_rels/.rels",
+              '<?xml version="1.0" encoding="UTF-8" standalone="yes"?>'
+              '<Relationships xmlns="http://schemas.openxmlformats.org/package/2006/relationships">'
+              '<Relationship Id="rId1" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/officeDocument" Target="xl/workbook.xml"/>'
+              '</Relationships>')
+          z.writestr("xl/workbook.xml",
+              '<?xml version="1.0" encoding="UTF-8" standalone="yes"?>'
+              '<workbook xmlns="http://schemas.openxmlformats.org/spreadsheetml/2006/main" xmlns:r="http://schemas.openxmlformats.org/officeDocument/2006/relationships">'
+              '<sheets><sheet name="Reunion" sheetId="1" r:id="rId1"/></sheets></workbook>')
+          z.writestr("xl/_rels/workbook.xml.rels",
+              '<?xml version="1.0" encoding="UTF-8" standalone="yes"?>'
+              '<Relationships xmlns="http://schemas.openxmlformats.org/package/2006/relationships">'
+              '<Relationship Id="rId1" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/worksheet" Target="worksheets/sheet1.xml"/>'
+              '</Relationships>')
+          z.writestr("xl/worksheets/sheet1.xml", feuille(lignes))
+      recap = dossier / "recap.md"
+      corps = ["# Synthèse de réunion", "", s.get("synthese", ""), "", "## Décisions", ""]
+      corps += [f"- {d}" for d in s.get("decisions", [])] or ["- (aucune)"]
+      corps += ["", "## Actions", ""]
+      corps += [f"- {a.get('action','')} — {a.get('responsable','')} — {a.get('echeance','')}" for a in s.get("actions", [])] or ["- (aucune)"]
+      recap.write_text("\n".join(corps), encoding="utf-8")
+      print(f"Export : {xlsx} + {recap} ({len(lignes) - 1} lignes).")
+
+  # ── 5. rapport HTML ────────────────────────────────────────────────────────
+  - id: rapport
+    type: python
+    description: Rapport de synthèse
+    code: |
+      import html, json, pathlib
+      p = pathlib.Path
+      s = {}
+      if (p("tmp/reunion") / "structure.json").is_file():
+          s = json.loads((p("tmp/reunion") / "structure.json").read_text(encoding="utf-8"))
+      export = list(p("tmp/reunion/export").glob("*")) if p("tmp/reunion/export").is_dir() else []
+      lignes = []
+      lignes.append('<h1>Synthèse de réunion</h1>')
+      lignes.append(f'<div class="sub">{html.escape("{{now}}")}</div>')
+      if s.get("synthese"):
+          lignes.append(f'<p>{html.escape(s["synthese"])}</p>')
+      lignes.append('<h2>Décisions</h2><ul>' +
+                    "".join(f"<li>{html.escape(d)}</li>" for d in s.get("decisions", [])) + '</ul>')
+      lignes.append('<h2>Actions</h2><table><tr><th>Action</th><th>Responsable</th><th>Échéance</th></tr>')
+      for a in s.get("actions", []):
+          lignes.append(f'<tr><td>{html.escape(a.get("action", ""))}</td><td>{html.escape(a.get("responsable", ""))}</td>'
+                        f'<td>{html.escape(a.get("echeance", ""))}</td></tr>')
+      lignes.append('</table>')
+      if export:
+          lignes.append('<div class="ok">Export approuvé : ' + ", ".join(html.escape(f.name) for f in export) + '</div>')
+      else:
+          lignes.append('<div class="ko">Aucun export (structuration non approuvée).</div>')
+      rapport = p("tmp/reunion/rapport_reunion.html")
+      rapport.write_text("<html><head><meta charset='utf-8'>"
+        "<style>body{font-family:system-ui,sans-serif;margin:2rem;color:#1e293b;max-width:52rem}"
+        "h1{color:#0f172a}.sub{color:#64748b}"
+        "table{border-collapse:collapse;width:100%}td,th{border:1px solid #cbd5e1;padding:.45rem .7rem}"
+        ".ok{background:#dcfce7;border:1px solid #22c55e;padding:.6rem 1rem;border-radius:8px;font-weight:600}"
+        ".ko{background:#fef3c7;border:1px solid #f59e0b;padding:.6rem 1rem;border-radius:8px;font-weight:600}</style></head><body>"
+        + "\n".join(lignes) + "</body></html>", encoding="utf-8")
+      print(rapport.resolve().as_uri())
+
+  # ── 6. ouvrir le rapport dans le navigateur par défaut ─────────────────────
+  - id: ouvrir
+    type: python
+    description: Ouverture du rapport dans le navigateur par défaut
+    continue_on_error: true
+    code: |
+      import webbrowser
+      if not webbrowser.open("{{rapport.output}}".strip()):
+          print("Aucun navigateur lancé : ouvrez tmp/reunion/rapport_reunion.html")
+
+  # ── 7. fin ──────────────────────────────────────────────────────────────────
+  - id: fin
+    type: log
+    level: success
+    message: "Terminé : synthèse dans tmp/reunion/ (rapport_reunion.html, structure.json, export/ si approuvé)."
+    next: end
+
+  - id: end
+    type: end

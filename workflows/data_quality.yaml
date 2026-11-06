@@ -1,0 +1,257 @@
+# yaml-language-server: $schema=../csflow.schema.json
+# ════════════════════════════════════════════════════════════════════════════
+#  data-quality — profilage d'un jeu de données CSV
+# ════════════════════════════════════════════════════════════════════════════
+#
+#  Ce que ça fait :
+#    1. prend un CSV (réel en mode reel, fictif en mode simulation) ;
+#    2. le profile en Python : types, valeurs manquantes, doublons,
+#       valeurs aberrantes (IQR) par colonne ;
+#    3. demande à CSAgent des suggestions de nettoyage commentées
+#       (suggestions.md) ;
+#    4. applique en Python les corrections MÉCANIQUES sûres seulement
+#       (lignes doublonnes exactes, espaces superflus) ;
+#    5. produit un rapport HTML + ouvre le navigateur par défaut.
+#
+#  Préréquis : un worker CSAgent démarré (./start_agent.sh ou start_agent.bat)
+#              pour l'étape « suggestions ». Sans worker, le flux s'arrête là.
+#
+#  Compatibilité Windows / Linux : chemins relatifs en « / », aucun shell
+#  natif, navigateur par défaut via la stdlib webbrowser.
+#
+#  Sorties : tmp/qualite/ (données, profil, suggestions, rapport HTML).
+#
+#  Mode par défaut : simulation — aucun fichier de l'utilisateur n'est lu.
+# ════════════════════════════════════════════════════════════════════════════
+name: data-quality
+description: >-
+  Profilage d'un jeu de données CSV (types, manquants, doublons, valeurs
+  aberrantes), suggestions de nettoyage par CSAgent, corrections mécaniques
+  sûres et rapport HTML. Par défaut : jeu de données fictif, rien de réel.
+
+inputs:
+  source: simulation    # "simulation" (données inventées) | "reel" (votre CSV)
+  fichier: ""           # chemin du CSV en mode reel, ex : "tmp/ventes.csv"
+
+steps:
+
+  # ── 1. charger les données (fictives si simulation) ────────────────────────
+  - id: charger
+    type: python
+    description: Préparation du CSV à analyser
+    code: |
+      import pathlib, shutil
+      src = "{{source}}".strip().lower()
+      dossier = pathlib.Path("tmp/qualite")
+      dossier.mkdir(parents=True, exist_ok=True)
+
+      if src == "reel":
+          nom = "{{fichier}}".strip()
+          if not nom.lower().endswith(".csv"):
+              raise SystemExit("Mode reel : donnez un chemin .csv dans l'input « fichier ».")
+          origine = pathlib.Path(nom)
+          if not origine.is_file():
+              raise SystemExit("Fichier introuvable : " + nom)
+          shutil.copy2(origine, dossier / "donnees.csv")
+      else:
+          # Jeu fictif volontairement imparfait : doublons, manquants,
+          # espaces superflus, valeur aberrante.
+          lignes = [
+              "numero;region;montant;date",
+              "1;Ile-de-France;120.50;2026-01-04",
+              "2;Auvergne-Rhone-Alpes;98.10;2026-01-05",
+              "2;Auvergne-Rhone-Alpes;98.10;2026-01-05",
+              "3;Nouvelle-Aquitaine;14.75;2026-01-06",
+              "4;Grand Est; ;2026-01-07",
+              "5;Paca;2100.00;2026-01-08",
+              "6;  Bretagne ;34.20;2026-01-09",
+              "7;Hauts-de-France;67.00;2026-01-10",
+              "8;;55.30;2026-01-11",
+              "9;Normandie;22.90;2026-01-12",
+              "10;Occitanie;89.40;2026-01-13",
+          ]
+          (dossier / "donnees.csv").write_text("\n".join(lignes) + "\n", encoding="utf-8")
+
+      print("tmp/qualite/donnees.csv")
+
+  # ── 2. profilage déterministe (Python, pas d'LLM) ──────────────────────────
+  - id: profilage
+    type: python
+    description: Calcul du profil du jeu de données
+    code: |
+      import csv, json, statistics, pathlib
+      chemin = pathlib.Path("tmp/qualite/donnees.csv")
+      with open(chemin, encoding="utf-8-sig") as f:
+          lect = csv.reader(f, delimiter=";")
+          entetes = [c.strip() for c in next(lect)]
+          lignes = [r for r in lect if any(c.strip() for c in r)]
+
+      n = len(lignes)
+      colonnes = {h: [] for h in entetes}
+      for r in lignes:
+          for h, v in zip(entetes, r):
+              colonnes.setdefault(h, []).append(v.strip())
+
+      def est_nombre(v):
+          try:
+              float(v.replace(",", "."))
+              return True
+          except Exception:
+              return False
+
+      profil = {}
+      for h in entetes:
+          vals = [v for v in colonnes[h]]
+          nb_vide = sum(1 for v in vals if not v)
+          info = {
+              "manquants": nb_vide,
+              "manquants_pct": round(100 * nb_vide / n, 1) if n else 0,
+              "uniques": len(set(vals)),
+              "exemples": sorted(set(vals))[:3],
+          }
+          nums = [float(v.replace(",", ".")) for v in vals if est_nombre(v)]
+          if nums:
+              nums.sort()
+              q1, q3 = nums[len(nums)//4], nums[3*len(nums)//4]
+              m = 1.5 * (q3 - q1)
+              info.update({
+                  "type": "nombre",
+                  "min": min(nums), "max": max(nums),
+                  "moyenne": round(statistics.mean(nums), 2),
+                  "aberrantes": [x for x in nums if x < q1 - m or x > q3 + m],
+              })
+          elif nb_vide == n:
+              info["type"] = "vide"
+          else:
+              info["type"] = "texte"
+          profil[h] = info
+
+      doublons = len(lignes) - len({tuple(c.strip() for c in r) for r in lignes})
+      profil["_global"] = {"lignes": n, "doublons_exact": doublons}
+      out = pathlib.Path("tmp/qualite/profil.json")
+      out.write_text(json.dumps(profil, ensure_ascii=False, indent=2), encoding="utf-8")
+      print(f"Profil : {n} lignes, {doublons} doublons exacts -> tmp/qualite/profil.json")
+
+  # ── 3. suggestions de nettoyage par CSAgent ────────────────────────────────
+  - id: suggestions
+    type: agent
+    description: Suggestions commentées de nettoyage (par CSAgent)
+    auto_confirm: true
+    prompt: |
+      Read these two files:
+        1. tmp/qualite/profil.json   — the computed profile of a CSV dataset
+        2. tmp/qualite/donnees.csv   — the dataset itself (first lines are enough)
+
+      Write the file tmp/qualite/suggestions.md in French with:
+        - a short « Diagnostics » section quoting the concrete numbers from
+          the profile (missing values, duplicates, outliers);
+        - a numbered list of « Suggestions de nettoyage ». For EACH
+          suggestion say: what to do, why, and the risk level
+          (faible / moyenne / élevé). Distinguish mechanical fixes (safe)
+          from business decisions (only a human can decide, e.g. which
+          missing values are acceptable, whether an outlier is a real
+          transaction or a data entry error).
+        - a final « À trancher par un humain » section listing the
+          decisions that cannot be made automatically.
+
+      Do NOT modify donnees.csv. Only write suggestions.md.
+
+  # ── 4. corrections mécaniques sûres (Python, déterministe) ────────────────
+  - id: nettoyage
+    type: python
+    description: Application des corrections mécaniques (doublons, espaces)
+    code: |
+      import csv, pathlib
+      src = pathlib.Path("tmp/qualite/donnees.csv")
+      dst = pathlib.Path("tmp/qualite/donnees_nettoyees.csv")
+      with open(src, encoding="utf-8-sig") as f:
+          lect = csv.reader(f, delimiter=";")
+          entetes = [c.strip() for c in next(lect)]
+          vues, lignes = set(), []
+          doublons = espaces = 0
+          for r in lect:
+              if not any(c.strip() for c in r):
+                  continue
+              cle = tuple(c.strip() for c in r)
+              if cle in vues:
+                  doublons += 1
+                  continue
+              vues.add(cle)
+              lignes.append(list(cle))
+              espaces += sum(1 for c in r if c != c.strip())
+      with open(dst, "w", encoding="utf-8", newline="") as f:
+          w = csv.writer(f, delimiter=";")
+          w.writerow(entetes)
+          w.writerows(lignes)
+      print(f"Nettoyage : {doublons} doublon(s) retiré(s), {espaces} cellule(s) d'espaces corrigée(s) -> tmp/qualite/donnees_nettoyees.csv")
+
+  # ── 5. rapport HTML ─────────────────────────────────────────────────────────
+  - id: rapport
+    type: python
+    description: Génération du rapport de qualité
+    code: |
+      import html, json, pathlib
+      p = pathlib.Path
+      profil = json.loads(p("tmp/qualite/profil.json").read_text(encoding="utf-8"))
+      sugg = p("tmp/qualite/suggestions.md")
+      mode = "{{source}}".strip().lower()
+      g = profil["_global"]
+
+      lignes = []
+      if mode == "simulation":
+          lignes.append('<div class="demo">MODE SIMULATION — jeu de données fictif, '
+                        "aucune donnée réelle n'a été lue.</div>")
+      lignes.append('<h1>Qualité du jeu de données</h1>')
+      lignes.append(f'<div class="sub">Fichier : tmp/qualite/donnees.csv — '
+                    f'{g["lignes"]} lignes, {g["doublons_exact"]} doublons exacts — {{now}}</div>')
+      lignes.append('<h2>Profil par colonne</h2><table><tr><th>Colonne</th><th>Type</th>'
+                    '<th>Manquants</th><th>Uniques</th><th>Min / Moy / Max</th><th>Aberrantes</th></tr>')
+      for h, i in profil.items():
+          if h == "_global":
+              continue
+          num = f'{i.get("min","")} / {i.get("moyenne","")} / {i.get("max","")}' if i["type"] == "nombre" else ""
+          ab = ", ".join(str(x) for x in i.get("aberrantes", [])) or "—"
+          ex = "ex. " + ", ".join(html.escape(e) for e in i.get("exemples", [])[:2]) if i["type"] == "texte" else ""
+          lignes.append(f'<tr><td>{html.escape(h)}{" (" + ex + ")" if ex else ""}</td>'
+                        f'<td>{i["type"]}</td><td>{i["manquants"]} ({i["manquants_pct"]} %)</td>'
+                        f'<td>{i["uniques"]}</td><td>{num}</td><td>{html.escape(ab)}</td></tr>')
+      lignes.append('</table>')
+      if sugg.is_file():
+          lignes.append('<h2>Suggestions de nettoyage (CSAgent)</h2>')
+          for ligne in sugg.read_text(encoding="utf-8").splitlines():
+              if ligne.startswith("# "):
+                  continue
+              lignes.append(f'<p>{html.escape(ligne) or "&nbsp;"}</p>')
+      lignes.append('<h2>Corrections appliquées</h2><ul>'
+                    '<li>doublons de lignes exacts retirés (donnees_nettoyees.csv)</li>'
+                    '<li>espaces superflus des cellules retirés</li></ul>'
+                    "<p>Les corrections à risque (valeurs manquantes, aberrantes) "
+                    "n'ont JAMAIS été appliquées : voir les suggestions.</p>")
+      rapport = p("tmp/qualite/rapport_qualite.html")
+      rapport.write_text("<html><head><meta charset='utf-8'>"
+        "<style>body{font-family:system-ui,sans-serif;margin:2rem;color:#1e293b}"
+        "table{border-collapse:collapse;width:100%}td,th{border:1px solid #cbd5e1;padding:.45rem .7rem;text-align:left}"
+        "h1{color:#0f172a}.sub{color:#64748b}.demo{background:#fef3c7;border:1px solid #f59e0b;"
+        "padding:.6rem 1rem;border-radius:8px;font-weight:600}</style></head><body>"
+        + "\n".join(lignes) + "</body></html>", encoding="utf-8")
+      print(rapport.resolve().as_uri())
+
+  # ── 6. ouvrir le rapport dans le navigateur par défaut ─────────────────────
+  - id: ouvrir
+    type: python
+    description: Ouverture du rapport dans le navigateur par défaut
+    continue_on_error: true
+    code: |
+      import webbrowser
+      if not webbrowser.open("{{rapport.output}}".strip()):
+          print("Aucun navigateur lancé : ouvrez tmp/qualite/rapport_qualite.html")
+
+  # ── 7. fin ──────────────────────────────────────────────────────────────────
+  - id: fin
+    type: log
+    level: success
+    message: "Terminé : profil, suggestions et corrections mécaniques dans tmp/qualite/ (rapport : rapport_qualite.html)."
+    next: end
+
+  - id: end
+    type: end

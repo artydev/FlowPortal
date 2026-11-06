@@ -1,0 +1,265 @@
+# yaml-language-server: $schema=../csflow.schema.json
+# ════════════════════════════════════════════════════════════════════════════
+#  patch-day — mise à jour des paquets sécurité, planifiée et validée
+# ════════════════════════════════════════════════════════════════════════════
+#
+#  Ce que ça fait :
+#    1. inventorie en LECTURE SEULE les paquets à mettre à jour
+#       (apt list --upgradable) et les classe sécurité / régulier ;
+#    2. demande à CSAgent un plan de triage (plan.json) : quels paquets
+#       appliquer maintenant (sécurité seulement), lesquels retarder ;
+#    3. produit un rapport pré-exécution HTML ;
+#    4. demande une VALIDATION HUMAINE (rien n'est exécuté sans ça) ;
+#    5. exécute le plan si l'input « appliquer » vaut « oui » ET
+#       uniquement les paquets sécurité du plan (blanc de noms) ;
+#       sinon, simulation sans effet via apt-get -s ;
+#    6. produit le rapport final HTML (mode, log, reste à faire).
+#
+#  Préréquis : Debian/Ubuntu ; un worker CSAgent démarré pour le triage.
+#  Exécution réelle : nécessite un accès root (le flux passe par sudo
+#  si ce n'est pas le cas). L'input « appliquer: oui » est la seule
+#  façon d'exécuter ; par défaut « non » (simulation apt-get -s).
+#
+#  Sûreté : jamais de paquet hors de la liste upgradable dans les
+#  commandes ; jamais de paquet « régulier » exécuté automatiquement ;
+#  chaque exécution passe par la validation humaine.
+#
+#  Compatibilité Windows / Linux : le relevé et l'exécution sont orientés
+#  Debian/Ubuntu (apt) ; le rapport et le plan sont portables
+#  (chemins en « / », navigateur par défaut).
+#
+#  Sorties : tmp/patch-day/ (upgradable.csv, plan.json, logs, rapports).
+# ════════════════════════════════════════════════════════════════════════════
+name: patch-day
+description: >-
+  Mise à jour des paquets sécurité Debian/Ubuntu : inventaire lecture
+  seule, triage par CSAgent, rapport pré-exécution, validation humaine,
+  exécution restreinte aux paquets sécurité du plan (ou simulation
+  apt-get -s), rapport final.
+
+inputs:
+  appliquer: non    # "non" (simulation apt-get -s, par défaut) | "oui" (exécuter, root requis)
+
+steps:
+
+  # ── 1. inventaire lecture seule des paquets à jourer ───────────────────────
+  - id: inventorier
+    type: python
+    description: Relevé des mises à jour disponibles (sécurité / régulier)
+    code: |
+      import csv, datetime, glob, os, pathlib, subprocess
+      def premier(cmd):
+          try:
+              return subprocess.run(cmd, capture_output=True, text=True, timeout=120).stdout.strip()
+          except Exception:
+              return ""
+      out = premier(["apt", "list", "--upgradable"])
+      lignes = [l for l in out.splitlines() if "/" in l and " " in l and not l.startswith("En train")]
+      vus, rows = set(), []
+      for l in lignes:
+          t = l.split(" ", 2)
+          if len(t) < 2 or "/" not in t[0]:
+              continue
+          paq, repo = t[0].split("/", 1)
+          if paq in vus:
+              continue
+          vus.add(paq)
+          rows.append([paq, repo, t[1], "securite" if "security" in repo.lower() else "reguliere"])
+      age = "?"
+      fichiers = glob.glob("/var/lib/apt/lists/*.lz4") + glob.glob("/var/lib/apt/lists/*.Packages")
+      if fichiers:
+          plus_recent = max(os.path.getmtime(f) for f in fichiers)
+          age = str(int((datetime.datetime.now().timestamp() - plus_recent) // 3600)) + " h"
+      if age not in ("?", "0 h", "1 h"):
+          print("ATTENTION : les listes de paquets ont " + age + " ; lancer « apt-get update » avant de patcher.")
+      dossier = pathlib.Path("tmp/patch-day")
+      dossier.mkdir(parents=True, exist_ok=True)
+      with open(dossier / "upgradable.csv", "w", encoding="utf-8", newline="") as f:
+          w = csv.writer(f, delimiter=";")
+          w.writerow(["paquet", "repo", "version_cible", "categorie"])
+          w.writerows(rows)
+      sec = sum(1 for r in rows if r[3] == "securite")
+      print(f"{len(rows)} paquet(s) à mettre à jour, dont {sec} sécurité. Listes de {age}.")
+
+  # ── 2. triage du plan par CSAgent ──────────────────────────────────────────
+  - id: planifier
+    type: agent
+    description: Plan de triage (par CSAgent)
+    auto_confirm: true
+    prompt: |
+      Read the file tmp/patch-day/upgradable.csv (semicolon-separated:
+      paquet; repo; version_cible; categorie, where categorie is
+      "securite" or "reguliere").
+
+      Write the file tmp/patch-day/plan.json as strict JSON:
+      {
+        "a_appliquer": [{"paquet": "<name>", "raison": "<one line>"}],
+        "a_retarder": ["<name>", ...],
+        "note": "<one paragraph, in French, on the overall patch posture>"
+      }
+      Rules:
+        - ONLY packages with categorie "securite" may appear in
+          a_appliquer. Kernel image/headers packages are security patches
+          and belong there.
+        - Everything else goes to a_retarder.
+        - Use exactly the package names from the CSV, no aliases.
+
+      Do NOT modify any file except plan.json. Do NOT run any package manager.
+
+  # ── 3. rapport pré-exécution ───────────────────────────────────────────────
+  - id: rapport_pre
+    type: python
+    description: Rapport HTML avant validation
+    code: |
+      import csv, html, json, pathlib
+      p = pathlib.Path
+      dossier = p("tmp/patch-day")
+      with open(dossier / "upgradable.csv", encoding="utf-8") as f:
+          rows = [r for r in csv.reader(f, delimiter=";")][1:]
+      plan = {"a_appliquer": []}
+      if (dossier / "plan.json").is_file():
+          plan = json.loads((dossier / "plan.json").read_text(encoding="utf-8"))
+      lignes = []
+      lignes.append('<div class="alerte">RIEN n a encore été exécuté — lecture seule jusqu à la validation.</div>')
+      lignes.append('<h1>Patch day — rapport pré-exécution</h1>')
+      lignes.append(f'<div class="sub">{len(rows)} paquet(s) — {html.escape("{{now}}")}</div>')
+      lignes.append('<h2>À appliquer maintenant (sécurité, selon le plan)</h2><table>'
+                    '<tr><th>Paquet</th><th>Repo</th><th>Version cible</th><th>Raison</th></tr>')
+      raisons = {x.get("paquet", ""): x.get("raison", "") for x in plan.get("a_appliquer", [])}
+      for r in rows:
+          if r[3] == "securite" and r[0] in raisons:
+              lignes.append(f'<tr><td>{html.escape(r[0])}</td><td>{html.escape(r[1])}</td>'
+                            f'<td>{html.escape(r[2])}</td><td>{html.escape(raisons[r[0]])}</td></tr>')
+      lignes.append('</table><h2>À retarder / régulier</h2><table>'
+                    '<tr><th>Paquet</th><th>Repo</th><th>Version cible</th><th>Catégorie</th></tr>')
+      retard = set(plan.get("a_retarder", []))
+      for r in rows:
+          if not (r[3] == "securite" and r[0] in raisons):
+              lignes.append(f'<tr><td>{html.escape(r[0])}</td><td>{html.escape(r[1])}</td>'
+                            f'<td>{html.escape(r[2])}</td><td>{html.escape(r[3]) + (" (retardé par le plan)" if r[0] in retard else "")}</td></tr>')
+      lignes.append('</table>')
+      if plan.get("note"):
+          lignes.append(f'<h2>Note du plan</h2><p>{html.escape(plan["note"])}</p>')
+      rapport = dossier / "rapport_pre.html"
+      rapport.write_text("<html><head><meta charset='utf-8'>"
+        "<style>body{font-family:system-ui,sans-serif;margin:2rem;color:#1e293b}"
+        "table{border-collapse:collapse;width:100%}td,th{border:1px solid #cbd5e1;padding:.45rem .7rem}"
+        "h1{color:#0f172a}.sub{color:#64748b}"
+        ".alerte{background:#fee2e2;border:1px solid #ef4444;padding:.6rem 1rem;border-radius:8px;font-weight:600}</style></head><body>"
+        + "\n".join(lignes) + "</body></html>", encoding="utf-8")
+      print(rapport.resolve().as_uri())
+
+  # ── 4. validation humaine ──────────────────────────────────────────────────
+  - id: valider
+    type: human_approval
+    description: Validation du plan avant toute exécution
+    message: |
+      Plan de patch prêt. RIEN n'a encore été exécuté.
+
+      {{inventorier.output}}
+
+      Rapport pré-exécution : tmp/patch-day/rapport_pre.html
+      Plan JSON : tmp/patch-day/plan.json
+
+      En relançant avec « appliquer: oui » (et un accès root), seules les
+      paquets sécurité du plan seront installées. Avec « appliquer: non »,
+      l'exécution reste une simulation apt-get -s.
+    on_approve: executer
+    on_reject: rapport_final
+
+  # ── 5. exécution (réelle seulement si appliquer = oui) ─────────────────────
+  - id: executer
+    type: python
+    description: Installation des paquets sécurité du plan, ou simulation
+    code: |
+      import csv, json, os, pathlib, shutil, subprocess
+      dossier = pathlib.Path("tmp/patch-day")
+      appliquer = "{{appliquer}}".strip().lower()
+      plan = {"a_appliquer": []}
+      if (dossier / "plan.json").is_file():
+          plan = json.loads((dossier / "plan.json").read_text(encoding="utf-8"))
+      with open(dossier / "upgradable.csv", encoding="utf-8") as f:
+          rows = [r for r in csv.reader(f, delimiter=";")][1:]
+      secu = {r[0] for r in rows if r[3] == "securite"}
+      cibles = [x.get("paquet", "").strip() for x in plan.get("a_appliquer", []) if x.get("paquet", "").strip() in secu]
+      if not shutil.which("apt-get"):
+          raise SystemExit("apt-get introuvable : ce flux est orienté Debian/Ubuntu.")
+      mode = "reel" if appliquer == "oui" else "simulation"
+      if mode == "reel":
+          if not cibles:
+              p = None
+              sortie = "Aucun paquet sécurité dans le plan : aucune exécution."
+              code = 0
+          else:
+              cmd = ["apt-get", "install", "-y", "--only-upgrade"] + cibles
+              if os.geteuid() != 0:
+                  cmd = ["sudo"] + cmd
+              p = subprocess.run(cmd, capture_output=True, text=True, timeout=1800)
+              sortie = (p.stdout or "") + "\n" + (p.stderr or "")
+              code = p.returncode
+      else:
+          cmd = ["apt-get", "-s", "install", "--only-upgrade"] + cibles if cibles else ["apt-get", "-s", "upgrade"]
+          p = subprocess.run(cmd, capture_output=True, text=True, timeout=300)
+          sortie = (p.stdout or "") + "\n" + (p.stderr or "")
+          code = p.returncode
+      (dossier / "execution.log").write_text(sortie, encoding="utf-8")
+      (dossier / "mode.txt").write_text(mode, encoding="utf-8")
+      print(f"Mode {mode} : {len(cibles)} paquet(s) sécurité ciblé(s), code {code}.")
+
+  # ── 6. rapport final ───────────────────────────────────────────────────────
+  - id: rapport_final
+    type: python
+    description: Rapport HTML final (mode, log, restes)
+    code: |
+      import csv, html, pathlib, subprocess
+      p = pathlib.Path
+      dossier = p("tmp/patch-day")
+      mode = (dossier / "mode.txt").read_text(encoding="utf-8").strip() if (dossier / "mode.txt").is_file() else "non effectue"
+      logf = dossier / "execution.log"
+      restes = ""
+      try:
+          out = subprocess.run(["apt", "list", "--upgradable"], capture_output=True, text=True, timeout=120).stdout
+          restes = str(sum(1 for l in out.splitlines() if "/" in l and not l.startswith("En train")))
+      except Exception:
+          restes = "?"
+      lignes = []
+      if mode == "simulation":
+          lignes.append('<div class="sim">SIMULATION (apt-get -s) — aucun paquet n a été installé.</div>')
+      elif mode == "reel":
+          lignes.append('<div class="reel">EXÉCUTION RÉELLE effectuée.</div>')
+      else:
+          lignes.append('<div class="sim">Exécution non effectuée (validation refusée ou jamais demandée).</div>')
+      lignes.append('<h1>Patch day — rapport final</h1>')
+      lignes.append(f'<div class="sub">Mode : {html.escape(mode)} — paquets encore à jour : {html.escape(restes)} — {html.escape("{{now}}")}</div>')
+      if logf.is_file():
+          corps = logf.read_text(encoding="utf-8")
+          lignes.append('<h2>Log d exécution (extrait)</h2><pre>' + html.escape("\n".join(corps.splitlines()[-40:])) + '</pre>')
+      lignes.append('<p>Fichiers : tmp/patch-day/ (upgradable.csv, plan.json, execution.log, mode.txt).</p>')
+      rapport = dossier / "rapport_final.html"
+      rapport.write_text("<html><head><meta charset='utf-8'>"
+        "<style>body{font-family:system-ui,sans-serif;margin:2rem;color:#1e293b}"
+        "h1{color:#0f172a}.sub{color:#64748b}pre{background:#f1f5f9;padding:1rem;border-radius:8px;overflow-x:auto}"
+        ".sim{background:#fef3c7;border:1px solid #f59e0b;padding:.6rem 1rem;border-radius:8px;font-weight:600}"
+        ".reel{background:#dcfce7;border:1px solid #22c55e;padding:.6rem 1rem;border-radius:8px;font-weight:600}</style></head><body>"
+        + "\n".join(lignes) + "</body></html>", encoding="utf-8")
+      print(rapport.resolve().as_uri())
+
+  # ── 7. ouvrir le rapport final dans le navigateur par défaut ───────────────
+  - id: ouvrir
+    type: python
+    description: Ouverture du rapport final dans le navigateur par défaut
+    continue_on_error: true
+    code: |
+      import webbrowser
+      if not webbrowser.open("{{rapport_final.output}}".strip()):
+          print("Aucun navigateur lancé : ouvrez tmp/patch-day/rapport_final.html")
+
+  # ── 8. fin ──────────────────────────────────────────────────────────────────
+  - id: fin
+    type: log
+    level: success
+    message: "Terminé : rapport final dans tmp/patch-day/ (rapport_final.html)."
+    next: end
+
+  - id: end
+    type: end

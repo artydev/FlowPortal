@@ -1,0 +1,186 @@
+# yaml-language-server: $schema=../csflow.schema.json
+# ════════════════════════════════════════════════════════════════════════════
+#  veille-securite — correctifs à patcher + veille technique sécurité
+# ════════════════════════════════════════════════════════════════════════════
+#
+#  Ce que ça fait (une page, deux volets) :
+#    1. « À patcher maintenant » : lecture seule des correctifs sécurité
+#       disponibles sur la machine locale (apt list --upgradable,
+#       classement des paquets issus des dépôts sécurité) ;
+#    2. « À suivre » : publications récentes de la catégorie crypto/sécurité
+#       d'arXiv (API publique, https) et discussions Hacker News récentes
+#       (API Algolia publique) sur les failles et vulnérabilités ;
+#    3. produit un rapport HTML unique (les deux volets) et ouvre le
+#       navigateur par défaut.
+#
+#  Préréquis : connexion internet pour le volet veille ; Debian/Ubuntu
+#  pour le volet patch (sinon le volet est vide, pas d'erreur). Aucun
+#  worker CSAgent requis : flux 100 % déterministe en Python standard.
+#  LECTURE SEULE : aucun paquet n'est installé, rien n'est modifié.
+#
+#  Compatibilité Windows / Linux : le volet patch est orienté Debian/Ubuntu ;
+#  le volet veille (arXiv + Hacker News) et le rapport sont portables
+#  (chemins en « / », navigateur par défaut).
+#
+#  Sorties : tmp/veille-sec/ (articles.json, patchs.csv, rapport HTML).
+# ════════════════════════════════════════════════════════════════════════════
+name: veille-securite
+description: >-
+  Veille sécurité combinée : correctifs sécurité à patcher sur la machine
+  locale (lecture seule) et publications récentes arXiv (cs.CR) et
+  Hacker News sur les failles, le tout dans un rapport HTML unique.
+
+inputs:
+  jours: 3        # fenêtre de la veille web (arXiv / Hacker News) en jours
+
+steps:
+
+  # ── 1. correctifs sécurité locaux (lecture seule) ──────────────────────────
+  - id: patchs
+    type: python
+    description: Correctifs sécurité disponibles sur la machine locale
+    code: |
+      import csv, pathlib, shutil, subprocess
+      dossier = pathlib.Path("tmp/veille-sec")
+      dossier.mkdir(parents=True, exist_ok=True)
+      rows = []
+      if shutil.which("apt"):
+          try:
+              out = subprocess.run(["apt", "list", "--upgradable"], capture_output=True, text=True, timeout=120).stdout
+          except Exception:
+              out = ""
+          for l in out.splitlines():
+              if "/" not in l or " " not in l or l.startswith("En train"):
+                  continue
+              t = l.split(" ", 2)
+              if len(t) < 2 or "/" not in t[0]:
+                  continue
+              paq, repo = t[0].split("/", 1)
+              if "security" in repo.lower():
+                  rows.append([paq, t[1], repo.split(",")[0].strip()])
+      with open(dossier / "patchs.csv", "w", encoding="utf-8", newline="") as f:
+          w = csv.writer(f, delimiter=";")
+          w.writerow(["paquet", "version_cible", "repo"])
+          w.writerows(rows)
+      print(f"{len(rows)} correctif(s) sécurité à patcher sur cette machine (lecture seule).")
+
+  # ── 2. veille web : arXiv + Hacker News ────────────────────────────────────
+  - id: recherche
+    type: python
+    description: Publications arXiv cs.CR et discussions Hacker News récentes
+    code: |
+      import datetime, json, pathlib, urllib.parse, urllib.request, xml.etree.ElementTree as ET
+      jours = int("{{jours}}".strip() or "3")
+      dossier = pathlib.Path("tmp/veille-sec")
+      dossier.mkdir(parents=True, exist_ok=True)
+
+      def get(url, timeout=30):
+          req = urllib.request.Request(url, headers={"User-Agent": "csflow-veille/1.0"})
+          with urllib.request.urlopen(req, timeout=timeout) as r:
+              return r.read()
+
+      arxiv = []
+      try:
+          ns = {"a": "http://www.w3.org/2005/Atom"}
+          url = ("https://export.arxiv.org/api/query?search_query=cat:cs.CR&sortBy=submittedDate"
+                 "&sortOrder=descending&max_results=15")
+          racine = ET.fromstring(get(url))
+          limite = datetime.datetime.now(datetime.timezone.utc) - datetime.timedelta(days=jours * 5)
+          for e in racine.findall("a:entry", ns):
+              try:
+                  pub = datetime.datetime.fromisoformat(e.findtext("a:published", "", ns))
+              except Exception:
+                  continue
+              if pub < limite:
+                  continue
+              arxiv.append({
+                  "titre": " ".join((e.findtext("a:title", "", ns) or "").split()),
+                  "url": (e.findtext("a:id", "", ns) or "").strip(),
+                  "date": pub.date().isoformat(),
+                  "resume": " ".join((e.findtext("a:summary", "", ns) or "").split())[:220],
+              })
+      except Exception as exc:
+          print("arXiv indisponible : " + str(exc))
+      hn = []
+      try:
+          since = int((datetime.datetime.now(datetime.timezone.utc) - datetime.timedelta(days=jours)).timestamp())
+          url = ("https://hn.algolia.com/api/v1/search?query=CVE&tags=story&hitsPerPage=12"
+                 "&numericFilters=created_at_i>" + str(since))
+          data = json.loads(get(url))
+          for h in data.get("hits", []):
+              hn.append({
+                  "titre": (h.get("title") or "").replace("“", "\"").replace("”", "\""),
+                  "url": h.get("url") or ("https://news.ycombinator.com/item?id=" + str(h.get("objectID"))),
+                  "date": (h.get("created_at") or "")[:10],
+                  "resume": f"{h.get('points', 0)} points, {h.get('num_comments', 0)} commentaires — discussion Hacker News.",
+              })
+      except Exception as exc:
+          print("Hacker News indisponible : " + str(exc))
+      docs = {"arxiv": arxiv, "hackernews": hn}
+      (dossier / "articles.json").write_text(json.dumps(docs, ensure_ascii=False, indent=2), encoding="utf-8")
+      print(f"Veille : {len(arxiv)} article(s) arXiv, {len(hn)} discussion(s) Hacker News.")
+
+  # ── 3. rapport HTML unique (patchs + veille) ───────────────────────────────
+  - id: rapport
+    type: python
+    description: Rapport HTML combiné « à patcher / à suivre »
+    code: |
+      import csv, html, json, pathlib
+      p = pathlib.Path
+      dossier = p("tmp/veille-sec")
+      with open(dossier / "patchs.csv", encoding="utf-8") as f:
+          patchs = [r for r in csv.reader(f, delimiter=";")][1:]
+      docs = json.loads((dossier / "articles.json").read_text(encoding="utf-8"))
+      lignes = []
+      lignes.append('<h1>Veille sécurité</h1>')
+      lignes.append(f'<div class="sub">{html.escape("{{now}}")}</div>')
+      lignes.append('<h2>À patcher maintenant (machine locale, lecture seule)</h2>')
+      if patchs:
+          lignes.append('<table><tr><th>Paquet</th><th>Version cible</th><th>Repo</th></tr>')
+          for r in patchs:
+              lignes.append(f'<tr><td>{html.escape(r[0])}</td><td>{html.escape(r[1])}</td><td>{html.escape(r[2])}</td></tr>')
+          lignes.append('</table>')
+      else:
+          lignes.append('<p>Aucun correctif sécurité en attente sur cette machine (ou apt absent).</p>')
+      lignes.append('<h2>À suivre — arXiv (crypto et sécurité)</h2>')
+      for a in docs.get("arxiv", []):
+          lignes.append(f'<div class="carte"><h3><a href="{html.escape(a["url"])}" target="_blank">{html.escape(a["titre"])}</a></h3>'
+                        f'<div class="meta">{html.escape(a["date"])}</div><p>{html.escape(a["resume"])}</p></div>')
+      if not docs.get("arxiv"):
+          lignes.append('<p>Rien de récent (ou arXiv indisponible).</p>')
+      lignes.append('<h2>À suivre — Hacker News</h2>')
+      for h in docs.get("hackernews", []):
+          lignes.append(f'<div class="carte"><h3><a href="{html.escape(h["url"])}" target="_blank">{html.escape(h["titre"])}</a></h3>'
+                        f'<div class="meta">{html.escape(h["date"])}</div><p>{html.escape(h["resume"])}</p></div>')
+      if not docs.get("hackernews"):
+          lignes.append('<p>Rien de récent (ou Hacker News indisponible).</p>')
+      rapport = dossier / "rapport_securite.html"
+      rapport.write_text("<html><head><meta charset='utf-8'>"
+        "<style>body{font-family:system-ui,sans-serif;margin:2rem;color:#1e293b;max-width:52rem}"
+        "h1{color:#0f172a}.sub{color:#64748b}table{border-collapse:collapse;width:100%}"
+        "td,th{border:1px solid #cbd5e1;padding:.45rem .7rem}"
+        ".carte{border:1px solid #e2e8f0;border-radius:10px;padding:.8rem 1.1rem;margin:.8rem 0}"
+        ".carte h3{margin:.1rem 0;font-size:1rem}.carte a{color:#2563eb;text-decoration:none}"
+        ".meta{color:#64748b;font-size:.85rem}p{color:#334155}</style></head><body>"
+        + "\n".join(lignes) + "</body></html>", encoding="utf-8")
+      print(rapport.resolve().as_uri())
+
+  # ── 4. ouvrir le rapport dans le navigateur par défaut ─────────────────────
+  - id: ouvrir
+    type: python
+    description: Ouverture du rapport dans le navigateur par défaut
+    continue_on_error: true
+    code: |
+      import webbrowser
+      if not webbrowser.open("{{rapport.output}}".strip()):
+          print("Aucun navigateur lancé : ouvrez tmp/veille-sec/rapport_securite.html")
+
+  # ── 5. fin ──────────────────────────────────────────────────────────────────
+  - id: fin
+    type: log
+    level: success
+    message: "Terminé : rapport de veille sécurité dans tmp/veille-sec/ (rapport_securite.html)."
+    next: end
+
+  - id: end
+    type: end

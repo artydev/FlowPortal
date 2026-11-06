@@ -1,0 +1,219 @@
+# yaml-language-server: $schema=../csflow.schema.json
+# ════════════════════════════════════════════════════════════════════════════
+#  fleet-health — santé de la flotte : agrégation multi-machines et dérivations
+# ════════════════════════════════════════════════════════════════════════════
+#
+#  Ce que ça fait :
+#    1. regroupe les rapports de santé JSON par machine (un fichier JSON
+#       par machine, produit soit par ce workflow en mode reel, soit par
+#       tout autre source au même format) ;
+#    2. peut aussi relever la machine locale en LECTURE SEULE
+#       (load, RAM, swap, disque, uptime — /proc uniquement, aucun paquet) ;
+#    3. demande à CSAgent un diagnostic : machines à prioriser, hypothèses ;
+#    4. produit un rapport HTML : tableau flotte, seuils par machine
+#       (ok / attention / critique) et dérivations entre machines,
+#       puis ouvre le navigateur par défaut.
+#
+#  Format d'un rapport machine (JSON, un seul objet) :
+#    {"host": "serveur-a", "coeurs": 8, "load1": 0.4,
+#     "ram_pct": 42.1, "swap_pct": 0.0, "disque_pct": 61, "uptime_h": 120}
+#
+#  Préréquis : un worker CSAgent démarré pour l'étape « diagnostiquer ».
+#  Compatibilité : le relevé local est orienté Linux (/proc) ; l'agrégation,
+#  le diagnostic et le rapport sont portables Windows / Linux
+#  (chemins en « / », navigateur par défaut).
+#
+#  Sorties : tmp/fleet/ (machines/, matrice.json, notes, rapport HTML).
+#
+#  Mode par défaut : simulation — 4 machines fictives, aucun relevé local.
+# ════════════════════════════════════════════════════════════════════════════
+name: fleet-health
+description: >-
+  Santé de la flotte : agrégation des rapports JSON par machine, relevé
+  local lecture seule optionnel, diagnostic CSAgent, rapport HTML avec
+  seuils par machine et dérivations entre machines. Par défaut :
+  machines fictives, aucun relevé.
+
+inputs:
+  source: simulation    # "simulation" (4 machines fictives) | "reel" (relevé local et/ou dossier)
+  dossier: ""           # dossier de rapports JSON par machine (optionnel), ex : "tmp/fleet_json"
+  relever_local: oui    # "oui" (relever aussi la machine locale, lecture seule) | "non"
+
+steps:
+
+  # ── 1. regroupement des rapports machines + relevé local ──────────────────
+  - id: collecter
+    type: python
+    description: Agrégation des rapports machines et relevé local lecture seule
+    code: |
+      import json, os, pathlib, shutil
+      mode = "{{source}}".strip().lower()
+      machines = pathlib.Path("tmp/fleet/machines")
+      machines.mkdir(parents=True, exist_ok=True)
+
+      def local():
+          def pct(total, dispo):
+              return round(100 * (total - dispo) / total, 1) if total else 0.0
+          mem = {}
+          for l in open("/proc/meminfo"):
+              k, v = l.split(":", 1)
+              mem[k] = int(v.strip().split()[0])
+          total = mem.get("MemTotal", 0)
+          dispo = mem.get("MemAvailable", 0)
+          swap_t, swap_f = mem.get("SwapTotal", 0), mem.get("SwapFree", 0)
+          load1 = float(open("/proc/loadavg").read().split()[0])
+          up = int(float(open("/proc/uptime").read().split()[0]) // 3600)
+          try:
+              st = os.statvfs("/")
+              d_pct = round(100 * (1 - (st.f_bavail / st.f_blocks)), 1) if st.f_blocks else 0.0
+          except Exception:
+              d_pct = 0.0
+          return {"host": os.uname().nodename, "coeurs": os.cpu_count() or 1,
+                  "load1": load1, "ram_pct": pct(total, dispo),
+                  "swap_pct": pct(swap_t, swap_f), "disque_pct": d_pct, "uptime_h": up}
+
+      if mode == "simulation":
+          fictions = [
+              {"host": "serveur-a", "coeurs": 8, "load1": 0.9, "ram_pct": 42.1, "swap_pct": 0.0, "disque_pct": 61, "uptime_h": 452},
+              {"host": "serveur-b", "coeurs": 4, "load1": 5.8, "ram_pct": 88.4, "swap_pct": 41.0, "disque_pct": 92, "uptime_h": 1310},
+              {"host": "serveur-c", "coeurs": 8, "load1": 1.4, "ram_pct": 55.0, "swap_pct": 0.0, "disque_pct": 74, "uptime_h": 88},
+              {"host": "edge-1", "coeurs": 2, "load1": 0.3, "ram_pct": 31.2, "swap_pct": 0.0, "disque_pct": 83, "uptime_h": 260},
+          ]
+          for m in fictions:
+              (machines / (m["host"] + ".json")).write_text(json.dumps(m, ensure_ascii=False), encoding="utf-8")
+          print("Simulation : 4 machines fictives dans tmp/fleet/machines/")
+      else:
+          n = 0
+          fourni = "{{dossier}}".strip()
+          if fourni:
+              d = pathlib.Path(fourni)
+              if not d.is_dir():
+                  raise SystemExit("Dossier de rapports introuvable : " + fourni)
+              for f in sorted(d.glob("*.json")):
+                  try:
+                      data = json.loads(f.read_text(encoding="utf-8"))
+                  except Exception:
+                      print("Ignoré (JSON invalide) : " + f.name)
+                      continue
+                  if not isinstance(data, dict) or "host" not in data:
+                      print("Ignoré (clé « host » manquante) : " + f.name)
+                      continue
+                  shutil.copy2(f, machines / f.name)
+                  n += 1
+              print(f"{n} rapport(s) externe(s) agrégé(s).")
+          if "{{relever_local}}".strip().lower() == "oui":
+              (machines / (os.uname().nodename + ".json")).write_text(json.dumps(local()), encoding="utf-8")
+              print("Relevé local lecture seule : tmp/fleet/machines/" + os.uname().nodename + ".json")
+
+      total = len(list(machines.glob("*.json")))
+      if total == 0:
+          raise SystemExit("Aucune machine : fournissez un « dossier » de rapports JSON ou « relever_local: oui ».")
+      print(f"Flotte : {total} machine(s) -> tmp/fleet/machines/")
+
+  # ── 2. diagnostic par CSAgent ──────────────────────────────────────────────
+  - id: diagnostiquer
+    type: agent
+    description: Machines à prioriser et hypothèses (par CSAgent)
+    auto_confirm: true
+    prompt: |
+      Read every JSON file in tmp/fleet/machines/ — one health report per
+      machine: host, coeurs, load1, ram_pct, swap_pct, disque_pct,
+      uptime_h.
+
+      Write the file tmp/fleet/notes.md in French:
+        - « Priorités » : machines à regarder en premier, justifiées par
+          les chiffres (ratio load1/coeurs, RAM, swap, disque).
+        - « Hypothèses » : for each priority machine, what could explain
+          the numbers and what to check on the machine (read-only checks
+          only: top, df, journalctl, SMART — never fixes).
+        - « Dérives » : metrics that differ a lot between machines and
+          why that matters (or why it is normal).
+        - « Conclusion » : one paragraph.
+
+      Do NOT modify any file except notes.md.
+
+  # ── 3. rapport HTML : tableau flotte, seuils, dérivations ─────────────────
+  - id: rapport
+    type: python
+    description: Tableau flotte, seuils par machine, dérivations, rapport HTML
+    code: |
+      import html, json, pathlib
+      p = pathlib.Path
+      fichiers = sorted(p("tmp/fleet/machines").glob("*.json"))
+      notes = p("tmp/fleet/notes.md")
+      mode = "{{source}}".strip().lower()
+      machines = [json.loads(f.read_text(encoding="utf-8")) for f in fichiers]
+      METRIQUES = ["load1", "ram_pct", "swap_pct", "disque_pct", "uptime_h"]
+
+      def statut(m):
+          ratio = m["load1"] / m["coeurs"] if m["coeurs"] else 0
+          if ratio > 1.5 or m["ram_pct"] > 90 or m["disque_pct"] > 90:
+              return "critique"
+          if ratio > 1 or m["ram_pct"] > 80 or m["disque_pct"] > 75 or m["swap_pct"] > 20:
+              return "attention"
+          return "ok"
+
+      lignes = []
+      if mode == "simulation":
+          lignes.append('<div class="demo">MODE SIMULATION — 4 machines fictives, aucun relevé réel.</div>')
+      lignes.append('<h1>Santé de la flotte</h1>')
+      lignes.append(f'<div class="sub">{len(machines)} machine(s) — {{now}}</div>')
+      lignes.append('<table><tr><th>Machine</th><th>Cœurs</th><th>Load1</th>'
+                    '<th>Load/cœurs</th><th>RAM %</th><th>Swap %</th><th>Disque %</th><th>Uptime</th><th>Statut</th></tr>')
+      classes = {"ok": "ok", "attention": "warn", "critique": "crit"}
+      for m in machines:
+          ratio = m["load1"] / m["coeurs"] if m["coeurs"] else 0
+          s = statut(m)
+          lignes.append(f'<tr><td>{html.escape(str(m["host"]))}</td><td>{m["coeurs"]}</td>'
+                        f'<td>{m["load1"]}</td><td>{round(ratio, 2)}</td><td>{m["ram_pct"]}</td>'
+                        f'<td>{m["swap_pct"]}</td><td>{m["disque_pct"]}</td><td>{m["uptime_h"]} h</td>'
+                        f'<td class="{classes[s]}">{s}</td></tr>')
+      lignes.append('</table>')
+      lignes.append('<h2>Déviations par rapport à la moyenne de la flotte</h2>')
+      matrice, ecarts = {}, []
+      for met in METRIQUES:
+          vals = [m[met] for m in machines]
+          moy = sum(vals) / len(vals)
+          matrice[met] = round(moy, 2)
+          for m in machines:
+              dev = (m[met] - moy) / moy if moy else 0
+              if abs(dev) > 0.6:
+                  ecarts.append(f'<p><b>{html.escape(str(m["host"]))}</b> : {met} = {m[met]} '
+                                f'(moyenne flotte {round(moy, 2)}, écart {round(100 * dev)} %)</p>')
+      lignes.extend(ecarts or ['<p>Aucune déviation forte : la flotte est homogène.</p>'])
+      (p("tmp/fleet") / "matrice.json").write_text(json.dumps({"moyennes": matrice}, ensure_ascii=False, indent=2), encoding="utf-8")
+      if notes.is_file():
+          lignes.append('<h2>Diagnostic (CSAgent)</h2>')
+          for l in notes.read_text(encoding="utf-8").splitlines():
+              if l.startswith("# "):
+                  continue
+              lignes.append(f'<p>{html.escape(l) or "&nbsp;"}</p>')
+      rapport = p("tmp/fleet/rapport_fleet.html")
+      rapport.write_text("<html><head><meta charset='utf-8'>"
+        "<style>body{font-family:system-ui,sans-serif;margin:2rem;color:#1e293b}"
+        "table{border-collapse:collapse;width:100%}td,th{border:1px solid #cbd5e1;padding:.45rem .7rem}"
+        "h1{color:#0f172a}.sub{color:#64748b}.demo{background:#fef3c7;border:1px solid #f59e0b;"
+        "padding:.6rem 1rem;border-radius:8px;font-weight:600}"
+        ".ok{color:#16a34a;font-weight:700}.warn{color:#d97706;font-weight:700}.crit{color:#dc2626;font-weight:700}</style></head><body>"
+        + "\n".join(lignes) + "</body></html>", encoding="utf-8")
+      print(rapport.resolve().as_uri())
+
+  # ── 4. ouvrir le rapport dans le navigateur par défaut ─────────────────────
+  - id: ouvrir
+    type: python
+    description: Ouverture du rapport dans le navigateur par défaut
+    continue_on_error: true
+    code: |
+      import webbrowser
+      if not webbrowser.open("{{rapport.output}}".strip()):
+          print("Aucun navigateur lancé : ouvrez tmp/fleet/rapport_fleet.html")
+
+  # ── 5. fin ──────────────────────────────────────────────────────────────────
+  - id: fin
+    type: log
+    level: success
+    message: "Terminé : rapport de flotte dans tmp/fleet/ (rapport_fleet.html + matrice.json)."
+    next: end
+
+  - id: end
+    type: end

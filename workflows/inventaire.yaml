@@ -1,0 +1,260 @@
+# yaml-language-server: $schema=../csflow.schema.json
+# ════════════════════════════════════════════════════════════════════════════
+#  inventaire-actifs — inventaire du parc informatique, machine locale et
+#  agrégation multi-machines à partir de fichiers CSV
+# ════════════════════════════════════════════════════════════════════════════
+#
+#  Ce que ça fait :
+#    1. relève en LECTURE SEULE la machine locale (OS, noyau, uptime,
+#       CPU, RAM, disques, ports ouverts, mises à jour disponibles) ;
+#    2. agrège ce relevé avec les fichiers CSV présents dans un dossier
+#       (un par machine, même format — ex. produits par ce même workflow
+#       sur chaque machine) ;
+#    3. demande à CSAgent un enrichissement : rôle supposé de chaque
+#       machine, signaux d'obsolescence, « à traiter » (notes.md) ;
+#    4. produit un rapport HTML (tableau machine × check, détections de
+#       dérive) + export CSV agrégé + ouvre le navigateur par défaut.
+#
+#  Préréquis : un worker CSAgent démarré (./start_agent.sh ou start_agent.bat)
+#              pour l'étape « enrichir ».
+#
+#  Compatibilité : le relevé local est orienté Linux (os-release, apt, ss) ;
+#  l'agrégation et le rapport sont portables Windows / Linux
+#  (chemins en « / », navigateur par défaut). Pour inclure une machine
+#  Windows, copiez-y le fichier machines/CSV produit par une autre source
+#  dans le dossier d'agrégation.
+#
+#  Sorties : tmp/inventaire/ (CSV par machine, notes, rapport HTML).
+#
+#  Mode par défaut : simulation — machines fictives, aucun relevé local.
+# ════════════════════════════════════════════════════════════════════════════
+name: inventaire-actifs
+description: >-
+  Inventaire du parc : relevé lecture seule de la machine locale, agrégation
+  de fichiers CSV par machine, enrichissement par CSAgent (rôles,
+  obsolescence), rapport HTML avec détections de dérive. Par défaut :
+  machines fictives, aucun relevé.
+
+inputs:
+  source: simulation    # "simulation" (machines fictives) | "reel" (relevé local + dossier)
+  dossier: ""           # dossier de CSV par machine à agréger (optionnel), ex : "tmp/inventaire_csv"
+
+steps:
+
+  # ── 1. relevé lecture seule (local en reel, fictif en simulation) ─────────
+  - id: collecter
+    type: python
+    description: Relevé de la machine locale et agrégation des CSV
+    code: |
+      import csv, glob, os, pathlib, platform, shutil, subprocess
+      mode = "{{source}}".strip().lower()
+      dossier = pathlib.Path("tmp/inventaire/machines")
+      dossier.mkdir(parents=True, exist_ok=True)
+
+      def premier(cmd):
+          try:
+              return subprocess.run(cmd, capture_output=True, text=True, timeout=30).stdout.strip()
+          except Exception:
+              return ""
+
+      def releve():
+          h = platform.node()
+          os_name = ""
+          osf = pathlib.Path("/etc/os-release")
+          if osf.is_file():
+              for l in osf.read_text(encoding="utf-8").splitlines():
+                  if l.startswith("PRETTY_NAME="):
+                      os_name = l.split("=", 1)[1].strip().strip('"')
+          disques = premier(["df", "-hP"])
+          disques = " ; ".join(" ".join(x.split()[-3:]) for x in disques.splitlines()[1:] if x.startswith("/dev/") and "/snap/" not in x)
+          ports = premier(["ss", "-tln"])
+          ps = []
+          for l in ports.splitlines()[1:]:
+              tok = l.split()
+              if len(tok) >= 4:
+                  p = tok[-2].rsplit(":", 1)[-1] if len(tok) >= 5 else tok[-1].rsplit(":", 1)[-1]
+                  if p.isdigit():
+                      ps.append(p)
+          ports = ", ".join(sorted(set(ps))) or "—"
+          maj = len([l for l in premier(["apt", "list", "--upgradable"]).splitlines() if "/upgrade" in l or "pouvant" in l])
+          ram = "—"
+          m = open("/proc/meminfo").read()
+          for l in m.splitlines():
+              if l.startswith("MemTotal"):
+                  ram = str(int(l.split()[1]) // 1048) + " Go"
+          up = "—"
+          try:
+              up = str(int(float(open("/proc/uptime").read().split()[0]) // 3600)) + " h"
+          except Exception:
+              pass
+          cpu = premier(["lscpu"])
+          c = "—"
+          for l in cpu.splitlines():
+              if l.lower().startswith("model name"):
+                  c = l.split(":", 1)[1].strip()
+          if c == "—":
+              try:
+                  for l in open("/proc/cpuinfo"):
+                      if l.lower().startswith("model name"):
+                          c = l.split(":", 1)[1].strip()
+                          break
+              except Exception:
+                  pass
+          return [h, os_name, platform.release(), up, c, ram, disques or "—", ports, str(maj)]
+
+      NOMS = ["host", "os", "noyau", "uptime", "cpu", "ram", "disques", "ports", "mises_a_jour"]
+      if mode == "reel":
+          with open(dossier / (platform.node() + ".csv"), "w", encoding="utf-8", newline="") as f:
+              csv.writer(f, delimiter=";").writerows([NOMS, releve()])
+          print("Relevé local : tmp/inventaire/machines/" + platform.node() + ".csv")
+      else:
+          fictions = [
+              ["serveur-a", "Debian GNU/Linux 12 (bookworm)", "6.1.0-21", "452 h", "Intel Xeon E-2236", "16 Go",
+               "/ 62% 1,2T ; /var 41% 476G", "22, 5432, 8000", "12"],
+              ["serveur-b", "Debian GNU/Linux 11 (bullseye)", "5.10.0-21", "1204 h", "Intel Xeon E-2224", "8 Go",
+               "/ 91% 240G ; /var 88% 476G", "22, 3306", "31"],
+              ["portable-c", "Debian GNU/Linux 13 (trixie)", "6.12.10", "44 h", "Intel i5-1335U", "30 Go",
+               "/ 48% 917G", "22, 5900", "5"],
+          ]
+          for m in fictions:
+              with open(dossier / (m[0] + ".csv"), "w", encoding="utf-8", newline="") as f:
+                  csv.writer(f, delimiter=";").writerows([NOMS, m])
+          print("Simulation : 3 machines fictives dans tmp/inventaire/machines/")
+
+      # Agrégation des CSV fournis par l'utilisateur (même format)
+      fourni = "{{dossier}}".strip()
+      if fourni:
+          d = pathlib.Path(fourni)
+          if not d.is_dir():
+              raise SystemExit("Dossier de CSV introuvable : " + fourni)
+          n = 0
+          for f in sorted(d.glob("*.csv")):
+              shutil.copy2(f, dossier / f.name)
+              n += 1
+          print(f"{n} CSV externe(s) agrégé(s).")
+
+      total = len(list(dossier.glob("*.csv")))
+      print(f"Inventaire : {total} machine(s) -> tmp/inventaire/machines/")
+
+  # ── 2. enrichissement par CSAgent ──────────────────────────────────────────
+  - id: enrichir
+    type: agent
+    description: Rôles, obsolescence, « à traiter » (par CSAgent)
+    auto_confirm: true
+    prompt: |
+      Read every CSV file in tmp/inventaire/machines/ (semicolon-separated:
+      host; os; noyau; uptime; cpu; ram; disques; ports; mises_a_jour).
+
+      Write the file tmp/inventaire/notes.md in French:
+        - « Lecture du parc » : for each machine, one line — its likely
+          role and any signal that matters (old OS release, disk almost
+          full, many pending updates, very long uptime).
+        - « Dérives » : differences BETWEEN machines that matter (kernel
+          generation, OS release, missing ports that should be common).
+        - « À traiter » : a short numbered list, most urgent first, each
+          item phrased as an action (never executed by this workflow).
+
+      Do NOT modify any file except notes.md.
+
+  # ── 3. rapport HTML + export agrégé ────────────────────────────────────────
+  - id: rapport
+    type: python
+    description: Tableau machine × check, dérivations, export CSV
+    code: |
+      import csv, html, pathlib
+      p = pathlib.Path
+      machines = sorted(p("tmp/inventaire/machines").glob("*.csv"))
+      notes = p("tmp/inventaire/notes.md")
+      mode = "{{source}}".strip().lower()
+
+      def lire(f):
+          with open(f, encoding="utf-8") as fh:
+              lignes = [l for l in csv.reader(fh, delimiter=";") if l]
+          return lignes[0], lignes[1]
+
+      col0 = lire(machines[0])[0]
+      lignes = [l for f in machines for l in [lire(f)[1]]]
+      idx = {h: i for i, h in enumerate(col0)}
+
+      def det(v):
+          if v and v.replace(".", "").isdigit():
+              return int(v.replace(".", ""))
+          return 0
+
+      alertes = []
+      for l in lignes:
+          h = l[idx["host"]]
+          for partie in l[idx["disques"]].split(";"):
+              pct = next((tok for tok in partie.split() if tok.endswith("%") and tok[:-1].isdigit()), None)
+              if pct and int(pct[:-1]) >= 90:
+                  alertes.append(f"{h} : disque à {pct} ({partie.strip()})")
+          maj = det(l[idx["mises_a_jour"]])
+          if maj >= 20:
+              alertes.append(f"{h} : {maj} mises à jour en attente")
+          try:
+              up = int(l[idx["uptime"]].split()[0])
+              if up >= 1000:
+                  alertes.append(f"{h} : uptime de {up} h sans redémarrage")
+          except Exception:
+              pass
+      noyaux = {l[idx["noyau"]].split(".")[0] for l in lignes}
+      if len(noyaux) > 1:
+          alertes.append("Dérive de génération de noyau : " + ", ".join(sorted(noyaux)))
+
+      lignes_html = []
+      if mode == "simulation":
+          lignes_html.append('<div class="demo">MODE SIMULATION — machines fictives, aucun relevé réel.</div>')
+      lignes_html.append('<h1>Inventaire des actifs</h1>')
+      lignes_html.append(f'<div class="sub">{len(lignes)} machine(s) — {{now}}</div>')
+      if alertes:
+          lignes_html.append('<h2>Points à surveiller</h2><ul>' +
+                             "".join(f"<li>{html.escape(a)}</li>" for a in alertes) + "</ul>")
+      lignes_html.append('<h2>Tableau</h2><table><tr>' +
+                         "".join(f"<th>{html.escape(h)}</th>" for h in col0) + "</tr>")
+      for i, h in enumerate(col0):
+          lignes_html.append(f"<tr><td>{html.escape(h)}</td>" +
+                             "".join(f"<td>{html.escape(l[idx[h]])}</td>" for l in lignes) + "</tr>")
+      lignes_html.append("</table>")
+      if notes.is_file():
+          lignes_html.append('<h2>Enrichissement (CSAgent)</h2>')
+          for ligne in notes.read_text(encoding="utf-8").splitlines():
+              if ligne.startswith("# "):
+                  continue
+              lignes_html.append(f'<p>{html.escape(ligne) or "&nbsp;"}</p>')
+
+      # Export CSV agrégé
+      export = p("tmp/inventaire/inventaire_agrege.csv")
+      with open(export, "w", encoding="utf-8", newline="") as f:
+          w = csv.writer(f, delimiter=";")
+          w.writerow(col0)
+          for l in lignes:
+              w.writerow(l)
+
+      rapport = p("tmp/inventaire/rapport_inventaire.html")
+      rapport.write_text("<html><head><meta charset='utf-8'>"
+        "<style>body{font-family:system-ui,sans-serif;margin:2rem;color:#1e293b}"
+        "table{border-collapse:collapse;width:100%}td,th{border:1px solid #cbd5e1;padding:.45rem .7rem}"
+        "h1{color:#0f172a}.sub{color:#64748b}.demo{background:#fef3c7;border:1px solid #f59e0b;"
+        "padding:.6rem 1rem;border-radius:8px;font-weight:600}</style></head><body>"
+        + "\n".join(lignes_html) + "</body></html>", encoding="utf-8")
+      print(rapport.resolve().as_uri())
+
+  # ── 4. ouvrir le rapport dans le navigateur par défaut ─────────────────────
+  - id: ouvrir
+    type: python
+    description: Ouverture du rapport dans le navigateur par défaut
+    continue_on_error: true
+    code: |
+      import webbrowser
+      if not webbrowser.open("{{rapport.output}}".strip()):
+          print("Aucun navigateur lancé : ouvrez tmp/inventaire/rapport_inventaire.html")
+
+  # ── 5. fin ──────────────────────────────────────────────────────────────────
+  - id: fin
+    type: log
+    level: success
+    message: "Terminé : inventaire agrégé dans tmp/inventaire/ (rapport_inventaire.html + inventaire_agrege.csv)."
+    next: end
+
+  - id: end
+    type: end

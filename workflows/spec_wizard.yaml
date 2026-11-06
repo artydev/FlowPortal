@@ -1,0 +1,186 @@
+# yaml-language-server: $schema=../csflow.schema.json
+# ════════════════════════════════════════════════════════════════════════════
+#  spec-wizard — cahier des charges rédigé, validé et versionné
+# ════════════════════════════════════════════════════════════════════════════
+#
+#  Ce que ça fait :
+#    1. prend une description de besoin (input « besoin », ou un besoin
+#       fictif si l'input est vide) ;
+#    2. demande à CSAgent un brouillon structuré de cahier des charges
+#       (tmp/spec/brouillon.md) ;
+#    3. demande une VALIDATION HUMAINE du brouillon ;
+#    4. si approuvé : enregistre docs/spec/<slug>-vN.md (N = version
+#       suivante détectée), met à jour docs/spec/changelog.md, et fait
+#       un commit git si le dépôt git englobe ce dossier ;
+#    5. produit un rapport HTML et ouvre le navigateur par défaut.
+#
+#  Versionnage : chaque exécution approuvée crée une nouvelle version
+#  (v1, v2, ...) du même slug — les versions précédentes sont conservées.
+#  Un rejet n'enregistre rien (le brouillon reste dans tmp/spec/).
+#
+#  Préréquis : un worker CSAgent démarré pour la rédaction. Le commit git
+#  est optionnel : sans dépôt git, le fichier est tout de même enregistré
+#  (avec un avertissement dans le rapport).
+#
+#  Compatibilité Windows / Linux : chemins en « / », git via la stdlib
+#  subprocess (pas de shell natif), navigateur par défaut.
+#
+#  Sorties : tmp/spec/ (besoin.txt, brouillon.md, rapport) et
+#            docs/spec/ (cahier versionné + changelog).
+# ════════════════════════════════════════════════════════════════════════════
+name: spec-wizard
+description: >-
+  Cahier des charges : besoin décrit, rédaction par CSAgent, validation
+  humaine, enregistrement versionné docs/spec/<slug>-vN.md + changelog,
+  commit git si dépôt présent, rapport HTML.
+
+inputs:
+  besoin: ""    # description du besoin (vide = besoin fictif, pour tester)
+
+steps:
+
+  # ── 1. préparation du besoin et du slug ────────────────────────────────────
+  - id: preparer
+    type: python
+    description: Capture du besoin et calcul du slug
+    code: |
+      import datetime, pathlib, re, unicodedata
+      besoin = "{{besoin}}".strip()
+      fiction = besoin == ""
+      if fiction:
+          besoin = "Module de veille automatique des annonces de postes d ingenieur"
+          besoin += " en data : collecte quotidienne, resume, alerte par email, tableau de bord."
+      t = unicodedata.normalize("NFD", besoin.lower())
+      t = "".join(c for c in t if not unicodedata.combining(c))
+      slug = re.sub(r"[^a-z0-9]+", "-", t)[:40].strip("-") or "spec"
+      dossier = pathlib.Path("tmp/spec")
+      dossier.mkdir(parents=True, exist_ok=True)
+      (dossier / "besoin.txt").write_text(besoin, encoding="utf-8")
+      print("Slug : " + slug + " (besoin fictif : " + str(fiction) + ")")
+
+  # ── 2. rédaction du brouillon par CSAgent ─────────────────────────────────
+  - id: rediger
+    type: agent
+    description: Brouillon de cahier des charges (par CSAgent)
+    auto_confirm: true
+    prompt: |
+      Read the file tmp/spec/besoin.txt — it contains the business need
+      to be specified.
+
+      Write the file tmp/spec/brouillon.md in French, as a complete
+      draft specification (« cahier des charges ») with these sections:
+        1. Contexte
+        2. Objectifs (3-5, mesurables)
+        3. Hors périmètre (explicit)
+        4. Fonctionnalités (numbered, each with a priority P0/P1/P2)
+        5. Contraintes non fonctionnelles (performance, sécurité,
+           compatibilité, exploitation)
+        6. Critères d'acceptance (checklist)
+        7. Points ouverts (questions for the stakeholders)
+
+      Be concrete and consistent with the need; do not invent constraints
+      that contradict it. Do NOT modify any file except brouillon.md.
+
+  # ── 3. validation humaine du brouillon ─────────────────────────────────────
+  - id: valider
+    type: human_approval
+    description: Validation du cahier des charges
+    message: |
+      Brouillon du cahier des charges prêt à relire : tmp/spec/brouillon.md
+
+      {{preparer.output}}
+
+      Approuvez pour l'enregistrer en version officielle dans docs/spec/
+      (un commit git sera fait si le dossier est dans un dépôt git).
+      Refusez pour le garder en brouillon sans rien enregistrer.
+    on_approve: enregistrer
+    on_reject: rapport
+
+  # ── 4. enregistrement versionné + changelog + commit git ───────────────────
+  - id: enregistrer
+    type: python
+    description: Enregistrement de la version, changelog et commit git
+    code: |
+      import datetime, pathlib, re, subprocess, unicodedata
+      besoin = pathlib.Path("tmp/spec/besoin.txt").read_text(encoding="utf-8").strip()
+      brouillon = pathlib.Path("tmp/spec/brouillon.md").read_text(encoding="utf-8")
+      t = unicodedata.normalize("NFD", besoin.lower())
+      t = "".join(c for c in t if not unicodedata.combining(c))
+      slug = re.sub(r"[^a-z0-9]+", "-", t)[:40].strip("-") or "spec"
+      spec = pathlib.Path("docs/spec")
+      spec.mkdir(parents=True, exist_ok=True)
+      versions = [int(m.group(1)) for f in spec.glob(slug + "-v*.md")
+                  if (m := re.fullmatch(slug + r"-v(\d+)\.md", f.name))]
+      n = max(versions) + 1 if versions else 1
+      today = datetime.date.today().isoformat()
+      cible = spec / (slug + f"-v{n}.md")
+      cible.write_text(f"# Cahier des charges — {slug}\n\n- Version : v{n}\n"
+                       f"- Date : {today}\n- Statut : validé\n\n" + brouillon, encoding="utf-8")
+      changelog = spec / "changelog.md"
+      lignes = [] if not changelog.is_file() else changelog.read_text(encoding="utf-8").splitlines()
+      if not lignes or lignes[0] != "# Changelog des cahiers des charges":
+          lignes = ["# Changelog des cahiers des charges"] + lignes
+      lignes.insert(1, f"\n## {today} — {slug} v{n}\n\n- Cahier {cible.name} validé et enregistré.")
+      changelog.write_text("\n".join(lignes) + "\n", encoding="utf-8")
+      git = "aucun"
+      r = subprocess.run(["git", "rev-parse", "--is-inside-work-tree"], capture_output=True, text=True)
+      if r.returncode == 0:
+          cmd = ["git", "add", str(cible), str(changelog)]
+          r2 = subprocess.run(cmd, capture_output=True, text=True)
+          r3 = subprocess.run(["git", "commit", "-m", f"cahier: {slug} v{n}"], capture_output=True, text=True)
+          git = "committé" if r3.returncode == 0 else "commit refusé : " + (r3.stderr or r3.stdout or "").strip()[-200:]
+      print(f"{cible} (v{n}) enregistré ; changelog à jour ; git : {git}")
+
+  # ── 5. rapport HTML ────────────────────────────────────────────────────────
+  - id: rapport
+    type: python
+    description: Rapport de synthèse (version enregistrée ou brouillon)
+    code: |
+      import html, pathlib
+      p = pathlib.Path
+      besoin = p("tmp/spec/besoin.txt")
+      brouillon = p("tmp/spec/brouillon.md")
+      spec = p("docs/spec")
+      lignes = []
+      lignes.append('<h1>Spec wizard — rapport</h1>')
+      lignes.append(f'<div class="sub">{html.escape("{{now}}")}</div>')
+      if brouillon.is_file():
+          corps = brouillon.read_text(encoding="utf-8")
+          sections = [l for l in corps.splitlines() if l.startswith("# ") or l.startswith("## ")]
+          lignes.append('<h2>Sections du brouillon</h2><ul>' +
+                        "".join(f"<li>{html.escape(s[2:].strip())}</li>" for s in sections) + '</ul>')
+      if besoin.is_file():
+          lignes.append(f'<p>Besoin initial : {html.escape(besoin.read_text(encoding="utf-8")[:300])}</p>')
+      if spec.is_dir() and list(spec.glob("*-v*.md")):
+          lignes.append('<div class="ok">Version(s) enregistrée(s) : ' +
+                        ", ".join(html.escape(f.name) for f in sorted(spec.glob("*-v*.md"))[-3:]) + '</div>')
+      else:
+          lignes.append('<div class="ko">Rien n a été enregistré (brouillon non approuvé).</div>')
+      rapport = p("tmp/spec/rapport_spec.html")
+      rapport.write_text("<html><head><meta charset='utf-8'>"
+        "<style>body{font-family:system-ui,sans-serif;margin:2rem;color:#1e293b}"
+        "h1{color:#0f172a}.sub{color:#64748b}"
+        ".ok{background:#dcfce7;border:1px solid #22c55e;padding:.6rem 1rem;border-radius:8px;font-weight:600}"
+        ".ko{background:#fef3c7;border:1px solid #f59e0b;padding:.6rem 1rem;border-radius:8px;font-weight:600}</style></head><body>"
+        + "\n".join(lignes) + "</body></html>", encoding="utf-8")
+      print(rapport.resolve().as_uri())
+
+  # ── 6. ouvrir le rapport dans le navigateur par défaut ─────────────────────
+  - id: ouvrir
+    type: python
+    description: Ouverture du rapport dans le navigateur par défaut
+    continue_on_error: true
+    code: |
+      import webbrowser
+      if not webbrowser.open("{{rapport.output}}".strip()):
+          print("Aucun navigateur lancé : ouvrez tmp/spec/rapport_spec.html")
+
+  # ── 7. fin ──────────────────────────────────────────────────────────────────
+  - id: fin
+    type: log
+    level: success
+    message: "Terminé : voir tmp/spec/ (brouillon.md, rapport_spec.html) et docs/spec/ si approuvé."
+    next: end
+
+  - id: end
+    type: end

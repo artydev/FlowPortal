@@ -41,7 +41,7 @@ Principe de conception : **Python orchestre, l'IA lit et rédige, l'humain déci
 
 - Windows en priorité (`cmd.exe`), mais Linux/macOS fonctionnent (`bash`).
 - Application compilée possible (`FlowPortal.exe`, Nuitka) : **aucun Python n'est alors installé** sur le poste. Dans ce cas, utilise `type: python` (interpréteur embarqué) et **jamais** `cmd: 'python ...'` dans un `shell`.
-- Le dossier de travail est celui de l'exe (ou de `app.py`) ; les chemins relatifs (`tmp/...`) partent de là. Les workflows sont dans `workflows/`.
+- Le dossier de travail est celui de l'exe (ou de `app.py`) ; les chemins relatifs (`output/{{run_id}}/...`) partent de là. Les workflows sont dans `workflows/`.
 
 ---
 
@@ -53,7 +53,7 @@ name: Nom affiché dans l'interface
 description: Une phrase décrivant le workflow.
 
 inputs:                 # facultatif : variables globales
-  projet: 'tmp\demo'
+  projet: 'mon_projet'
 
 steps:                  # OBLIGATOIRE : liste non vide
   - id: premiere
@@ -221,7 +221,7 @@ Règles d'or pour les prompts :
 - Sur un poste **sans Python**, ajoute : « N'exécute rien (ni `python` ni `py`), utilise seulement `read_file` / `write_file` / `edit_file` ; le workflow relance lui-même le script. »
 - **Interdis d'inventer** : « Chaque chiffre doit provenir des fichiers ; n'invente rien. » Fournis les chiffres calculés via `{{id.output}}`.
 - Pour qu'il corrige du code sans toucher aux tests : « Corrige `x.py` UNIQUEMENT ; ne modifie jamais les tests. »
-- Quand `auto_confirm` est absent et que CSAgent n'est pas lancé avec `--yes`, chaque écriture demande une validation humaine dans l'interface. Met `auto_confirm: true` pour un enchaînement fluide **uniquement si le périmètre est inoffensif** (dossier `tmp\`).
+- Quand `auto_confirm` est absent et que CSAgent n'est pas lancé avec `--yes`, chaque écriture demande une validation humaine dans l'interface. Met `auto_confirm: true` pour un enchaînement fluide **uniquement si le périmètre est inoffensif** (dossier `output/{{run_id}}/`).
 
 ### 5.2 `python` — script Python avec l'interpréteur embarqué
 | Clé | Obl. | Rôle |
@@ -242,14 +242,14 @@ Script écrit par le workflow puis exécuté :
 ```yaml
 - id: ecrire_script
   type: file_write
-  path: 'tmp\calc.py'
+  path: 'output/{{run_id}}/calc.py'
   content: |
     import sys
     total = sum(float(x) for x in sys.argv[1:])
     print(round(total, 2))
 - id: calcul
   type: python
-  script: 'tmp\calc.py'
+  script: 'output/{{run_id}}/calc.py'
   args: ['12.5', '7.25']
 ```
 Code inline (tests unittest) avec dossier de travail du projet :
@@ -321,7 +321,7 @@ Utilise un bloc littéral `|` pour du contenu multiligne (l'indentation du bloc 
 | Sujet | Règle |
 |---|---|
 | Dossier de travail | celui de `FlowPortal.exe` / `app.py`. Contient `workflows/`, `tmp/`, `csflow.schema.json`, `start_agent.sh` / `start_agent.bat`. |
-| Chemins | **toujours relatifs** (`tmp/copil/kpi.py`) ; sépare-les par « / » : identiques sous Windows et Linux (un `\` devient un caractère du nom de fichier sous Linux). |
+| Chemins | **toujours relatifs** (`output/{{run_id}}/rapport.csv`) ; sépare-les par « / » : identiques sous Windows et Linux (un `\` devient un caractère du nom de fichier sous Linux). |
 | Zone de travail | écris les fichiers générés sous `output/{{run_id}}/` (isolation automatique par run) ; `tmp/` est toléré mais écrase les sorties précédentes à chaque run. Ne touche pas à `workflows/`. |
 | CSAgent | doit être lancé **depuis le même dossier** (`start_agent.sh` / `start_agent.bat` : lance CSAgent puis CSFlow, arrête CSAgent à la fermeture). Sinon ses fichiers atterrissent ailleurs et `file_read` ne les trouve pas. |
 | Clé d'API | variable `ALBERT_API_KEY` définie avant le lancement ; ne l'écris jamais dans un workflow. |
@@ -349,14 +349,11 @@ Squelette complet (valide) :
 name: Squelette CSFlow
 description: Préparer des données, calculer en Python, faire rédiger par CSAgent, valider, terminer.
 
-inputs:
-  dossier: 'tmp\demo'
-
 steps:
   - id: donnees
     type: file_write
     description: Données d'exemple
-    path: '{{dossier}}\ventes.csv'
+    path: 'output/{{run_id}}/ventes.csv'
     content: |
       produit,quantite
       A,10
@@ -367,7 +364,7 @@ steps:
     description: Total calculé en Python
     code: |
       import csv
-      rows = list(csv.DictReader(open('tmp/demo/ventes.csv', encoding='utf-8')))
+      rows = list(csv.DictReader(open('output/{{run_id}}/ventes.csv', encoding='utf-8')))
       print(sum(int(r['quantite']) for r in rows))
 
   - id: synthese
@@ -375,13 +372,13 @@ steps:
     description: Synthèse par CSAgent
     auto_confirm: true
     prompt: |
-      N'exécute aucune commande. Lis tmp/demo/ventes.csv puis écris tmp/demo/synthese.md :
+      N'exécute aucune commande. Lis output/{{run_id}}/ventes.csv puis écris output/{{run_id}}/synthese.md :
       3 lignes maximum. Le total des quantités est {{total.output}} ; n'invente aucun autre chiffre.
 
   - id: verif
     type: file_read
     description: Vérifier le livrable
-    path: 'tmp\demo\synthese.md'
+    path: 'output/{{run_id}}/synthese.md'
 
   - id: validation
     type: human_approval
@@ -435,7 +432,16 @@ steps:
 18. **Secrets en clair** dans le YAML : utilise `{{env.NOM}}`.
 19. **Encodage** : fichiers UTF-8 ; une sortie console native OEM est décodée automatiquement.
 20. **`timeout` trop court** : `shell`/`python` s'arrêtent à 60 s par défaut ; `agent` abandonne après 180 s **sans donnée** ; augmente-les pour les tâches longues.
-21. **Ouvrir un fichier sous Windows** : `start "" "rapport.html"` (application par défaut). `start msedge rapport.html` est faux : le navigateur reçoit `rapport.html` comme une adresse web (`ERR_NAME_NOT_RESOLVED`). Passer un navigateur explicite exige une vraie adresse (`file:///…`).
+21. **Ouvrir un fichier HTML** : utilise toujours un step `python` avec `webbrowser.open()` — portable Windows/Linux, fonctionne avec un chemin relatif ou absolu :
+```yaml
+- id: ouvrir
+  type: python
+  code: |
+    import webbrowser, pathlib
+    webbrowser.open(pathlib.Path('output/{{run_id}}/rapport.html').resolve().as_uri())
+    print("Ouvert")
+```
+Ne jamais utiliser `cmd: start "" "..."` : ce n'est pas un exécutable, `subprocess` échoue.
 21b. **Fichiers produits à la racine** : n'écris pas `path: hello.html` (le fichier atterrit à la racine de FlowPortal, à côté du code) ; écris `path: output/{{run_id}}/hello.html` pour isoler chaque run, et ouvre-le avec `webbrowser.open()` dans un step `python`.
 22. **Édition d'un brouillon demandée par FlowPortal** : quand la demande désigne un fichier (`tmp/assist/…/draft.yaml`), modifie **uniquement** ce fichier, garde un YAML valide avec `name` et `steps`, et réponds en une ou deux phrases. Le portail valide le résultat avec `--check`, te renvoie les erreurs si besoin, puis montre les différences à l'utilisateur avant toute application : rien n'est enregistré sans son accord.
 

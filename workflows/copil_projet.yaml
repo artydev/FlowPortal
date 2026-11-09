@@ -133,7 +133,8 @@ steps:
 
           statut = statut_global(cpi, len(retards), len(bloquees))
           if seul_statut:
-              print(statut)
+              # pas de \n final : évite de polluer {{statut.output}} dans skip_if
+              print(statut, end='')
               return
 
           derive_j = eac - bac
@@ -249,6 +250,66 @@ steps:
 
       Chaque chiffre doit provenir des fichiers : n'invente rien. Ton factuel, sans jargon technique.
 
+  # ── 3bis. Rapport final en HTML, affiché dans le navigateur ──────────────────
+  - id: html_rapport
+    type: python
+    description: "Conversion du rapport en page HTML"
+    code: |
+      import os
+      src = 'tmp/copil/rapport_copil.md'
+      dst = 'tmp/rapport.html'
+      if os.path.exists(src):
+          with open(src, encoding='utf-8') as f:
+              md = f.read()
+      else:
+          md = '# Rapport COPIL\n\nLe rapport n\'a pas pu être généré.'
+      lignes = md.splitlines()
+      html = []
+      en_liste = False
+      def fermer_liste():
+          global en_liste
+          if en_liste:
+              html.append('</ul>')
+              en_liste = False
+      for ligne in lignes:
+          ligne = ligne.rstrip()
+          if not ligne.strip():
+              fermer_liste()
+              continue
+          if ligne.startswith('### '):
+              fermer_liste(); html.append(f'<h3>{ligne[4:]}</h3>')
+          elif ligne.startswith('## '):
+              fermer_liste(); html.append(f'<h2>{ligne[3:]}</h2>')
+          elif ligne.startswith('# '):
+              fermer_liste(); html.append(f'<h1>{ligne[2:]}</h1>')
+          elif ligne.startswith('- '):
+              if not en_liste:
+                  html.append('<ul>')
+                  en_liste = True
+              html.append(f'<li>{ligne[2:]}</li>')
+          else:
+              fermer_liste(); html.append(f'<p>{ligne}</p>')
+      fermer_liste()
+      corps = '\n'.join(html)
+      page = (f'<!DOCTYPE html>\n<html lang="fr">\n<head>\n'
+              f'<meta charset="utf-8">\n<title>Rapport COPIL</title>\n'
+              f'<style>body{{font-family:Arial,sans-serif;margin:2em auto;max-width:800px;'
+              f'line-height:1.5;}}h1{{color:#1a3a5c;border-bottom:2px solid #1a3a5c;'
+              f'padding-bottom:.3em;}}h2{{color:#2a5a8c;margin-top:1.5em;}}</style>\n'
+              f'</head>\n<body>\n{corps}\n</body>\n</html>\n')
+      with open(dst, 'w', encoding='utf-8') as f:
+          f.write(page)
+      print(dst)
+
+  - id: affiche_rapport
+    type: python
+    description: "Affichage du rapport HTML dans le navigateur par défaut"
+    code: |
+      import webbrowser, pathlib
+      path = pathlib.Path('tmp/rapport.html').resolve()
+      webbrowser.open(path.as_uri())
+      print(f"Rapport ouvert : {path}")
+
   # ── 4. Branche conditionnelle : seulement si le projet est au rouge ──────────
   - id: escalade
     type: agent
@@ -275,9 +336,12 @@ steps:
     on_reject: annule
 
   - id: relecture
-    type: file_read
-    description: "Relecture du rapport"
-    path: 'tmp/copil/rapport_copil.md'
+    type: python
+    description: "Lecture du rapport pour le log"
+    code: |
+      import pathlib
+      p = pathlib.Path('tmp/copil/rapport_copil.md')
+      print(p.read_text(encoding='utf-8') if p.exists() else 'Rapport non disponible')
 
   - id: diffusion
     type: log

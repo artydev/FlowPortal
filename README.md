@@ -595,4 +595,5 @@ et un dossier de confiance.
 
 MIT, voir [LICENSE](LICENSE).
 
-<img width="1903" height="1015" alt="image" src="https://github.com/user-attachments/assets/34989752-8fc1-4ec9-b679-e2a21ace5f09" />
+<img width="1217" height="787" alt="image" src="https://github.com/user-attachments/assets/b8e047c0-e934-49e6-bc67-6bff150c9c93" />
+

@@ -129,6 +129,7 @@ Demande un texte à l'humain (saisie, interface graphique ou terminal) ; sortie 
 
 - `{{today}}` : date du jour (AAAA-MM-JJ)
 - `{{now}}` : date et heure (AAAA-MM-JJTHH:MM:SS)
+- `{{run_id}}` : identifiant unique du run, format `AAAA-MM-JJ_HH-MM-SS` — stable pour toute l'exécution ; utilisez-le dans les `path` pour isoler les sorties de chaque run (ex. `output/{{run_id}}/fichier.csv`)
 - `{{env.NOM}}` : variable d'environnement NOM
 - `{{id.output}}` : résultat de l'étape « id » ; autres champs : {{id.returncode}}, {{id.stdout}}, {{id.status}}... selon le type
 - `{{nom}}` : variable déclarée dans `inputs`

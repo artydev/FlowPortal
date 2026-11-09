@@ -118,6 +118,7 @@ Faite **avant** l'exécution de l'étape, dans toutes les valeurs texte de l'ét
 |---|---|
 | `{{today}}` | date du jour `AAAA-MM-JJ` |
 | `{{now}}` | `AAAA-MM-JJTHH:MM:SS` |
+| `{{run_id}}` | identifiant unique de l'exécution `AAAA-MM-JJ_HH-MM-SS` — stable pour toute la durée du run, utilisable dans des chemins de fichiers pour **isoler les sorties** de chaque exécution (ex. `output/{{run_id}}/rapport.csv`) |
 | `{{env.NOM}}` | variable d'environnement `NOM` |
 | `{{nom}}` | input déclaré dans `inputs` |
 | `{{id}}` | = `{{id.output}}` |

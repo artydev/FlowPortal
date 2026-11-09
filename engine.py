@@ -134,6 +134,10 @@ class WorkflowEngine:
         self._input_wait    = input_wait
         self._cancel        = cancel
 
+        # Built-in run identifier — stable for the whole execution, path-safe
+        _run_id = datetime.datetime.now().strftime("%Y-%m-%d_%H-%M-%S")
+        self.ctx["run_id"] = {"output": _run_id}
+
         # Pre-seed ctx with workflow inputs
         for k, v in (self.wf.get("inputs") or {}).items():
             if inputs and k in inputs:
@@ -394,4 +398,5 @@ if __name__ == "__main__":
         print("  python engine.py --nodes [--md]         lister les types d'étape et leurs paramètres")
         print("  python engine.py --schema               schéma JSON (autocomplétion VS Code)\n")
         sys.exit(1)
+
     WorkflowEngine(args[0]).run()

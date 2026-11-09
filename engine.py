@@ -135,7 +135,8 @@ class WorkflowEngine:
         self._cancel        = cancel
 
         # Built-in run identifier — stable for the whole execution, path-safe
-        _run_id = datetime.datetime.now().strftime("%Y-%m-%d_%H-%M-%S")
+        _wf_name = re.sub(r"[^\w\-]", "_", (self.wf.get("name") or "run")).strip("_") or "run"
+        _run_id = f"{_wf_name}_{datetime.datetime.now().strftime('%Y-%m-%d_%H-%M-%S')}"
         self.ctx["run_id"] = {"output": _run_id}
 
         # Pre-seed ctx with workflow inputs

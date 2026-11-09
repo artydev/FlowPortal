@@ -53,9 +53,11 @@ def build_prompt(rel_path: str, instruction: str) -> str:
             "respecte la compétence « csflow » (types d'étapes, ids uniques, références {{id.output}}) ; "
             "conserve tout ce que la demande ne concerne pas (ids, commentaires, ordre) ; "
             "le fichier doit rester un YAML valide avec au moins « name » et « steps ». "
-            "Le workflow s'exécute sous Windows : les chemins des fichiers qu'il lit ou écrit sont relatifs au dossier de FlowPortal ; les fichiers qu'il produit vont dans le sous-dossier « tmp/ » (par exemple « tmp/rapport.html »), jamais à la racine ; "
-            "pour ouvrir un fichier, utilise la commande shell « start \"\" \"fichier\" » (application par défaut), "
-            "jamais « start navigateur fichier ». "
+            "Le workflow s'exécute sous Windows et Linux : les chemins des fichiers qu'il lit ou écrit sont relatifs au dossier de FlowPortal ; "
+            "les fichiers qu'il produit vont dans le sous-dossier « output/{{run_id}}/ » (par exemple « output/{{run_id}}/rapport.html »), jamais dans « tmp/ » ni à la racine — cela isole chaque run automatiquement ; "
+            "pour écrire un fichier, utilise TOUJOURS « type: file_write » (pas python+pathlib) : file_write crée les dossiers manquants automatiquement et le fichier apparaît dans l'onglet Fichiers de l'interface ; "
+            "pour ouvrir un fichier HTML, utilise un step « python » avec webbrowser.open(pathlib.Path('output/{{run_id}}/fichier.html').resolve().as_uri()), "
+            "jamais « start \"\" \"fichier\" » (non portable, échoue en subprocess). "
             "Quand tu as terminé, réponds en une ou deux phrases : ce que tu as changé.\n"
             f"Demande : {instruction}")
 

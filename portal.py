@@ -56,7 +56,7 @@ TEMPLATES = [
 
 
 def _output_warnings(text: str) -> list:
-    """Avertit quand une étape file_write écrit hors du dossier tmp/ (les fichiers produits y sont rangés)."""
+    """Avertit quand une étape file_write écrit à la racine (ni output/ ni tmp/)."""
     try:
         root = schema.yaml.compose(text)
     except Exception:                                       # noqa: BLE001 : le YAML invalide est déjà signalé par schema.check
@@ -77,11 +77,11 @@ def _output_warnings(text: str) -> list:
             val = str(pth.value).strip().replace("\\", "/")
             while val.startswith("./"):
                 val = val[2:]
-            if not val or val.startswith("{{") or val.startswith("tmp/"):
+            if not val or val.startswith("{{") or val.startswith("output/") or val.startswith("tmp/"):
                 continue
             out.append({"level": "warn", "line": pth.start_mark.line + 1,
-                        "message": f"L'étape « {getattr(sid, 'value', '?')} » écrit « {pth.value} » hors du dossier tmp/ : "
-                                   "rangez les fichiers produits dans tmp/ (par exemple tmp/rapport.html)."})
+                        "message": f"L'étape « {getattr(sid, 'value', '?')} » écrit « {pth.value} » à la racine : "
+                                   "rangez les fichiers produits dans output/{{run_id}}/ (par exemple output/{{run_id}}/rapport.html)."})
     return out
 
 

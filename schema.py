@@ -50,6 +50,7 @@ END_TYPE = ("end", {"message": ("message affiché à la fin du workflow", False)
 BUILTIN_VARS = {
     "{{today}}":    "date du jour (AAAA-MM-JJ)",
     "{{now}}":      "date et heure (AAAA-MM-JJTHH:MM:SS)",
+    "{{run_id}}":   "identifiant unique du run AAAA-MM-JJ_HH-MM-SS, stable pour toute l'exécution",
     "{{env.NOM}}":  "variable d'environnement NOM",
     "{{id.output}}": "résultat de l'étape « id » ; autres champs : {{id.returncode}}, {{id.stdout}}, "
                      "{{id.status}}... selon le type",
@@ -155,7 +156,7 @@ def check(text: str) -> list:
 
     types = node_types()
     ids = [s.get("id") for s in steps if isinstance(s, dict) and s.get("id")]
-    known_refs = set(ids) | set(wf.get("inputs") or {}) | {"today", "now"}
+    known_refs = set(ids) | set(wf.get("inputs") or {}) | {"today", "now", "run_id"}
     seen = set()
 
     for i, step in enumerate(steps):

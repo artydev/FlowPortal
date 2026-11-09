@@ -217,7 +217,7 @@ Sorties : `output` (sa dernière réponse), `thoughts` (tout son raisonnement).
 Règles d'or pour les prompts :
 - Le prompt voyage dans l'**URL de la requête** : reste **bref et précis** (quelques dizaines de lignes max).
 - **Chemins relatifs uniquement** : CSAgent n'écrit que dans son dossier courant, qui doit être **le même** que celui de CSFlow (lancement par `start_agent.sh` / `start_agent.bat` dans ce dossier). Un chemin absolu ou hors dossier échoue.
-- Dis **exactement quel fichier écrire** (`Écris tmp/copil/rapport.md …`) puis **relis-le** avec un `file_read` pour vérifier qu'il existe : l'agent peut répondre en texte sans écrire.
+- Dis **exactement quel fichier écrire** (`Écris output/{{run_id}}/rapport.md …`) puis **relis-le** avec un `file_read` pour vérifier qu'il existe : l'agent peut répondre en texte sans écrire.
 - Sur un poste **sans Python**, ajoute : « N'exécute rien (ni `python` ni `py`), utilise seulement `read_file` / `write_file` / `edit_file` ; le workflow relance lui-même le script. »
 - **Interdis d'inventer** : « Chaque chiffre doit provenir des fichiers ; n'invente rien. » Fournis les chiffres calculés via `{{id.output}}`.
 - Pour qu'il corrige du code sans toucher aux tests : « Corrige `x.py` UNIQUEMENT ; ne modifie jamais les tests. »
@@ -322,7 +322,7 @@ Utilise un bloc littéral `|` pour du contenu multiligne (l'indentation du bloc 
 |---|---|
 | Dossier de travail | celui de `FlowPortal.exe` / `app.py`. Contient `workflows/`, `tmp/`, `csflow.schema.json`, `start_agent.sh` / `start_agent.bat`. |
 | Chemins | **toujours relatifs** (`tmp/copil/kpi.py`) ; sépare-les par « / » : identiques sous Windows et Linux (un `\` devient un caractère du nom de fichier sous Linux). |
-| Zone de travail | écris les fichiers générés sous `tmp/` ; ne touche pas à `workflows/`. |
+| Zone de travail | écris les fichiers générés sous `output/{{run_id}}/` (isolation automatique par run) ; `tmp/` est toléré mais écrase les sorties précédentes à chaque run. Ne touche pas à `workflows/`. |
 | CSAgent | doit être lancé **depuis le même dossier** (`start_agent.sh` / `start_agent.bat` : lance CSAgent puis CSFlow, arrête CSAgent à la fermeture). Sinon ses fichiers atterrissent ailleurs et `file_read` ne les trouve pas. |
 | Clé d'API | variable `ALBERT_API_KEY` définie avant le lancement ; ne l'écris jamais dans un workflow. |
 | Secrets | `{{env.NOM}}` uniquement. |
@@ -436,7 +436,7 @@ steps:
 19. **Encodage** : fichiers UTF-8 ; une sortie console native OEM est décodée automatiquement.
 20. **`timeout` trop court** : `shell`/`python` s'arrêtent à 60 s par défaut ; `agent` abandonne après 180 s **sans donnée** ; augmente-les pour les tâches longues.
 21. **Ouvrir un fichier sous Windows** : `start "" "rapport.html"` (application par défaut). `start msedge rapport.html` est faux : le navigateur reçoit `rapport.html` comme une adresse web (`ERR_NAME_NOT_RESOLVED`). Passer un navigateur explicite exige une vraie adresse (`file:///…`).
-21b. **Fichiers produits à la racine** : n'écris pas `path: hello.html` (le fichier atterrit à la racine de FlowPortal, à côté du code) ; écris `path: tmp/hello.html`, et ouvre-le avec `cmd: 'start "" "tmp\hello.html"'`.
+21b. **Fichiers produits à la racine** : n'écris pas `path: hello.html` (le fichier atterrit à la racine de FlowPortal, à côté du code) ; écris `path: output/{{run_id}}/hello.html` pour isoler chaque run, et ouvre-le avec `webbrowser.open()` dans un step `python`.
 22. **Édition d'un brouillon demandée par FlowPortal** : quand la demande désigne un fichier (`tmp/assist/…/draft.yaml`), modifie **uniquement** ce fichier, garde un YAML valide avec `name` et `steps`, et réponds en une ou deux phrases. Le portail valide le résultat avec `--check`, te renvoie les erreurs si besoin, puis montre les différences à l'utilisateur avant toute application : rien n'est enregistré sans son accord.
 
 ---

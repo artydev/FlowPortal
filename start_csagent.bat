@@ -8,7 +8,7 @@ cd /d "%~dp0"
 set CSAGENT_BIN=csagent
 set PORT=8080
 set API_KEY=demo-secret
-rem MODEL : nom du modele (vide = routage automatique), ex : set MODEL=mon-modele-rapide
+rem MODEL : modele a utiliser (vide = deepseek par defaut avec --no-route)
 if not defined MODEL set MODEL=
 
 if not "%ALBERT_API_KEY%"=="" goto key_ok
@@ -51,11 +51,11 @@ for /f "tokens=5" %%p in ('netstat -ano ^| findstr /r /c:":%PORT% .*LISTENING"')
 echo   Worker CSAgent dans : %WORKDIR%
 set "MODEL_ARG="
 if defined MODEL set MODEL_ARG=--model %MODEL%
-start "CSAgent-Worker" /min /d "%WORKDIR%" cmd /c %CSAGENT_BIN% --api --yes --port %PORT% --api-key %API_KEY% %MODEL_ARG% --mem csflow_worker --no-distill
+start "CSAgent-Worker" /min /d "%WORKDIR%" cmd /c %CSAGENT_BIN% --api --yes --port %PORT% --api-key %API_KEY% %MODEL_ARG% --no-route --mem csflow_worker --no-distill
 timeout /t 3 /nobreak >nul
 
 echo   CSAgent interactif avec le serveur MCP CSFlow...
-%CSAGENT_BIN% --mcp-config mcp.json
+%CSAGENT_BIN% --mcp-config mcp.json --no-route %MODEL_ARG%
 
 echo   CSAgent ferme -- arret du worker.
 taskkill /fi "WINDOWTITLE eq CSAgent-Worker*" /t /f >nul 2>&1

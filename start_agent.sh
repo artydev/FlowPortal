@@ -10,7 +10,7 @@ cd "$(dirname "$0")"
 CSAGENT_BIN="${CSAGENT_BIN:-csagent}"
 PORT="${PORT:-8080}"
 API_KEY="${API_KEY:-demo-secret}"
-MODEL="${MODEL:-}"          # ex : MODEL=mon-modele-rapide (vide = routage automatique)
+MODEL="${MODEL:-}"          # ex : MODEL=mon-modele (vide = deepseek par defaut avec --no-route)
 # ---------------------------------------------------------------------------
 
 if [ -z "$ALBERT_API_KEY" ]; then
@@ -39,7 +39,7 @@ echo "  Ecoute sur http://localhost:$PORT"
 echo
 
 # 1. CSAgent en arriere-plan, meme dossier de travail
-"$CSAGENT_BIN" --api --yes --port "$PORT" --api-key "$API_KEY" ${MODEL:+--model "$MODEL"} --mem csflow_worker --no-distill >csagent.log 2>&1 &
+"$CSAGENT_BIN" --api --yes --port "$PORT" --api-key "$API_KEY" ${MODEL:+--model "$MODEL"} --no-route --mem csflow_worker --no-distill >csagent.log 2>&1 &
 AGENT_PID=$!
 trap 'kill "$AGENT_PID" 2>/dev/null' EXIT INT TERM
 

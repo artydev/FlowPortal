@@ -10,7 +10,7 @@ cd "$(dirname "$0")"
 CSAGENT_BIN="${CSAGENT_BIN:-csagent}"
 PORT="${PORT:-8080}"
 API_KEY="${API_KEY:-demo-secret}"
-MODEL="${MODEL:-}"          # ex : MODEL=mon-modele-rapide (vide = routage automatique)
+MODEL="${MODEL:-}"          # ex : MODEL=mon-modele (vide = deepseek par defaut avec --no-route)
 
 if [ -z "$ALBERT_API_KEY" ]; then
     echo " ERREUR : ALBERT_API_KEY n'est pas definie (export ALBERT_API_KEY=ta-cle)."; exit 1
@@ -32,7 +32,7 @@ if [ ! -f mcp.json ]; then
 fi
 
 # Worker : memoire separee (--mem) pour ne pas melanger avec votre conversation
-"$CSAGENT_BIN" --api --yes --port "$PORT" --api-key "$API_KEY" ${MODEL:+--model "$MODEL"} --mem csflow_worker --no-distill >csagent_worker.log 2>&1 &
+"$CSAGENT_BIN" --api --yes --port "$PORT" --api-key "$API_KEY" ${MODEL:+--model "$MODEL"} --no-route --mem csflow_worker --no-distill >csagent_worker.log 2>&1 &
 WORKER_PID=$!
 trap 'kill "$WORKER_PID" 2>/dev/null' EXIT INT TERM
 sleep 3
@@ -42,5 +42,5 @@ fi
 
 echo "  Worker CSAgent : http://localhost:$PORT   (log : csagent_worker.log)"
 echo "  CSAgent interactif avec le serveur MCP CSFlow..."
-"$CSAGENT_BIN" --mcp-config mcp.json
+"$CSAGENT_BIN" --mcp-config mcp.json --no-route ${MODEL:+--model "$MODEL"}
 echo "  CSAgent ferme -- arret du worker."

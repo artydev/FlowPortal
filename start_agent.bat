@@ -10,7 +10,7 @@ rem ---- a adapter ----------------------------------------------------------
 set CSAGENT_BIN=csagent
 set PORT=8080
 set API_KEY=demo-secret
-rem MODEL : nom du modele (vide = routage automatique), ex : set MODEL=mon-modele-rapide
+rem MODEL : modele a utiliser (vide = deepseek par defaut avec --no-route)
 if not defined MODEL set MODEL=
 rem -------------------------------------------------------------------------
 
@@ -63,7 +63,7 @@ for /f "tokens=5" %%p in ('netstat -ano ^| findstr /r /c:":%PORT% .*LISTENING"')
 rem 1. CSAgent dans sa propre fenetre (reduite), meme dossier de travail
 set "MODEL_ARG="
 if defined MODEL set MODEL_ARG=--model %MODEL%
-start "CSAgent-API" /min cmd /c %CSAGENT_BIN% --api --yes --port %PORT% --api-key %API_KEY% %MODEL_ARG% --mem csflow_worker --no-distill
+start "CSAgent-API" /min cmd /c %CSAGENT_BIN% --api --yes --port %PORT% --api-key %API_KEY% %MODEL_ARG% --no-route --mem csflow_worker --no-distill
 
 rem 2. laisser a CSAgent le temps d'ouvrir son port
 timeout /t 3 /nobreak >nul

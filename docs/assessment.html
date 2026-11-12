@@ -1,0 +1,176 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>FlowPortal — Maintenance &amp; Evolution Assessment</title>
+<style>
+  :root {
+    --bg: #0f172a;
+    --panel: #1e293b;
+    --panel-2: #273449;
+    --text: #e2e8f0;
+    --muted: #94a3b8;
+    --accent: #38bdf8;
+    --green: #4ade80;
+    --amber: #fbbf24;
+    --red: #f87171;
+    --border: #334155;
+  }
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+  body {
+    font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+    background: var(--bg);
+    color: var(--text);
+    line-height: 1.65;
+    padding: 2rem 1rem;
+  }
+  .wrap { max-width: 860px; margin: 0 auto; }
+  header { margin-bottom: 2.5rem; }
+  header h1 { font-size: 1.9rem; color: #fff; margin-bottom: .4rem; }
+  header .sub { color: var(--muted); font-size: 1.05rem; }
+  .verdict {
+    display: flex; align-items: center; gap: .75rem;
+    background: linear-gradient(135deg, #14532d, #052e16);
+    border: 1px solid #166534;
+    border-radius: 12px;
+    padding: 1rem 1.25rem;
+    margin-bottom: 2rem;
+  }
+  .verdict .badge {
+    background: var(--green); color: #052e16; font-weight: 700;
+    padding: .3rem .7rem; border-radius: 999px; font-size: .85rem; white-space: nowrap;
+  }
+  .verdict p { color: #bbf7d0; }
+  h2 {
+    font-size: 1.35rem; color: var(--accent);
+    margin: 2.5rem 0 1rem; padding-bottom: .4rem; border-bottom: 1px solid var(--border);
+  }
+  .card {
+    background: var(--panel); border: 1px solid var(--border);
+    border-radius: 12px; padding: 1.25rem 1.5rem; margin-bottom: 1rem;
+  }
+  .card h3 { font-size: 1.05rem; margin-bottom: .6rem; color: #fff; }
+  .card ul { padding-left: 1.2rem; }
+  .card li { margin-bottom: .5rem; }
+  .card li strong { color: #fff; }
+  .pro { border-left: 4px solid var(--green); }
+  .con { border-left: 4px solid var(--amber); }
+  .rec { border-left: 4px solid var(--accent); }
+  .tag {
+    display: inline-block; font-size: .75rem; font-weight: 600;
+    padding: .15rem .5rem; border-radius: 6px; margin-right: .4rem;
+  }
+  .tag.green { background: #14532d; color: var(--green); }
+  .tag.amber { background: #451a03; color: var(--amber); }
+  .tag.blue  { background: #0c4a6e; color: var(--accent); }
+  .bottom-line {
+    background: var(--panel-2); border: 1px solid var(--border);
+    border-radius: 12px; padding: 1.5rem; margin-top: 2.5rem;
+  }
+  .bottom-line h3 { color: var(--accent); margin-bottom: .6rem; }
+  footer { margin-top: 3rem; color: var(--muted); font-size: .85rem; text-align: center; }
+  code { background: #0b1220; padding: .1rem .35rem; border-radius: 4px; font-size: .9em; color: #7dd3fc; }
+</style>
+</head>
+<body>
+<div class="wrap">
+
+  <header>
+    <h1>FlowPortal — Maintenance &amp; Evolution Assessment</h1>
+    <div class="sub">An honest evaluation of whether this project is worth maintaining and evolving.</div>
+  </header>
+
+  <div class="verdict">
+    <span class="badge">Verdict</span>
+    <p><strong>Yes, it's a genuinely well-built project</strong> — but its value depends entirely on whether you actually use it.</p>
+  </div>
+
+  <h2>What's in its favor — strong signals</h2>
+
+  <div class="card pro">
+    <h3><span class="tag green">Engineering</span> Real discipline, not a toy</h3>
+    <ul>
+      <li><strong>14 test files</strong> covering engine, portal, MCP client/server, assist, delete, rename, stop, schema, and UI IDs — a serious test suite for a personal tool.</li>
+      <li><strong>Clean separation of concerns:</strong> <code>engine.py</code> (execution), <code>portal.py</code> (no browser dependency, testable headless), <code>assist.py</code> (CSAgent-assisted editing), <code>schema.py</code> (validation), <code>mcp_client/server.py</code>.</li>
+      <li><strong>Careful UX details</strong> that only come from real use: <code>.bak</code> backups before writes, atomic writes, a trash folder instead of permanent delete, secrets masked in run history, run isolation via <code>{{run_id}}</code>, voice dictation.</li>
+      <li><strong>Active, thoughtful commit history</strong> — recent commits show real iteration (run isolation, <code>--no-route</code>, UI refactors).</li>
+    </ul>
+  </div>
+
+  <div class="card pro">
+    <h3><span class="tag green">Relevance</span> Solves a real, current problem</h3>
+    <ul>
+      <li>"Python chains the steps, CSAgent does the reasoning" is a genuinely useful pattern today.</li>
+      <li>A local portal where workflows are editable YAML cards with run tracking is a practical, self-hosted alternative to cloud automation platforms.</li>
+    </ul>
+  </div>
+
+  <div class="card pro">
+    <h3><span class="tag green">Footprint</span> Minimal, clean dependencies</h3>
+    <ul>
+      <li><code>requirements.txt</code> is just <code>pyyaml</code> + <code>eel</code>.</li>
+      <li>No framework churn, no dependency hell — a huge maintainability plus.</li>
+    </ul>
+  </div>
+
+  <h2>What to be honest about — the caveats</h2>
+
+  <div class="card con">
+    <h3><span class="tag amber">Scope</span> It's a single-user / personal tool</h3>
+    <ul>
+      <li>The README, French language, and local-portal design all point to "built for one person's workflow."</li>
+      <li>Its maintenance value is proportional to how much <em>you</em> rely on it. If you stop using it, it's dead weight regardless of code quality.</li>
+    </ul>
+  </div>
+
+  <div class="card con">
+    <h3><span class="tag amber">Direction</span> The <code>chatui</code> branch is the real question</h3>
+    <ul>
+      <li>A chat interface on top of a card-based YAML portal is a different product than the current one.</li>
+      <li>Worth asking: is the chat UI a <em>replacement</em> for the card UI, or an <em>addition</em>? This is where scope can balloon.</li>
+    </ul>
+  </div>
+
+  <div class="card con">
+    <h3><span class="tag amber">Stack</span> Eel is a dated desktop layer</h3>
+    <ul>
+      <li>Eel is a small, less-maintained library.</li>
+      <li>If you plan to grow the UI significantly, this could become a constraint worth revisiting — but it's not a blocker today.</li>
+    </ul>
+  </div>
+
+  <h2>Recommendation</h2>
+
+  <div class="card rec">
+    <h3><span class="tag blue">Maintain</span> Maintain it if you use it</h3>
+    <ul>
+      <li>The code is clean enough that maintenance cost is low, and the test suite means changes are safe — the best-case scenario for a personal tool.</li>
+    </ul>
+  </div>
+
+  <div class="card rec">
+    <h3><span class="tag blue">Evolve</span> Evolve it deliberately</h3>
+    <ul>
+      <li>The <code>chatui</code> direction is promising, but define its scope clearly — a new interaction mode over the same engine, or a rewrite?</li>
+      <li>The engine/portal separation means you can evolve the UI without touching the core — exactly the right architecture for that.</li>
+    </ul>
+  </div>
+
+  <div class="card rec">
+    <h3><span class="tag blue">Decide</span> Don't maintain it out of obligation</h3>
+    <ul>
+      <li>If you're not actively using it, the honest answer is to archive it rather than let it rot.</li>
+    </ul>
+  </div>
+
+  <div class="bottom-line">
+    <h3>Bottom line</h3>
+    <p><strong>Technically, yes</strong> — it's well-architected, tested, and worth evolving. <strong>Strategically, it's worth it only if it's earning its keep in your daily workflow.</strong> The code quality is not the limiting factor; your actual usage is.</p>
+  </div>
+
+  <footer>Generated from a codebase assessment of the FlowPortal repository.</footer>
+
+</div>
+</body>
+</html>

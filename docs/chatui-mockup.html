@@ -1,0 +1,659 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>FlowPortal — Chat (maquette interactive)</title>
+<style>
+  /* ===== Design system repris de ui/portal.css ===== */
+  :root {
+    --bg: #f4f6f5;
+    --surface: #fff;
+    --ink: #14201d;
+    --mute: #5b6b66;
+    --line: #dbe3e0;
+    --accent: #0e6a5c;
+    --accent-ink: #fff;
+    --human: #b7791f;
+    --mcp: #2b5fb8;
+    --bad: #b3261e;
+    --ok: #1b7f4b;
+    --shadow: 0 1px 2px rgba(20, 32, 29, 0.06), 0 8px 24px -12px rgba(20, 32, 29, 0.18);
+  }
+  @media (prefers-color-scheme: dark) {
+    :root:not([data-theme="light"]) {
+      --bg: #0e1513; --surface: #151e1b; --ink: #e6efec; --mute: #93a39d;
+      --line: #27332f; --accent: #3fb59f; --accent-ink: #062019;
+      --human: #e0a64a; --mcp: #7da6ec; --bad: #f08a82; --ok: #59c98d;
+      --shadow: 0 1px 2px #0006, 0 8px 24px -12px #000a;
+    }
+  }
+  :root[data-theme="dark"] {
+    --bg: #0e1513; --surface: #151e1b; --ink: #e6efec; --mute: #93a39d;
+    --line: #27332f; --accent: #3fb59f; --accent-ink: #062019;
+    --human: #e0a64a; --mcp: #7da6ec; --bad: #f08a82; --ok: #59c98d;
+    --shadow: 0 1px 2px #0006, 0 8px 24px -12px #000a;
+  }
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+  body {
+    background: var(--bg); color: var(--ink);
+    font: 15px/1.5 "Hanken Grotesk", "Segoe UI", system-ui, sans-serif;
+    height: 100vh; display: flex; flex-direction: column;
+  }
+  h1, h2, h3 { font-family: "Bricolage Grotesque", "Segoe UI", system-ui, sans-serif; letter-spacing: -0.01em; }
+  button { font: inherit; }
+  button:focus-visible, textarea:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
+  * { scrollbar-width: thin; scrollbar-color: var(--line) transparent; }
+
+  /* ===== Header ===== */
+  .page { max-width: 1180px; margin: 0 auto; padding: 0 16px; width: 100%; }
+  header {
+    display: flex; flex-wrap: wrap; gap: 12px 24px; align-items: center;
+    justify-content: space-between; padding: 22px 0 16px;
+  }
+  header h1 { font-size: 26px; font-weight: 700; }
+  header p { margin: 2px 0 0; color: var(--mute); font-size: 14px; }
+  .status-chips { display: flex; flex-wrap: wrap; gap: 8px; align-items: center; }
+  .status-chip {
+    display: inline-flex; align-items: center; gap: 6px; padding: 4px 10px;
+    border: 1px solid var(--line); border-radius: 999px; background: var(--surface);
+    font-size: 13px; color: var(--mute); text-decoration: none; cursor: pointer;
+  }
+  .status-dot { width: 8px; height: 8px; border-radius: 50%; background: var(--ok); }
+  .status-dot.run { background: var(--human); }
+  .button-secondary {
+    padding: 6px 12px; border: 1px solid var(--line); border-radius: 999px;
+    background: transparent; color: var(--ink); font-size: 13px; cursor: pointer;
+  }
+  .button-secondary[aria-pressed="true"] { background: var(--accent); color: var(--accent-ink); border-color: var(--accent); }
+  .button-primary {
+    padding: 8px 16px; border-radius: 9px; border: 1px solid var(--accent);
+    background: var(--accent); color: var(--accent-ink); font-weight: 600; cursor: pointer;
+  }
+  .button-primary.is-ghost { background: transparent; color: var(--ink); border-color: var(--line); }
+  .button-primary.is-danger { background: transparent; color: var(--bad); border-color: var(--bad); }
+
+  /* ===== Layout chat ===== */
+  .chat-layout { flex: 1; display: flex; overflow: hidden; border-top: 1px solid var(--line); }
+
+  /* Sidebar */
+  .sidebar {
+    width: 300px; background: var(--surface); border-right: 1px solid var(--line);
+    padding: 18px 16px; overflow-y: auto; display: flex; flex-direction: column; gap: 18px;
+  }
+  .sidebar h4 { font-size: 12px; text-transform: uppercase; letter-spacing: .08em; color: var(--mute); margin-bottom: 8px; }
+  .suggestion {
+    display: block; width: 100%; text-align: left; background: var(--bg);
+    border: 1px solid var(--line); border-radius: 10px; padding: 10px 12px;
+    cursor: pointer; color: var(--ink); margin-bottom: 8px;
+  }
+  .suggestion:hover { border-color: var(--accent); }
+  .suggestion .title { font-weight: 600; font-size: 14px; }
+  .suggestion .desc { font-size: 12px; color: var(--mute); margin-top: 2px; }
+  .history-item {
+    display: flex; align-items: center; gap: 8px; padding: 7px 8px; border-radius: 8px;
+    cursor: pointer; font-size: 13px; color: var(--mute);
+  }
+  .history-item:hover { background: var(--bg); color: var(--ink); }
+  .history-item .dot { width: 8px; height: 8px; border-radius: 50%; background: var(--ok); flex-shrink: 0; }
+
+  /* Chat area */
+  .chat { flex: 1; display: flex; flex-direction: column; overflow: hidden; }
+  .messages { flex: 1; overflow-y: auto; padding: 20px 24px; display: flex; flex-direction: column; gap: 16px; }
+  .msg { display: flex; gap: 10px; max-width: 86%; }
+  .msg.user { align-self: flex-end; flex-direction: row-reverse; }
+  .msg .bubble {
+    padding: 10px 14px; border-radius: 14px; font-size: 14px; line-height: 1.5;
+    background: var(--surface); border: 1px solid var(--line); box-shadow: var(--shadow);
+  }
+  .msg.user .bubble { background: var(--accent); color: var(--accent-ink); border-color: var(--accent); border-bottom-right-radius: 4px; }
+  .msg.bot .bubble { border-bottom-left-radius: 4px; }
+  .msg .who { font-size: 12px; color: var(--mute); margin-bottom: 4px; font-weight: 600; }
+
+  /* ===== Carte workflow — vue développeur ===== */
+  .wf-card {
+    margin-top: 12px; background: var(--surface); border: 1px solid var(--line);
+    border-radius: 12px; box-shadow: var(--shadow); overflow: hidden;
+  }
+  .wf-card .wf-head { display: flex; align-items: center; gap: 10px; padding: 12px 14px; border-bottom: 1px solid var(--line); flex-wrap: wrap; }
+  .wf-card .wf-name { font-weight: 700; font-size: 15px; }
+  .wf-card .wf-desc { font-size: 12px; color: var(--mute); padding: 8px 14px 0; }
+  .run-status-badge { display: inline-block; padding: 2px 10px; border-radius: 999px; font-size: 12px; font-weight: 600; border: 1px solid; margin-left: auto; }
+  .run-status-badge.ok { color: var(--ok); border-color: var(--ok); }
+  .run-status-badge.error { color: var(--bad); border-color: var(--bad); }
+  .run-status-badge.running { color: var(--human); border-color: var(--human); }
+  .run-status-badge.wait { color: var(--human); border-color: var(--human); background: color-mix(in srgb, var(--human) 12%, transparent); }
+  .step-timeline { display: flex; align-items: center; padding: 10px 14px 0; }
+  .step-dot { width: 12px; height: 12px; border-radius: 50%; background: var(--line); flex: 0 0 auto; }
+  .step-dot.agent { background: var(--accent); }
+  .step-dot.human_approval, .step-dot.user_input { background: var(--human); border-radius: 3px; transform: rotate(45deg); }
+  .step-dot.mcp_call, .step-dot.mcp_tools { background: var(--mcp); }
+  .step-dot.python, .step-dot.shell { background: var(--mute); }
+  .step-dot.file_write, .step-dot.file_read, .step-dot.log { background: var(--mute); }
+  .step-dot.http_get { background: var(--mcp); }
+  .step-connector { height: 2px; background: var(--line); flex: 1 1 4px; min-width: 3px; }
+  ol.step-list { list-style: none; margin: 0; padding: 8px 14px 4px; display: grid; gap: 2px; }
+  ol.step-list li { display: flex; gap: 10px; align-items: flex-start; padding: 6px 8px; border-radius: 8px; font-size: 13px; }
+  ol.step-list li .step-icon { width: 18px; flex: 0 0 18px; text-align: center; font-weight: 700; color: var(--mute); }
+  ol.step-list li.run { background: color-mix(in srgb, var(--accent) 12%, transparent); }
+  ol.step-list li.run .step-icon { color: var(--accent); }
+  ol.step-list li.ok .step-icon { color: var(--ok); }
+  ol.step-list li.err .step-icon { color: var(--bad); }
+  ol.step-list li.wait { background: color-mix(in srgb, var(--human) 16%, transparent); }
+  ol.step-list li.wait .step-icon { color: var(--human); }
+  ol.step-list small { display: block; color: var(--mute); font-family: "IBM Plex Mono", ui-monospace, Consolas, monospace; font-size: 11px; }
+  .step-type { font-size: 10px; text-transform: uppercase; letter-spacing: .05em; color: var(--mute); margin-left: auto; flex-shrink: 0; }
+  .wf-card .meta { font-size: 12px; color: var(--mute); padding: 4px 14px 0; }
+  .wf-card .actions { display: flex; gap: 8px; flex-wrap: wrap; padding: 10px 14px 14px; }
+  .progress { height: 6px; background: var(--line); border-radius: 999px; overflow: hidden; margin: 8px 14px 0; }
+  .progress .fill { height: 100%; width: 0%; background: var(--accent); border-radius: 999px; transition: width .4s; }
+
+  /* ===== Carte simple — vue non-technique ===== */
+  .simple-card {
+    margin-top: 12px; background: var(--surface); border: 1px solid var(--line);
+    border-radius: 14px; box-shadow: var(--shadow); padding: 14px 16px; display: grid; gap: 12px;
+  }
+  .simple-card .sc-head { display: flex; align-items: center; gap: 10px; }
+  .simple-card .sc-title { font-weight: 700; font-size: 15px; }
+  .simple-card .sc-status { margin-left: auto; font-size: 12px; font-weight: 600; padding: 3px 10px; border-radius: 999px; }
+  .sc-status.ok { color: var(--ok); background: color-mix(in srgb, var(--ok) 12%, transparent); }
+  .sc-status.running { color: var(--human); background: color-mix(in srgb, var(--human) 14%, transparent); }
+  .sc-status.wait { color: var(--human); background: color-mix(in srgb, var(--human) 14%, transparent); }
+  .sc-status.error { color: var(--bad); background: color-mix(in srgb, var(--bad) 12%, transparent); }
+  .simple-card .sc-progress { display: flex; align-items: center; gap: 10px; }
+  .simple-card .sc-bar { flex: 1; height: 8px; background: var(--line); border-radius: 999px; overflow: hidden; }
+  .simple-card .sc-bar .fill { height: 100%; width: 0%; background: var(--accent); border-radius: 999px; transition: width .4s; }
+  .simple-card .sc-count { font-size: 12px; color: var(--mute); white-space: nowrap; }
+  .simple-card .sc-steps { display: grid; gap: 6px; }
+  .simple-card .sc-step { display: flex; align-items: center; gap: 10px; font-size: 13px; padding: 6px 8px; border-radius: 8px; }
+  .simple-card .sc-step .sc-ico { width: 24px; height: 24px; border-radius: 50%; background: var(--bg); display: flex; align-items: center; justify-content: center; flex-shrink: 0; font-size: 13px; }
+  .simple-card .sc-step.done { color: var(--mute); }
+  .simple-card .sc-step.done .sc-ico { background: color-mix(in srgb, var(--ok) 15%, transparent); }
+  .simple-card .sc-step.active { background: color-mix(in srgb, var(--accent) 10%, transparent); font-weight: 600; }
+  .simple-card .sc-step.active .sc-ico { background: var(--accent); color: var(--accent-ink); }
+  .simple-card .sc-step.pending { color: var(--mute); }
+  .simple-card .sc-step .sc-check { margin-left: auto; color: var(--ok); font-weight: 700; }
+  .simple-card .sc-actions { display: flex; gap: 8px; flex-wrap: wrap; }
+
+  /* Decision gate */
+  .decision-gate { border: 1px solid var(--human); border-radius: 10px; padding: 12px; display: grid; gap: 10px; background: var(--surface); margin-top: 12px; }
+  .decision-gate .gate-title { font-weight: 600; color: var(--human); font-size: 14px; }
+  .decision-gate .gate-desc { font-size: 13px; color: var(--mute); }
+  .decision-gate .button-row { display: flex; gap: 8px; flex-wrap: wrap; }
+  .kv { font-size: 13px; display: grid; gap: 2px; }
+
+  /* Input */
+  .input-area { border-top: 1px solid var(--line); padding: 14px 24px; background: var(--surface); }
+  .input-box { display: flex; align-items: flex-end; gap: 8px; background: var(--bg); border: 1px solid var(--line); border-radius: 12px; padding: 8px 10px; }
+  .input-box:focus-within { border-color: var(--accent); }
+  .input-box textarea { flex: 1; background: transparent; border: none; outline: none; color: var(--ink); font: inherit; font-size: 14px; resize: none; max-height: 120px; line-height: 1.4; }
+  .input-box textarea::placeholder { color: var(--mute); }
+  .icon-btn { background: transparent; border: none; color: var(--mute); cursor: pointer; font-size: 16px; padding: 4px; border-radius: 6px; }
+  .icon-btn:hover { background: var(--surface); color: var(--ink); }
+  .send-btn { background: var(--accent); border: none; color: var(--accent-ink); font-weight: 700; width: 36px; height: 36px; border-radius: 9px; cursor: pointer; font-size: 16px; flex-shrink: 0; }
+  .hint { text-align: center; color: var(--mute); font-size: 12px; margin-top: 8px; }
+
+  /* Welcome */
+  .welcome { text-align: center; padding: 10px 0 4px; }
+  .welcome h2 { font-size: 22px; margin-bottom: 6px; }
+  .welcome p { color: var(--mute); max-width: 540px; margin: 0 auto 16px; font-size: 14px; }
+  .chips { display: flex; flex-wrap: wrap; gap: 8px; justify-content: center; }
+  .chip { background: var(--surface); border: 1px solid var(--line); color: var(--ink); padding: 7px 12px; border-radius: 999px; cursor: pointer; font-size: 13px; }
+  .chip:hover { border-color: var(--accent); color: var(--accent); }
+
+  .typing { display: inline-flex; gap: 4px; align-items: center; }
+  .typing i { width: 6px; height: 6px; border-radius: 50%; background: var(--mute); animation: blink 1.2s infinite; }
+  .typing i:nth-child(2) { animation-delay: .2s; }
+  .typing i:nth-child(3) { animation-delay: .4s; }
+  @keyframes blink { 0%,80%,100% { opacity: .2; } 40% { opacity: 1; } }
+  .hidden { display: none !important; }
+</style>
+</head>
+<body>
+
+  <!-- Header -->
+  <div class="page">
+    <header>
+      <div>
+        <h1>FlowPortal</h1>
+        <p id="tagline">Posez votre demande en langage clair. FlowPortal s'occupe du reste.</p>
+      </div>
+      <div class="status-chips">
+        <span class="status-chip"><span class="status-dot"></span> 27 workflows</span>
+        <span class="status-chip"><span class="status-dot run"></span> Moteur prêt</span>
+        <button class="status-chip" id="view-cards">Interface classique</button>
+        <button class="button-secondary" id="theme-toggle">Thème</button>
+      </div>
+    </header>
+  </div>
+
+  <div class="chat-layout">
+    <!-- Sidebar -->
+    <aside class="sidebar">
+      <div>
+        <h4>Essayez de demander</h4>
+        <button class="suggestion" data-prompt="Génère le rapport de ventes.">
+          <div class="title">📊 Rapport de ventes</div>
+          <div class="desc">L'assistant analyse les ventes et produit un rapport</div>
+        </button>
+        <button class="suggestion" data-prompt="Quel temps fait-il aujourd'hui ?">
+          <div class="title">🌤️ Météo France</div>
+          <div class="desc">La météo de 6 villes, dans une page</div>
+        </button>
+        <button class="suggestion" data-prompt="Fais la synthèse de ma réunion.">
+          <div class="title">📝 Synthèse de réunion</div>
+          <div class="desc">Décisions, actions, responsables, fichier Excel</div>
+        </button>
+      </div>
+      <div>
+        <h4>Récent</h4>
+        <div class="history-item"><span class="dot"></span> Rapport de ventes</div>
+        <div class="history-item"><span class="dot"></span> Météo France</div>
+        <div class="history-item"><span class="dot"></span> Synthèse de réunion</div>
+      </div>
+    </aside>
+
+    <!-- Chat -->
+    <main class="chat">
+      <div class="messages" id="messages">
+        <div class="welcome" id="welcome">
+          <h2>👋 Bonjour Alex, que souhaitez-vous faire ?</h2>
+          <p>Décrivez simplement ce que vous voulez, en toutes lettres. FlowPortal s'occupe du reste — aucune connaissance technique requise.</p>
+          <div class="chips">
+            <button class="chip" data-prompt="Génère le rapport de ventes.">📊 Rapport de ventes</button>
+            <button class="chip" data-prompt="Quel temps fait-il aujourd'hui ?">🌤️ Météo France</button>
+            <button class="chip" data-prompt="Fais la synthèse de ma réunion.">📝 Synthèse de réunion</button>
+          </div>
+        </div>
+      </div>
+
+      <div class="input-area">
+        <div class="input-box">
+          <button class="icon-btn" title="Joindre">📎</button>
+          <textarea id="input" rows="1" placeholder="Décrivez ce que vous voulez faire… (ex. « Génère le rapport de ventes »)"></textarea>
+          <button class="icon-btn" title="Dicter">🎙</button>
+          <button class="send-btn" id="send" title="Envoyer">➤</button>
+        </div>
+        <div class="hint">FlowPortal exécute les tâches pour vous — vous pouvez toujours tout revoir dans la vue Cartes.</div>
+      </div>
+    </main>
+  </div>
+
+<script>
+  const messagesEl = document.getElementById('messages');
+  const inputEl = document.getElementById('input');
+  const sendBtn = document.getElementById('send');
+  const welcomeEl = document.getElementById('welcome');
+
+  // ===== Vue : 'simple' (non-technique) ou 'dev' (développeur) =====
+  let view = 'simple';
+
+  // Bascule de vue dans le header
+  const viewBtn = document.createElement('button');
+  viewBtn.className = 'button-secondary';
+  viewBtn.id = 'view-toggle';
+  viewBtn.textContent = 'Vue développeur';
+  document.querySelector('.status-chips').insertBefore(viewBtn, document.getElementById('view-cards'));
+  viewBtn.addEventListener('click', () => {
+    view = view === 'simple' ? 'dev' : 'simple';
+    viewBtn.textContent = view === 'simple' ? 'Vue développeur' : 'Vue simple';
+    document.getElementById('tagline').textContent = view === 'simple'
+      ? 'Posez votre demande en langage clair. FlowPortal s\'occupe du reste.'
+      : 'Posez votre demande en langage clair. FlowPortal s\'occupe du reste. (vue technique)';
+  });
+
+  // Thème
+  document.getElementById('theme-toggle').addEventListener('click', () => {
+    const root = document.documentElement;
+    root.setAttribute('data-theme', root.getAttribute('data-theme') === 'dark' ? 'light' : 'dark');
+  });
+
+  inputEl.addEventListener('input', () => {
+    inputEl.style.height = 'auto';
+    inputEl.style.height = Math.min(inputEl.scrollHeight, 120) + 'px';
+  });
+
+  function scrollBottom() { messagesEl.scrollTop = messagesEl.scrollHeight; }
+  function addMsg(role, html) {
+    const div = document.createElement('div');
+    div.className = 'msg ' + role;
+    const who = role === 'user' ? '' : '<div class="who">FlowPortal</div>';
+    div.innerHTML = who + '<div class="bubble">' + html + '</div>';
+    messagesEl.appendChild(div);
+    scrollBottom();
+    return div;
+  }
+  function addTyping() {
+    const div = document.createElement('div');
+    div.className = 'msg bot'; div.id = 'typing';
+    div.innerHTML = '<div class="who">FlowPortal</div><div class="bubble"><span class="typing"><i></i><i></i><i></i></span></div>';
+    messagesEl.appendChild(div); scrollBottom(); return div;
+  }
+  function removeTyping() { const t = document.getElementById('typing'); if (t) t.remove(); }
+  function think(ms) { return new Promise(r => setTimeout(r, ms)); }
+
+  // ===== Données des workflows (extraits des YAML réels) =====
+  const workflows = {
+    'sales-report-pipeline': {
+      name: 'sales-report-pipeline',
+      friendly: 'Votre rapport de ventes',
+      desc: 'Écrit un CSV, CSAgent l\'analyse et produit un rapport markdown, puis l\'affiche.',
+      friendlyDesc: 'Rassemble les ventes de la semaine et rédige un résumé clair.',
+      steps: [
+        { id: 'create_data', type: 'file_write', desc: 'Création des données', friendly: '📥 Récupération des données de ventes' },
+        { id: 'analyze', type: 'agent', desc: 'Analyse par CSAgent', friendly: '🤖 Rédaction du résumé par l\'assistant' },
+        { id: 'read_report', type: 'file_read', desc: 'Lecture du rapport', friendly: '📖 Relecture du rapport' },
+        { id: 'line_count', type: 'python', desc: 'Comptage des lignes', friendly: '🧮 Vérification du contenu' },
+        { id: 'print_report', type: 'log', desc: 'Affichage du rapport', friendly: '📄 Affichage du rapport' }
+      ]
+    },
+    'weather': {
+      name: 'weather',
+      friendly: 'La météo de vos villes',
+      desc: 'Récupère la météo de 6 villes, génère une page HTML combinée et l\'ouvre dans le navigateur.',
+      friendlyDesc: 'Récupère la météo de 6 villes et ouvre une page claire dans votre navigateur.',
+      steps: [
+        { id: 'fetch_paris', type: 'http_get', desc: 'Météo Paris', friendly: '🌤️ Météo de Paris' },
+        { id: 'fetch_cuvergnon', type: 'http_get', desc: 'Météo Cuvergnon', friendly: '🌤️ Météo de Cuvergnon' },
+        { id: 'fetch_bordeaux', type: 'http_get', desc: 'Météo Bordeaux', friendly: '🌤️ Météo de Bordeaux' },
+        { id: 'fetch_lyon', type: 'http_get', desc: 'Météo Lyon', friendly: '🌤️ Météo de Lyon' },
+        { id: 'fetch_lille', type: 'http_get', desc: 'Météo Lille', friendly: '🌤️ Météo de Lille' },
+        { id: 'fetch_marseille', type: 'http_get', desc: 'Météo Marseille', friendly: '🌤️ Météo de Marseille' },
+        { id: 'write_script', type: 'file_write', desc: 'Écriture du script HTML', friendly: '🛠️ Préparation de la page' },
+        { id: 'generate_html', type: 'python', desc: 'Génération de la page HTML', friendly: '🎨 Création de la page météo' },
+        { id: 'open_html', type: 'python', desc: 'Ouverture dans le navigateur', friendly: '🌐 Ouverture dans le navigateur' },
+        { id: 'done', type: 'log', desc: 'Fin', friendly: '✅ Terminé' }
+      ]
+    },
+    'meeting-digest': {
+      name: 'meeting-digest',
+      friendly: 'La synthèse de votre réunion',
+      desc: 'Synthèse de réunion : transcription, structuration par CSAgent, validation humaine, export Excel et Markdown, rapport HTML.',
+      friendlyDesc: 'Transforme votre réunion en décisions et actions claires, puis en fichier Excel.',
+      steps: [
+        { id: 'preparer', type: 'python', desc: 'Préparation de la transcription', friendly: '📝 Lecture de la transcription' },
+        { id: 'structurer', type: 'agent', desc: 'Synthèse, décisions et actions (CSAgent)', friendly: '🤖 Rédaction de la synthèse par l\'assistant' },
+        { id: 'valider', type: 'human_approval', desc: 'Validation de la structuration', friendly: '👤 Votre validation' },
+        { id: 'exporter', type: 'python', desc: 'Export Excel (XLSX) et Markdown', friendly: '📊 Création du fichier Excel' },
+        { id: 'rapport', type: 'python', desc: 'Rapport de synthèse', friendly: '📄 Préparation du résumé' },
+        { id: 'ouvrir', type: 'python', desc: 'Ouverture du rapport', friendly: '🌐 Ouverture du résumé' },
+        { id: 'fin', type: 'log', desc: 'Fin', friendly: '✅ Terminé' }
+      ]
+    }
+  };
+
+  // ===== Rendu carte développeur =====
+  function wfCardDev(wf, status, meta, stepStates, actionsHtml) {
+    const timeline = wf.steps.map(s => '<span class="step-dot ' + s.type + '"></span>').join('<span class="step-connector"></span>');
+    const list = wf.steps.map((s, i) => {
+      const st = stepStates[i] || '';
+      const icon = st === 'ok' ? '✓' : st === 'err' ? '✕' : st === 'run' ? '●' : st === 'wait' ? '◔' : '○';
+      return '<li class="' + st + '"><span class="step-icon">' + icon + '</span><div>' + s.desc + '<small>' + s.id + ' · ' + s.type + '</small></div><span class="step-type">' + s.type + '</span></li>';
+    }).join('');
+    return '<div class="wf-card"><div class="wf-head"><span class="wf-name">' + wf.name + '</span><span class="run-status-badge ' + status.cls + '">' + status.label + '</span></div>' +
+      '<div class="wf-desc">' + wf.desc + '</div><div class="step-timeline">' + timeline + '</div><ol class="step-list">' + list + '</ol>' +
+      (meta ? '<div class="meta">' + meta + '</div>' : '') +
+      (actionsHtml ? '<div class="actions">' + actionsHtml + '</div>' : '') + '</div>';
+  }
+
+  // ===== Rendu carte simple (non-technique) =====
+  function wfCardSimple(wf, status, meta, stepStates, actionsHtml) {
+    const total = wf.steps.length;
+    const doneCount = stepStates.filter(s => s === 'ok').length;
+    const pct = Math.round(doneCount / total * 100);
+    const statusLabel = status.label;
+    const statusCls = status.cls === 'ok' ? 'ok' : status.cls === 'error' ? 'error' : status.cls === 'wait' ? 'wait' : 'running';
+
+    const steps = wf.steps.map((s, i) => {
+      const st = stepStates[i] || '';
+      let cls = 'pending', ico = s.friendly.split(' ')[0], check = '';
+      if (st === 'ok') { cls = 'done'; check = '<span class="sc-check">✓</span>'; }
+      else if (st === 'run') { cls = 'active'; }
+      else if (st === 'wait') { cls = 'active'; }
+      return '<div class="sc-step ' + cls + '"><span class="sc-ico">' + ico + '</span><span>' + s.friendly.replace(/^[^\s]+\s/, '') + '</span>' + check + '</div>';
+    }).join('');
+
+    return '<div class="simple-card">' +
+      '<div class="sc-head"><span class="sc-title">' + wf.friendly + '</span><span class="sc-status ' + statusCls + '">' + statusLabel + '</span></div>' +
+      '<div class="sc-progress"><div class="sc-bar"><div class="fill" style="width:' + pct + '%"></div></div><span class="sc-count">' + doneCount + '/' + total + '</span></div>' +
+      '<div class="sc-steps">' + steps + '</div>' +
+      (meta ? '<div class="meta" style="font-size:12px;color:var(--mute)">' + meta + '</div>' : '') +
+      (actionsHtml ? '<div class="sc-actions">' + actionsHtml + '</div>' : '') +
+      '</div>';
+  }
+
+  // ===== Rendu selon la vue =====
+  function wfCard(wf, status, meta, stepStates, actionsHtml) {
+    return view === 'simple'
+      ? wfCardSimple(wf, status, meta, stepStates, actionsHtml)
+      : wfCardDev(wf, status, meta, stepStates, actionsHtml);
+  }
+
+  // ===== Scénarios =====
+  const scenarios = {
+    'rapport': {
+      match: /rapport|vente|sales/i,
+      run: async () => {
+        addMsg('user', 'Génère le rapport de ventes.');
+        addTyping(); await think(900); removeTyping();
+        const wf = workflows['sales-report-pipeline'];
+        addMsg('bot',
+          (view === 'simple'
+            ? 'Bien sûr ! Je vais préparer <strong>votre rapport de ventes</strong>. Voici ce que je fais :'
+            : 'J\'ai trouvé le workflow <strong>« sales-report-pipeline »</strong>. Voici ce qu\'il va faire :') +
+          wfCard(wf, { cls: 'running', label: 'En cours' },
+            view === 'simple' ? 'Étape 2 sur 5 · Rédaction du résumé…' : 'Lancé à l\'instant · Étape 2 sur 5 · Analyse par CSAgent…',
+            ['ok', 'run', '', '', ''],
+            '<button class="button-primary is-ghost" onclick="window.__stop(this)">⏹ Arrêter</button>' +
+            '<button class="button-primary is-ghost" onclick="window.__details(this)">📄 Détails</button>')
+        );
+        await think(2800);
+        const cards = document.querySelectorAll(view === 'simple' ? '.simple-card' : '.wf-card');
+        const last = cards[cards.length - 1];
+        if (last) {
+          if (view === 'simple') {
+            last.querySelector('.sc-status').outerHTML = '<span class="sc-status ok">Terminé</span>';
+            last.querySelector('.sc-bar .fill').style.width = '100%';
+            last.querySelector('.sc-count').textContent = '5/5';
+            last.querySelectorAll('.sc-step').forEach(el => { el.classList.remove('active','pending'); el.classList.add('done'); if (!el.querySelector('.sc-check')) el.insertAdjacentHTML('beforeend','<span class="sc-check">✓</span>'); });
+            last.querySelector('.meta').textContent = 'Terminé en 42 s · Votre rapport est prêt';
+            last.querySelector('.sc-actions').innerHTML = '<button class="button-primary" onclick="window.__result(this)">📄 Voir le rapport</button><button class="button-primary is-ghost" onclick="window.__rerun(this)">🔁 Recommencer</button>';
+          } else {
+            last.querySelector('.run-status-badge').outerHTML = '<span class="run-status-badge ok">Terminé</span>';
+            last.querySelector('.meta').textContent = 'Terminé en 42 s · Rapport prêt → tmp/report.md';
+            last.querySelector('.step-list').innerHTML =
+              '<li class="ok"><span class="step-icon">✓</span><div>Création des données<small>create_data · file_write</small></div><span class="step-type">Écriture</span></li>' +
+              '<li class="ok"><span class="step-icon">✓</span><div>Analyse par CSAgent<small>analyze · agent</small></div><span class="step-type">CSAgent</span></li>' +
+              '<li class="ok"><span class="step-icon">✓</span><div>Lecture du rapport<small>read_report · file_read</small></div><span class="step-type">Lecture</span></li>' +
+              '<li class="ok"><span class="step-icon">✓</span><div>Comptage des lignes<small>line_count · python</small></div><span class="step-type">Python</span></li>' +
+              '<li class="ok"><span class="step-icon">✓</span><div>Affichage du rapport<small>print_report · log</small></div><span class="step-type">Journal</span></li>';
+            last.querySelector('.actions').innerHTML = '<button class="button-primary" onclick="window.__result(this)">📄 Voir le résultat</button><button class="button-primary is-ghost" onclick="window.__rerun(this)">🔁 Relancer</button>';
+          }
+          addMsg('bot', view === 'simple'
+            ? 'C\'est fait ✅ Votre rapport de ventes est prêt. Voulez-vous que je l\'envoie aussi par e-mail la prochaine fois ?'
+            : 'C\'est fait ✅ Le rapport de ventes a été généré. Voulez-vous que je l\'envoie aussi par e-mail la prochaine fois ?');
+        }
+      }
+    },
+    'meteo': {
+      match: /météo|meteo|temps|weather/i,
+      run: async () => {
+        addMsg('user', 'Quel temps fait-il aujourd\'hui ?');
+        addTyping(); await think(1000); removeTyping();
+        const wf = workflows['weather'];
+        addMsg('bot',
+          (view === 'simple'
+            ? 'Je m\'en occupe ! Je récupère la météo de vos 6 villes :'
+            : 'J\'ai trouvé le workflow <strong>« weather »</strong>. Voici son déroulement :') +
+          wfCard(wf, { cls: 'running', label: 'En cours' },
+            view === 'simple' ? 'Étape 3 sur 10 · Météo de Bordeaux…' : 'Lancé à l\'instant · Étape 3 sur 10 · Récupération météo Bordeaux…',
+            ['ok', 'ok', 'run', '', '', '', '', '', '', ''],
+            '<button class="button-primary is-ghost" onclick="window.__stop(this)">⏹ Arrêter</button>' +
+            '<button class="button-primary is-ghost" onclick="window.__details(this)">📄 Détails</button>')
+        );
+        await think(3200);
+        const cards = document.querySelectorAll(view === 'simple' ? '.simple-card' : '.wf-card');
+        const last = cards[cards.length - 1];
+        if (last) {
+          if (view === 'simple') {
+            last.querySelector('.sc-status').outerHTML = '<span class="sc-status ok">Terminé</span>';
+            last.querySelector('.sc-bar .fill').style.width = '100%';
+            last.querySelector('.sc-count').textContent = '10/10';
+            last.querySelectorAll('.sc-step').forEach(el => { el.classList.remove('active','pending'); el.classList.add('done'); if (!el.querySelector('.sc-check')) el.insertAdjacentHTML('beforeend','<span class="sc-check">✓</span>'); });
+            last.querySelector('.meta').textContent = 'Terminé en 1 min 12 s · La page météo s\'est ouverte';
+            last.querySelector('.sc-actions').innerHTML = '<button class="button-primary" onclick="window.__result(this)">📄 Voir la page</button><button class="button-primary is-ghost" onclick="window.__rerun(this)">🔁 Recommencer</button>';
+          } else {
+            last.querySelector('.run-status-badge').outerHTML = '<span class="run-status-badge ok">Terminé</span>';
+            last.querySelector('.meta').textContent = 'Terminé en 1 min 12 s · tmp/weather_paris_cuvergnon.html';
+            last.querySelector('.step-list').innerHTML =
+              '<li class="ok"><span class="step-icon">✓</span><div>Météo Paris<small>fetch_paris · http_get</small></div><span class="step-type">HTTP</span></li>' +
+              '<li class="ok"><span class="step-icon">✓</span><div>Météo Cuvergnon<small>fetch_cuvergnon · http_get</small></div><span class="step-type">HTTP</span></li>' +
+              '<li class="ok"><span class="step-icon">✓</span><div>Météo Bordeaux<small>fetch_bordeaux · http_get</small></div><span class="step-type">HTTP</span></li>' +
+              '<li class="ok"><span class="step-icon">✓</span><div>Météo Lyon<small>fetch_lyon · http_get</small></div><span class="step-type">HTTP</span></li>' +
+              '<li class="ok"><span class="step-icon">✓</span><div>Météo Lille<small>fetch_lille · http_get</small></div><span class="step-type">HTTP</span></li>' +
+              '<li class="ok"><span class="step-icon">✓</span><div>Météo Marseille<small>fetch_marseille · http_get</small></div><span class="step-type">HTTP</span></li>' +
+              '<li class="ok"><span class="step-icon">✓</span><div>Écriture du script HTML<small>write_script · file_write</small></div><span class="step-type">Écriture</span></li>' +
+              '<li class="ok"><span class="step-icon">✓</span><div>Génération de la page HTML<small>generate_html · python</small></div><span class="step-type">Python</span></li>' +
+              '<li class="ok"><span class="step-icon">✓</span><div>Ouverture dans le navigateur<small>open_html · python</small></div><span class="step-type">Python</span></li>' +
+              '<li class="ok"><span class="step-icon">✓</span><div>Fin<small>done · log</small></div><span class="step-type">Journal</span></li>';
+            last.querySelector('.actions').innerHTML = '<button class="button-primary" onclick="window.__result(this)">📄 Voir le résultat</button><button class="button-primary is-ghost" onclick="window.__rerun(this)">🔁 Relancer</button>';
+          }
+          addMsg('bot', view === 'simple' ? 'La page météo de vos 6 villes s\'est ouverte dans votre navigateur. 🌤️' : 'La page météo des 6 villes s\'est ouverte dans votre navigateur. 🌤️');
+        }
+      }
+    },
+    'reunion': {
+      match: /r[ée]union|synth[èe]se|digest|meeting/i,
+      run: async () => {
+        addMsg('user', 'Fais la synthèse de ma réunion.');
+        addTyping(); await think(1100); removeTyping();
+        const wf = workflows['meeting-digest'];
+        addMsg('bot',
+          (view === 'simple'
+            ? 'Avec plaisir ! Je transforme votre réunion en décisions et actions claires. Voici ce que je fais :'
+            : 'J\'ai trouvé le workflow <strong>« meeting-digest »</strong>. Voici son déroulement :') +
+          wfCard(wf, { cls: 'running', label: 'En cours' },
+            view === 'simple' ? 'Étape 2 sur 7 · Rédaction de la synthèse…' : 'Lancé à l\'instant · Étape 2 sur 7 · Structuration par CSAgent…',
+            ['ok', 'run', '', '', '', '', ''],
+            '<button class="button-primary is-ghost" onclick="window.__stop(this)">⏹ Arrêter</button>' +
+            '<button class="button-primary is-ghost" onclick="window.__details(this)">📄 Détails</button>')
+        );
+        await think(2600);
+        const cards = document.querySelectorAll(view === 'simple' ? '.simple-card' : '.wf-card');
+        const last = cards[cards.length - 1];
+        if (last) {
+          if (view === 'simple') {
+            last.querySelector('.sc-status').outerHTML = '<span class="sc-status wait">En attente</span>';
+            last.querySelector('.meta').textContent = 'Étape 3 sur 7 · En attente de votre validation';
+            const steps = last.querySelectorAll('.sc-step');
+            steps[0].classList.add('done'); steps[0].insertAdjacentHTML('beforeend','<span class="sc-check">✓</span>');
+            steps[1].classList.add('done'); steps[1].insertAdjacentHTML('beforeend','<span class="sc-check">✓</span>');
+            steps[2].classList.add('active');
+          } else {
+            last.querySelector('.run-status-badge').outerHTML = '<span class="run-status-badge wait">En attente</span>';
+            last.querySelector('.meta').textContent = 'Étape 3 sur 7 · En attente de votre validation';
+            last.querySelector('.step-list').innerHTML =
+              '<li class="ok"><span class="step-icon">✓</span><div>Préparation de la transcription<small>preparer · python</small></div><span class="step-type">Python</span></li>' +
+              '<li class="ok"><span class="step-icon">✓</span><div>Synthèse, décisions et actions (CSAgent)<small>structurer · agent</small></div><span class="step-type">CSAgent</span></li>' +
+              '<li class="wait"><span class="step-icon">◔</span><div>Validation de la structuration<small>valider · human_approval</small></div><span class="step-type">Validation</span></li>' +
+              '<li><span class="step-icon">○</span><div>Export Excel (XLSX) et Markdown<small>exporter · python</small></div><span class="step-type">Python</span></li>' +
+              '<li><span class="step-icon">○</span><div>Rapport de synthèse<small>rapport · python</small></div><span class="step-type">Python</span></li>' +
+              '<li><span class="step-icon">○</span><div>Ouverture du rapport<small>ouvrir · python</small></div><span class="step-type">Python</span></li>' +
+              '<li><span class="step-icon">○</span><div>Fin<small>fin · log</small></div><span class="step-type">Journal</span></li>';
+          }
+        }
+        addMsg('bot',
+          (view === 'simple'
+            ? 'Votre synthèse est prête. Avant de créer le fichier Excel, j\'ai besoin de votre <strong>validation</strong> :'
+            : 'La structuration est prête. Avant d\'exporter, j\'ai besoin de votre <strong>validation</strong> :') +
+          '<div class="decision-gate">' +
+            '<div class="gate-title">⚠️ Votre validation est demandée</div>' +
+            '<div class="gate-desc">Vérifiez la synthèse avant de créer le fichier Excel.</div>' +
+            '<div class="kv">' +
+              '<div><b>Synthèse :</b> Le projet retient le plan A pour la livraison du module de paie.</div>' +
+              '<div><b>Décisions :</b> Bascule du staging en production le 15.</div>' +
+              '<div><b>Actions :</b> Corriger le bug de saisie (Karim, 30) · Préparer la note de version (QA, 20).</div>' +
+            '</div>' +
+            '<div class="button-row"><button class="button-primary" onclick="window.__approve(this)">✓ Approuver et créer le fichier</button><button class="button-primary is-danger" onclick="window.__reject(this)">✕ Refuser</button></div>' +
+          '</div>'
+        );
+      }
+    }
+  };
+
+  // ===== Boutons globaux =====
+  window.__stop = (btn) => {
+    const card = btn.closest(view === 'simple' ? '.simple-card' : '.wf-card');
+    if (view === 'simple') {
+      card.querySelector('.sc-status').outerHTML = '<span class="sc-status error">Arrêté</span>';
+      card.querySelector('.meta').textContent = 'Arrêté';
+      btn.closest('.sc-actions').innerHTML = '<button class="button-primary is-ghost" onclick="window.__rerun(this)">🔁 Recommencer</button>';
+    } else {
+      card.querySelector('.run-status-badge').outerHTML = '<span class="run-status-badge error">Arrêté</span>';
+      card.querySelector('.meta').textContent = 'Arrêté par l\'utilisateur';
+      btn.closest('.actions').innerHTML = '<button class="button-primary is-ghost" onclick="window.__rerun(this)">🔁 Relancer</button>';
+    }
+  };
+  window.__details = (btn) => { addMsg('bot', view === 'simple' ? 'Voici le détail de la tâche en cours. Vous pouvez suivre chaque étape en direct.' : 'Voici le détail du workflow en cours d\'exécution.'); };
+  window.__result = (btn) => { addMsg('bot', view === 'simple' ? '📄 <strong>Résultat</strong><br>La tâche s\'est terminée avec succès. Le résultat est enregistré.' : '📄 <strong>Résultat</strong><br>Le workflow s\'est terminé avec succès.'); };
+  window.__rerun = (btn) => { addMsg('bot', view === 'simple' ? '🔁 Je recommence…' : '🔁 Je relance ce workflow…'); };
+  window.__approve = (btn) => {
+    const gate = btn.closest('.decision-gate');
+    gate.innerHTML = '<div class="gate-title" style="color:var(--ok)">✓ Validé et créé</div><div class="gate-desc">Le fichier Excel et le résumé ont été générés, le rapport s\'ouvre dans le navigateur.</div>';
+    const cards = document.querySelectorAll(view === 'simple' ? '.simple-card' : '.wf-card');
+    const last = cards[cards.length - 1];
+    if (last) {
+      if (view === 'simple') {
+        last.querySelector('.sc-status').outerHTML = '<span class="sc-status ok">Terminé</span>';
+        last.querySelector('.sc-bar .fill').style.width = '100%';
+        last.querySelector('.sc-count').textContent = '7/7';
+        last.querySelector('.meta').textContent = 'Terminé · Fichier Excel et résumé prêts';
+        last.querySelectorAll('.sc-step').forEach(el => { el.classList.remove('active','pending'); el.classList.add('done'); if (!el.querySelector('.sc-check')) el.insertAdjacentHTML('beforeend','<span class="sc-check">✓</span>'); });
+      } else {
+        last.querySelector('.run-status-badge').outerHTML = '<span class="run-status-badge ok">Terminé</span>';
+        last.querySelector('.meta').textContent = 'Terminé · Export : tmp/reunion/export/reunion.xlsx + recap.md';
+        last.querySelector('.step-list').innerHTML =
+          '<li class="ok"><span class="step-icon">✓</span><div>Préparation de la transcription<small>preparer · python</small></div><span class="step-type">Python</span></li>' +
+          '<li class="ok"><span class="step-icon">✓</span><div>Synthèse, décisions et actions (CSAgent)<small>structurer · agent</small></div><span class="step-type">CSAgent</span></li>' +
+          '<li class="ok"><span class="step-icon">✓</span><div>Validation de la structuration<small>valider · human_approval</small></div><span class="step-type">Validation</span></li>' +
+          '<li class="ok"><span class="step-icon">✓</span><div>Export Excel (XLSX) et Markdown<small>exporter · python</small></div><span class="step-type">Python</span></li>' +
+          '<li class="ok"><span class="step-icon">✓</span><div>Rapport de synthèse<small>rapport · python</small></div><span class="step-type">Python</span></li>' +
+          '<li class="ok"><span class="step-icon">✓</span><div>Ouverture du rapport<small>ouvrir · python</small></div><span class="step-type">Python</span></li>' +
+          '<li class="ok"><span class="step-icon">✓</span><div>Fin<small>fin · log</small></div><span class="step-type">Journal</span></li>';
+      }
+    }
+    addMsg('bot', view === 'simple' ? 'Parfait, votre synthèse a été <strong>validée</strong> ✅ Le fichier Excel et le résumé sont prêts.' : 'Parfait, la synthèse a été <strong>validée et exportée</strong> ✅');
+  };
+  window.__reject = (btn) => {
+    const gate = btn.closest('.decision-gate');
+    gate.innerHTML = '<div class="gate-title" style="color:var(--bad)">✕ Refusé</div><div class="gate-desc">Aucun fichier créé. Dites-moi ce que vous souhaitez modifier.</div>';
+    addMsg('bot', 'Compris, je n\'ai rien créé. Dites-moi ce que vous voulez changer dans la synthèse.');
+  };
+
+  // ===== Envoi =====
+  function handleSend() {
+    const text = inputEl.value.trim();
+    if (!text) return;
+    inputEl.value = ''; inputEl.style.height = 'auto';
+    welcomeEl.classList.add('hidden');
+    let matched = null;
+    for (const key in scenarios) { if (scenarios[key].match.test(text)) { matched = scenarios[key]; break; } }
+    if (matched) { matched.run(); return; }
+    addMsg('user', text);
+    addTyping();
+    setTimeout(() => {
+      removeTyping();
+      addMsg('bot', view === 'simple'
+        ? 'Je n\'ai pas encore de tâche qui correspond exactement à « <strong>' + text + '</strong> ». Dites-moi simplement ce que vous voulez obtenir, et je m\'en occupe.'
+        : 'Je n\'ai pas encore de workflow qui correspond exactement à « <strong>' + text + '</strong> ». Voulez-vous que je vous en <strong>crée un</strong> ?');
+    }, 900);
+  }
+
+  sendBtn.addEventListener('click', handleSend);
+  inputEl.addEventListener('keydown', (e) => { if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); handleSend(); } });
+  document.querySelectorAll('[data-prompt]').forEach(el => {
+    el.addEventListener('click', () => { inputEl.value = el.getAttribute('data-prompt'); handleSend(); });
+  });
+</script>
+</body>
+</html>

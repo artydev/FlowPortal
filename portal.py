@@ -29,6 +29,7 @@ from pathlib import Path
 import yaml
 
 import schema
+from friendly import friendly_title, step_kind
 
 _VAR = re.compile(r"\$\{([A-Za-z_][A-Za-z0-9_]*)\}")
 _SECRET_NAME = re.compile(r"KEY|TOKEN|SECRET|PASSWORD|PASSWD|PWD", re.I)
@@ -495,8 +496,11 @@ class Portal:
             "name": str(wf.get("name") or path.stem), "title": title_of(wf.get("name") or path.stem),
             "summary": summary_of(wf.get("description")), "description": str(wf.get("description") or "").strip(),
             "inputs": {str(k): "" if v is None else str(v) for k, v in inputs.items()},
+            "friendly_title": friendly_title(wf.get("name") or path.stem),
             "steps": [{"id": str(s.get("id", f"step_{i + 1}")), "type": str(s.get("type", "unknown")),
-                       "label": str(s.get("description") or s.get("id") or f"step_{i + 1}")}
+                       "label": str(s.get("description") or s.get("id") or f"step_{i + 1}"),
+                       "friendly": str(s.get("description") or step_kind(str(s.get("type", ""))) ["kind"]),
+                       **step_kind(str(s.get("type", "unknown")))}
                       for i, s in enumerate(steps)],
             "tags": {"agent": "agent" in types, "human": "human_approval" in types or "user_input" in types,
                      "mcp": any(t in _MCP_TYPES for t in types)},

@@ -22,6 +22,8 @@ from pathlib import Path
 
 import yaml
 
+from friendly import friendly_problem, friendly_title, step_kind
+
 MAX_INSTRUCTION = 3000        # caractères : la demande voyage dans l'adresse d'appel de CSAgent
 MAX_DRAFT = 200_000           # octets : taille maximale d'un brouillon relu
 DEFAULT_FIXES = 2
@@ -95,32 +97,15 @@ def _step_starts(text: str) -> list:
     return []
 
 
-# Vue « simple » : icône et verbe par type d'étape (le chat ne montre ni les types ni les identifiants).
-STEP_KINDS = {
-    "agent": ("🤖", "Réfléchit (IA)"), "file_write": ("💾", "Enregistre un fichier"), "file_read": ("📖", "Lit un fichier"),
-    "python": ("🧮", "Calcule"), "shell": ("⚙️", "Lance un programme"), "http_get": ("🌐", "Récupère une page web"),
-    "http_post": ("📤", "Envoie des données"), "http_put": ("📤", "Envoie des données"),
-    "http_delete": ("🗑️", "Supprime à distance"), "human_approval": ("👤", "Vous demande de valider"),
-    "user_input": ("✍️", "Vous pose une question"), "mcp_call": ("🔌", "Utilise un outil"),
-    "mcp_tools": ("🔌", "Utilise un outil"), "log": ("📄", "Note un message"), "end": ("✅", "Fin"),
-    "transform": ("🔄", "Met en forme"),
-}
-
-
-def step_kind(step_type: str) -> dict:
-    """{"icon", "kind"} d'un type d'étape ; un type inconnu reste lisible."""
-    icon, kind = STEP_KINDS.get(step_type, ("▫️", "Étape"))
-    return {"icon": icon, "kind": kind}
-
-
 def describe_workflow(text: str, issues: list = None):
     """Le workflow résumé pour l'interface, ou None si le YAML est illisible ou sans étapes.
 
-        {"name", "description", "branches": bool,
-         "steps": [{"index", "id", "type", "title", "icon", "kind", "conditional", "autonomous",
-                    "problems": [{"level", "message"}]}]}
+        {"name", "title", "description", "branches": bool,
+         "steps": [{"index", "id", "type", "title", "label", "icon", "kind", "conditional", "autonomous",
+                    "problems": [{"level", "message", "friendly"}]}]}
 
-    title : « description » de l'étape, sinon son id. conditional : l'étape a un `skip_if`. autonomous : étape
+    title (étape) : « description », sinon l'id. label : « description », sinon le verbe du type (vue simple).
+    friendly : le message de validation en langage courant (None : à ne pas montrer). title (workflow) : nom lisible. conditional : l'étape a un `skip_if`. autonomous : étape
     `agent` en `auto_confirm: true` (CSAgent agit sans demander confirmation). branches : au moins une étape
     utilise next / on_approve / on_reject, donc l'ordre du fichier n'est pas forcément l'ordre d'exécution.
     problems : les lignes de `issues` (format de `check_yaml`) situées dans le texte de l'étape.
@@ -134,18 +119,23 @@ def describe_workflow(text: str, issues: list = None):
         sid = _step_id(step, pos)
         lo = starts[pos] if pos < len(starts) else None
         hi = starts[pos + 1] - 1 if pos + 1 < len(starts) else float("inf")
+        kind = step_kind(str(step.get("type") or ""))
+        title = _step_title(step, sid)
+        label = title if title != sid else kind["kind"]            # sans description : le verbe du type, jamais l'identifiant
+        found = [i for i in issues if lo is not None and i.get("line") and lo <= i["line"] <= hi]
         steps.append({
             "index": pos,
             "id": sid,
             "type": str(step.get("type") or ""),
-            "title": _step_title(step, sid),
-            **step_kind(str(step.get("type") or "")),
+            "title": title,
+            "label": label,
+            **kind,
             "conditional": bool(step.get("skip_if")),
             "autonomous": step.get("type") == "agent" and bool(step.get("auto_confirm")),
-            "problems": [{"level": i["level"], "message": i["message"]} for i in issues
-                         if lo is not None and i.get("line") and lo <= i["line"] <= hi],
+            "problems": [{"level": i["level"], "message": i["message"],
+                          "friendly": friendly_problem(i["message"], label)} for i in found],
         })
-    return {"name": str(wf.get("name") or ""), "description": str(wf.get("description") or ""),
+    return {"name": str(wf.get("name") or ""), "title": friendly_title(wf.get("name") or ""), "description": str(wf.get("description") or ""),
             "branches": any(k in s for _, s in items for k in _FLOW_KEYS), "steps": steps}
 
 
@@ -173,7 +163,9 @@ def step_changes(old: str, new: str):
 
 
 # Consigne de langue : quelques mots dans le prompt suffisent (aucun appel de traduction supplémentaire).
-FRENCH = "Réponds toujours en français, y compris tes commentaires de progression. "
+FRENCH = ("Réponds toujours en français, y compris tes commentaires de progression. "
+          "Donne à chaque étape une « description » courte et claire, en français, qui dit ce qu'elle fait "
+          "(par exemple « Rédaction du résumé »), et un « name » du workflow lisible. ")
 
 
 def build_prompt(rel_path: str, instruction: str) -> str:

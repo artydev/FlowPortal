@@ -207,6 +207,35 @@ class RunTests(Base):
         self.assertIs(agent.calls[0]["_wait_approval"], wa)
 
 
+class FriendlyTests(Base):
+    def test_step_label_falls_back_to_kind_never_to_id(self):
+        view = assist.describe_workflow("name: x-y_z\nsteps:\n  - id: fin\n    type: end\n  - id: a\n    type: agent\n    description: Rédiger\n")
+        self.assertEqual([s["label"] for s in view["steps"]], ["Fin", "Rédiger"])
+        self.assertEqual(view["title"], "X y z")
+
+    def test_problems_are_translated(self):
+        import friendly
+        self.assertIn("il manque le fichier", friendly.friendly_problem("étape « a » (file_write) : paramètre obligatoire « path » manquant", "Archiver"))
+        self.assertIsNone(friendly.friendly_problem("étape n°2 : pas d'« id » (le moteur utilisera step_2)", "x"))
+        self.assertIn("à revoir", friendly.friendly_problem("message inconnu", "x"))
+        self.assertIn("mal écrit", friendly.friendly_problem("YAML invalide : boom"))
+
+    def test_view_problems_carry_friendly_text(self):
+        text = "name: w\nsteps:\n  - id: ecrire\n    type: file_write\n    content: x\n"
+        issues = self.portal.check_yaml(text)["issues"]
+        view = assist.describe_workflow(text, issues)
+        problems = view["steps"][0]["problems"]
+        self.assertTrue(problems and all("friendly" in p for p in problems))
+        self.assertTrue(any("il manque le fichier" in (p["friendly"] or "") for p in problems))
+
+    def test_cards_expose_icon_kind_and_friendly_title(self):
+        (self.portal.dir / "rapport-hebdo.yaml").write_text("name: rapport-hebdo\nsteps:\n  - id: a\n    type: file_write\n    path: output/x.txt\n    content: x\n", encoding="utf-8")
+        card = next(c for c in self.portal.list_cards() if c["filename"] == "rapport-hebdo.yaml")
+        self.assertEqual(card["friendly_title"], "Rapport hebdo")
+        self.assertEqual((card["steps"][0]["icon"], card["steps"][0]["kind"]), ("💾", "Enregistre un fichier"))
+        self.assertEqual(card["steps"][0]["friendly"], "Enregistre un fichier")
+
+
 class LanguageTests(Base):
     def test_prompts_ask_for_french(self):
         self.assertIn("en français", assist.build_prompt("tmp/x.yaml", "ajoute une étape"))
@@ -345,7 +374,7 @@ class OutputPathWarningTests(Base):
 
     def warns(self, path):
         res = self.portal.check_yaml(self.wf(path))
-        return [i for i in res["issues"] if i["level"] == "warn" and "tmp/" in i["message"]], res
+        return [i for i in res["issues"] if i["level"] == "warn" and "racine" in i["message"]], res
 
     def test_root_path_warns_on_the_right_line(self):
         w, res = self.warns("hello.html")

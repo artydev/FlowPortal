@@ -316,6 +316,14 @@ body { display:flex; height:100vh; overflow:hidden; }
 #chat-scroll-anchor { height:1px; }
 
 
+/* ── Suggestions de l'écran d'accueil ─────────────────────────────────────── */
+.chat-suggestions { display:grid; gap:8px; margin:-4px 0 0 44px; }
+.suggestions-title { font-size:12px; color:var(--mute); }
+.suggestions-row { display:flex; flex-wrap:wrap; gap:8px; }
+.suggestion-chip { font:inherit; font-size:13px; padding:7px 14px; border:1px solid var(--line); border-radius:999px; background:var(--surface); color:var(--ink); cursor:pointer; }
+.suggestion-chip:hover { border-color:var(--accent); color:var(--accent); }
+.suggestion-chip:focus-visible { outline:2px solid var(--accent); outline-offset:2px; }
+
 /* ── Carte de suivi d'un lancement ───────────────────────────────────────── */
 .live-run-card { display:grid; gap:10px; min-width:min(420px,100%); padding:12px 14px; background:var(--surface); border:1px solid var(--line); border-radius:12px; }
 .live-run-head { display:flex; align-items:center; justify-content:space-between; gap:12px; }
@@ -369,10 +377,6 @@ body[data-view="dev"]    .simple-only { display:none !important; }
   <div class="sidebar-panel active" id="sidebar-panel-conversations">
     <button class="new-conversation-button" onclick="startNewConversation()">+ Nouvelle conversation</button>
     <div class="conversation-list" id="conversation-list">
-      <div class="section-label">Aujourd'hui</div>
-      <div class="conversation-item active">Hello World en fichier</div>
-      <div class="conversation-item">Rapport ventes CSV</div>
-      <div class="conversation-item">Envoi e-mail récap</div>
     </div>
     <div style="margin-top:auto;padding:6px 0;border-top:1px solid var(--line)">
       <div class="conversation-item" onclick="location.href='/portal.html'">⚙ Paramètres</div>
@@ -420,8 +424,8 @@ body[data-view="dev"]    .simple-only { display:none !important; }
     <div class="chat-message assistant" id="chat-welcome-message">
       <div class="chat-avatar assistant-avatar">⚡</div>
       <div class="chat-bubble">
-        Bonjour ! Je suis <strong>CSAgent</strong>.<br>
-        Décrivez votre tâche en langage naturel, ou choisissez un workflow existant dans la colonne de gauche.
+        Bonjour ! Que souhaitez-vous faire ?<br>
+        Décrivez-le avec vos mots, je m'occupe du reste. Vous pouvez aussi choisir un de vos workflows dans la colonne de gauche.
       </div>
     </div>
     <div id="chat-scroll-anchor"></div>

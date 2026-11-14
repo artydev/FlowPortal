@@ -30,6 +30,7 @@ function applyViewMode(mode) {
   try { localStorage.setItem("flowportal.chatView", next); } catch (_) { /* stockage indisponible : sans importance */ }
   const button = document.getElementById("view-toggle-button");
   if (button) button.textContent = next === "simple" ? "Vue développeur" : "Vue simple";
+  if (typeof renderChatInputControls === "function" && typeof sendButton !== "undefined") renderChatInputControls();
 }
 function initViewMode() {
   let saved = "simple";
@@ -46,6 +47,38 @@ initViewMode();
  * Réessaie toutes les 250 ms pendant 10 s au plus (le serveur Python peut
  * mettre un instant à répondre après le lancement de l'exe).
  */
+/* ── Écran d'accueil : suggestions cliquables ───────────────────────────── */
+const STARTER_SUGGESTIONS = [
+  "Résume un document que je vais te donner",
+  "Prépare le compte rendu d'une réunion",
+  "Surveille une page web et prévient-moi si elle change",
+];
+
+/** Puces sous le message d'accueil : idées de demandes, puis quelques workflows existants à lancer. */
+function renderWelcomeSuggestions() {
+  removeElementById("chat-suggestions");
+  const welcome = document.getElementById("chat-welcome-message");
+  if (!welcome) return;
+  const container = document.createElement("div");
+  container.id = "chat-suggestions";
+  container.className = "chat-suggestions";
+  const existing = (appState.workflows || []).slice(0, 3);
+  container.innerHTML = html`
+    <div class="suggestions-title">Essayez par exemple</div>
+    <div class="suggestions-row">${STARTER_SUGGESTIONS.map(text => html`<button class="suggestion-chip" data-text="${text}">${text}</button>`)}</div>
+    ${existing.length ? html`
+      <div class="suggestions-title">Ou lancez un de vos workflows</div>
+      <div class="suggestions-row">${existing.map(workflow => html`<button class="suggestion-chip" data-open="${workflow.filename}">▶ ${friendlyWorkflowTitle(workflow)}</button>`)}</div>` : ""}`;
+  container.onclick = event => {
+    const chip = event.target.closest(".suggestion-chip");
+    if (!chip) return;
+    if (chip.dataset.open) { removeElementById("chat-suggestions"); openWorkflowCard(chip.dataset.open); return; }
+    inputTextarea.value = chip.dataset.text;
+    sendChatMessage();
+  };
+  welcome.after(container);
+}
+
 async function bootChatApp() {
   for (let attempt = 0; attempt < 40; attempt++) {
     const result = await callBackend("portal_list");
@@ -54,6 +87,7 @@ async function bootChatApp() {
       appState.recentRuns  = result.recent || [];
       appState.busy        = !!result.busy;
       renderWorkflowList();
+      renderWelcomeSuggestions();
       updateEngineStatusChip();
       renderChatInputControls();
       inputTextarea.focus();
@@ -96,7 +130,7 @@ function renderWorkflowList() {
   listElement.innerHTML = appState.workflows.map(workflow => html`
     <div class="wf-list-item" data-filename="${workflow.filename}"
          onclick="openWorkflowCard('${workflow.filename}')">
-      <span class="wf-list-name">${workflow.title}</span>
+      <span class="wf-list-name">${friendlyWorkflowTitle(workflow)}</span>
       <div class="wf-type-dot ${dominantStepType(workflow)}"
            title="${dominantStepType(workflow)}"></div>
     </div>
@@ -139,12 +173,14 @@ function startNewConversation() {
   activeWorkflowCardElement = null;
   pendingAssistFilename     = null;
   appState.busy = false;
+  renderWelcomeSuggestions();
   renderChatInputControls();
   inputTextarea.focus();
 }
 
 /* ── Ajout de messages dans la conversation ─────────────────────────────── */
 function appendUserMessage(text) {
+  removeElementById("chat-suggestions");        // les suggestions ne servent qu'au début de la conversation
   const messageElement = document.createElement("div");
   messageElement.className = "chat-message user";
   messageElement.innerHTML = html`
@@ -206,43 +242,43 @@ function openWorkflowCard(filename) {
 /** Ajoute une carte de workflow dans la conversation. */
 function appendWorkflowCardMessage(workflow) {
   const steps = workflow.steps || [];
-  const stepTimelineHtml = steps.map((step, index) => {
-    const connector = index < steps.length - 1 ? `<div class="step-connector"></div>` : "";
-    return `<div class="step-dot ${step.type}"></div>${connector}`;
-  }).join("") || `<div class="step-dot"></div>`;
+  const stepTimelineHtml = steps.map((step, index) => html`
+    <div class="step-dot ${step.type}"></div>${index < steps.length - 1 ? html`<div class="step-connector"></div>` : ""}`)
+    .concat(steps.length ? [] : [html`<div class="step-dot"></div>`]);
 
   const stepCount = steps.length;
   const tagsHtml = Object.keys(workflow.tags || {}).map(key =>
     html`<span class="tag tag-${stepTypeToTagClass(key)}">${key}</span>`
-  ).join("") + html`<span class="tag">${stepCount} étape${stepCount !== 1 ? "s" : ""}</span>`;
+  ).concat([html`<span class="tag">${stepCount} étape${stepCount !== 1 ? "s" : ""}</span>`]);
 
   // Vue simple : les premières étapes en clair (icône + titre), sans types ni identifiants.
   const SIMPLE_STEPS_SHOWN = 6;
+  const hiddenCount = steps.length - SIMPLE_STEPS_SHOWN;
   const simpleStepsHtml = steps.slice(0, SIMPLE_STEPS_SHOWN).map(step => html`
-      <li class="sc-step"><span class="sc-ico">${friendlyStepIcon(step.type)}</span><span class="sc-step-main"><span>${step.label || step.id}</span></span></li>`).join("")
-    + (steps.length > SIMPLE_STEPS_SHOWN ? html`<li class="sc-step" style="color:var(--mute)">… et ${steps.length - SIMPLE_STEPS_SHOWN} autre${steps.length - SIMPLE_STEPS_SHOWN > 1 ? "s" : ""} étape${steps.length - SIMPLE_STEPS_SHOWN > 1 ? "s" : ""}</li>` : "");
+      <li class="sc-step"><span class="sc-ico">${friendlyStepIcon(step)}</span><span class="sc-step-main"><span>${friendlyStepTitle(step)}</span></span></li>`)
+    .concat(hiddenCount > 0 ? [html`<li class="sc-step" style="color:var(--mute)">… et ${hiddenCount} autre${hiddenCount > 1 ? "s" : ""} étape${hiddenCount > 1 ? "s" : ""}</li>`] : []);
 
   const messageElement = document.createElement("div");
   messageElement.className = "chat-message assistant";
-  messageElement.innerHTML = `
+  messageElement.innerHTML = html`
     <div class="chat-avatar assistant-avatar">⚡</div>
     <div class="wf-card" data-filename="${workflow.filename}">
       <div class="wf-header">
-        <div class="wf-name">${workflow.title}</div>
+        <div class="wf-name"><span class="simple-only">${friendlyWorkflowTitle(workflow)}</span><span class="dev-only">${workflow.title}</span></div>
         <div class="wf-desc">${workflow.summary || ""}</div>
       </div>
       <div class="tag-list dev-only" style="padding:0 16px 10px">${tagsHtml}</div>
       <div class="wf-step-tl dev-only">${stepTimelineHtml}</div>
       <ol class="sc-steps simple-only">${simpleStepsHtml}</ol>
       <div class="card-footer" style="padding:10px 16px;border-top:1px solid var(--line);display:flex;gap:7px">
-        <button class="button-primary"
-                onclick="launchWorkflowFromChat('${workflow.filename}', this)">▶ Lancer</button>
+        <button class="button-primary" data-filename="${workflow.filename}"
+                onclick="launchWorkflowFromChat(this.dataset.filename, this)">▶ Lancer</button>
         <button class="button-primary is-ghost simple-only"
                 onclick="askModificationFromChat(this)">✏ Modifier</button>
-        <button class="button-primary is-ghost dev-only"
-                onclick="openYamlPanel('${workflow.filename}', true)">✏ Modifier</button>
-        <button class="button-primary is-ghost dev-only"
-                onclick="openYamlPanel('${workflow.filename}', false)">⌄ YAML</button>
+        <button class="button-primary is-ghost dev-only" data-filename="${workflow.filename}"
+                onclick="openYamlPanel(this.dataset.filename, true)">✏ Modifier</button>
+        <button class="button-primary is-ghost dev-only" data-filename="${workflow.filename}"
+                onclick="openYamlPanel(this.dataset.filename, false)">⌄ YAML</button>
       </div>
     </div>
   `;
@@ -331,9 +367,9 @@ function renderLiveRunCard() {
     const mark = state === "ok" ? "✓" : state === "skip" ? "↷" : state === "err" ? "✕" : state === "stop" ? "⏹" : "";
     return html`
       <li class="sc-step ${rowClass}">
-        <span class="sc-ico simple-only">${friendlyStepIcon(step.type)}</span>
+        <span class="sc-ico simple-only">${friendlyStepIcon(step)}</span>
         <span class="tag tag-${step.type} dev-only">${STEP_TYPE_LABELS[step.type] || step.type || "?"}</span>
-        <span class="sc-step-main"><span>${step.label || step.id}</span></span>
+        <span class="sc-step-main"><span class="simple-only">${friendlyStepTitle(step)}</span><span class="dev-only">${step.label || step.id}</span></span>
         <small class="dev-only" style="color:var(--mute);font-family:var(--font-mono)">${step.id}</small>
         <span class="sc-check">${mark}</span>
       </li>`;
@@ -350,7 +386,7 @@ function renderLiveRunCard() {
     <div class="chat-avatar assistant-avatar">⚡</div>
     <div class="live-run-card">
       <div class="live-run-head">
-        <b>${workflow ? workflow.title || workflow.name || workflow.filename : liveRun.filename}</b>
+        <b>${workflow ? friendlyWorkflowTitle(workflow) || workflow.filename : liveRun.filename}</b>
         <span class="sc-status ${statusClass}">${statusLabel}</span>
       </div>
       <div class="sc-progress"><div class="sc-bar"><div class="fill" style="width:${percent}%"></div></div><span class="sc-count">${doneCount}/${steps.length}</span></div>
@@ -474,6 +510,7 @@ function renderChatGate() {
  * Recharge la liste, récupère le détail du lancement et affiche le résumé.
  */
 async function finishLiveRun(savedEvent) {
+  const liveRunFilename = appState.liveRun && appState.liveRun.filename;
   removeElementById("chat-live-run");    // le bilan ci-dessous remplace la carte de suivi
   appState.busy = false;
   updateEngineStatusChip();
@@ -496,15 +533,16 @@ async function finishLiveRun(savedEvent) {
     scrollMessagesToBottom();
     return;
   }
-  appendRunSummaryMessage(runDetailResult.run);
+  appendRunSummaryMessage(runDetailResult.run, liveRunFilename);
   scrollMessagesToBottom();
 }
 
 /** Ajoute le bilan d'un lancement dans la conversation. */
-function appendRunSummaryMessage(run) {
+function appendRunSummaryMessage(run, filename) {
   const isSuccess  = run.status === "ok";
   const statusLabel = RUN_STATUS_LABELS[run.status] || run.status;
   const toneClass   = isSuccess ? "" : "is-error";
+  const failedStep  = (run.steps || []).find(step => step.status !== "ok" && step.status !== "notrun" && step.status !== "skip");
 
   const stepsHtml = (run.steps || [])
     .filter(step => step.status !== "notrun")
@@ -513,36 +551,54 @@ function appendRunSummaryMessage(run) {
         <span class="step-icon">${step.status === "ok" ? "✓" : "✕"}</span>
         <div>
           <span>${step.label || step.id}</span>
-          <small>${step.id} · ${formatDuration(step.duration)}</small>
+          <small class="dev-only">${step.id} · ${formatDuration(step.duration)}</small>
         </div>
       </li>
-    `).join("");
+    `);
 
   const filesHtml = (run.files || []).map(file => html`
     <div class="file-pill" onclick="openRunFileFromChat('${file.path}')" style="cursor:pointer">
       📄 ${file.path.split("/").pop()}
     </div>
-  `).join("");
+  `);
 
   const messageElement = document.createElement("div");
   messageElement.className = "chat-message assistant";
-  messageElement.innerHTML = `
+  messageElement.innerHTML = html`
     <div class="chat-avatar assistant-avatar">⚡</div>
     <div class="run-summary ${toneClass}">
       <div class="run-summary-header">
         ${isSuccess ? "✓" : "✕"} ${statusLabel}
-        ${run.error ? html` · <span style="font-weight:400;font-size:13px">${run.error}</span>` : ""}
-        <span class="run-id-badge">${run.id}</span>
+        ${isSuccess ? "" : html`
+          <span class="simple-only" style="font-weight:400;font-size:13px">${failedStep ? html` · L'étape « ${failedStep.label || failedStep.id} » n'a pas abouti.` : ""}</span>
+          <span class="dev-only" style="font-weight:400;font-size:13px">${run.error ? html` · ${run.error}` : ""}</span>`}
+        <span class="run-id-badge dev-only">${run.id}</span>
       </div>
       <ol class="step-list">${stepsHtml}</ol>
-      ${filesHtml ? `<div class="run-files" style="margin-top:8px">${filesHtml}</div>` : ""}
+      ${filesHtml.length ? html`<div class="run-files" style="margin-top:8px">${filesHtml}</div>` : ""}
       <div class="button-row" style="margin-top:10px">
         <button class="button-primary is-ghost" style="font-size:12px"
                 onclick="openRunResultFromChat('${run.id}')">Voir le résultat complet</button>
+        ${!isSuccess && filename ? html`
+          <button class="button-primary" style="font-size:12px" data-filename="${filename}"
+                  onclick="launchWorkflowFromChat(this.dataset.filename, this)">↻ Relancer</button>
+          <button class="button-primary is-ghost" style="font-size:12px" data-filename="${filename}"
+                  data-step="${failedStep ? (failedStep.label || failedStep.id) : ""}" data-error="${run.error || ""}"
+                  onclick="askFixAfterFailure(this)">🛠 Demander à l'assistant de corriger</button>` : ""}
       </div>
     </div>
   `;
   messagesContainer.insertBefore(messageElement, scrollAnchorElement);
+}
+
+/** Après un échec : met le workflow en contexte et pré-remplit la demande de correction (l'utilisateur l'envoie). */
+function askFixAfterFailure(button) {
+  const { filename, step, error } = button.dataset;
+  openWorkflowCard(filename);
+  inputTextarea.value = `Le lancement a échoué${step ? ` à l'étape « ${step} »` : ""}${error ? ` (${error})` : ""}. Peux-tu corriger le workflow ?`;
+  autoResizeTextarea(inputTextarea);
+  renderChatInputControls();
+  inputTextarea.focus();
 }
 
 async function openRunFileFromChat(filePath) {
@@ -663,36 +719,18 @@ function handleAssistantEvent(event) {
   }
 }
 
-/* ── Vocabulaire du chat : langage courant (le mode avancé garde STEP_TYPE_LABELS) ── */
-const FRIENDLY_STEP_LABELS = {
-  agent: "Réfléchit (IA)", file_write: "Enregistre un fichier", file_read: "Lit un fichier",
-  python: "Calcule", shell: "Lance un programme", http_get: "Récupère une page web", http_post: "Envoie des données",
-  http_put: "Envoie des données", http_delete: "Supprime à distance", human_approval: "Vous demande de valider",
-  user_input: "Vous pose une question", mcp_call: "Utilise un outil", mcp_tools: "Utilise un outil",
-  log: "Note un message", end: "Fin", transform: "Met en forme",
-};
-const friendlyStepLabel = type => FRIENDLY_STEP_LABELS[type] || "Étape";
-// Même table d'icônes que STEP_KINDS dans assist.py (les cartes du portail n'en portent pas).
-const FRIENDLY_STEP_ICONS = {
-  agent: "🤖", file_write: "💾", file_read: "📖", python: "🧮", shell: "⚙️", http_get: "🌐", http_post: "📤", http_put: "📤",
-  http_delete: "🗑️", human_approval: "👤", user_input: "✍️", mcp_call: "🔌", mcp_tools: "🔌", log: "📄", end: "✅", transform: "🔄",
-};
-const friendlyStepIcon = type => FRIENDLY_STEP_ICONS[type] || "▫️";
+/* ── Vocabulaire du chat : les libellés viennent du serveur (friendly.py : icône, verbe, titre, messages) ── */
+// Replis pour un backend plus ancien qui n'enverrait pas ces champs.
+const friendlyStepIcon  = step => (step && step.icon) || "▫️";
+const friendlyStepKind  = step => (step && step.kind) || "Étape";
+/** Titre d'une étape en vue simple : sa description, sinon son verbe ; jamais son identifiant. */
+const friendlyStepTitle = step => (step && (step.label !== step.id && step.label || step.friendly)) || friendlyStepKind(step);
+const friendlyWorkflowTitle = workflow => (workflow && (workflow.friendly_title || workflow.title)) || "";
 
-/** Reformule un message de validation technique en phrase compréhensible. */
+/** Phrase de validation en langage courant (calculée par le serveur) ; vide = rien à montrer. */
 function friendlyProblem(problem, step) {
-  const message = String(problem.message || "");
-  const name = step.title || "cette étape";
-  let match;
-  if ((match = message.match(/paramètre obligatoire « ?(\w+) ?» manquant/i)))
-    return `« ${name} » est incomplète : il manque une information (${match[1]}).`;
-  if (/on_(approve|reject)/.test(message))
-    return `« ${name} » : dites ce qui se passe si vous acceptez ou refusez, sinon le déroulement s'arrête.`;
-  if (/unknown step id|étape inconnue/i.test(message))
-    return `« ${name} » renvoie vers une étape qui n'existe pas.`;
-  if (/racine/i.test(message))
-    return `« ${name} » enregistre un fichier au mauvais endroit.`;
-  return `« ${name} » est à revoir. Demandez à l'assistant de la corriger.`;
+  if ("friendly" in problem) return problem.friendly || "";
+  return `« ${step.label || step.title} » est à revoir. Demandez à l'assistant de la corriger.`;
 }
 
 /* ── Proposition : étapes touchées (réponse structurée de assist.py) ────── */
@@ -731,16 +769,17 @@ function proposalChangesHtml(event) {
     const problemsFor = render => {
       const seen = new Set();
       return problems.filter(problem => {
-        const key = problem.level + render(problem);
-        return seen.has(key) ? false : (seen.add(key), true);
+        const text = render(problem);
+        const key = problem.level + text;
+        return !text || seen.has(key) ? false : (seen.add(key), true);
       }).map(problem =>
         html`<span class="proposal-problem ${problem.level}">${problem.level === "error" ? "✕" : "⚠"} ${render(problem)}</span>`);
     };
     // Vue simple : icône, titre, verbe ; erreurs reformulées.  Vue développeur : type, titre, id ; messages bruts.
     return html`
       <li class="proposal-step ${state} simple-only">
-        <span class="sc-ico">${step.icon || "▫️"}</span>
-        <span class="sc-step-main"><span class="proposal-step-title">${step.title}</span><span class="sc-step-kind">${step.kind || friendlyStepLabel(step.type)}</span></span>
+        <span class="sc-ico">${friendlyStepIcon(step)}</span>
+        <span class="sc-step-main"><span class="proposal-step-title">${step.label || step.title}</span>${(step.label || step.title) === friendlyStepKind(step) ? "" : html`<span class="sc-step-kind">${friendlyStepKind(step)}</span>`}</span>
         <span class="sc-step-badges">${badges}</span>
         <span class="sc-step-problems">${problemsFor(problem => friendlyProblem(problem, step))}</span>
       </li>
@@ -917,9 +956,11 @@ function renderChatInputControls() {
   const filename        = activeWorkflowCardElement?.dataset.filename;
 
   if (filename) {
-    contextFilename.textContent = filename;
+    // Vue simple : le titre lisible du workflow ; vue développeur : le nom du fichier.
+    const shownName = document.body.dataset.view === "dev" ? filename : friendlyWorkflowTitle(findCard(filename)) || filename;
+    contextFilename.textContent = shownName;
     contextBar.classList.add("visible");
-    inputTextarea.placeholder = `Décrivez une modification à apporter à ${filename}…`;
+    inputTextarea.placeholder = `Décrivez ce que vous voulez changer dans « ${shownName} »…`;
   } else {
     contextBar.classList.remove("visible");
     inputTextarea.placeholder = "Décrivez votre workflow, ou demandez à lancer un existant…";

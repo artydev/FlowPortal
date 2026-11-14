@@ -8,6 +8,7 @@ Requirements:
 Usage (depuis le dossier workflow/) :
     python app.py            portail (une carte par workflow)
     python app.py --classic  interface classique de CSFlow
+    python app.py --chat     interface de chat (CSAgent)
 """
 
 import os
@@ -572,8 +573,8 @@ def portal_open_file(path: str) -> dict:
 # ── entry point ───────────────────────────────────────────────────────────────
 
 def _start_page(args: list) -> str:
-    """Page ouverte au démarrage : le portail, ou l'interface classique avec --classic."""
-    return "index.html" if "--classic" in args else "portal.html"
+    """Page ouverte au démarrage : le portail, ou l'interface classique (--classic), ou le chat (--chat)."""
+    return "index.html" if "--classic" in args else "chat.html" if "--chat" in args else "portal.html"
 
 
 def _free_port() -> int:

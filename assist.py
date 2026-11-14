@@ -8,12 +8,19 @@ c'est l'utilisateur qui décide de les appliquer à l'éditeur, puis d'enregistr
 
     assistant = Assistant(portal, base_dir, agent_fn)
     result = assistant.run(texte_courant, "ajoute une étape de validation", emit=..., cancel=...)
+
+Réponse structurée : en plus du YAML (`draft`) et du diff ligne à ligne (`diff`), `run` renvoie `view` (le workflow
+résumé étape par étape) et `changes` (ce qui a bougé, par id d'étape). Les deux sont calculés ici en lisant le YAML,
+jamais demandés à CSAgent : ils restent donc fiables, et valables aussi pour une modification faite à la main.
+Voir `describe_workflow` et `step_changes` pour le détail des champs.
 """
 
 import difflib
 import shutil
 import uuid
 from pathlib import Path
+
+import yaml
 
 MAX_INSTRUCTION = 3000        # caractères : la demande voyage dans l'adresse d'appel de CSAgent
 MAX_DRAFT = 200_000           # octets : taille maximale d'un brouillon relu
@@ -47,6 +54,128 @@ def line_diff(old: str, new: str, context: int = 2) -> list:
     return out if any(r["op"] in ("add", "del") for r in rows) else []
 
 
+# ── Vue structurée d'un workflow (pour l'interface) ───────────────────────────
+_FLOW_KEYS = ("next", "on_approve", "on_reject")      # clés qui rendent le déroulement non linéaire
+
+
+def _load(text: str):
+    """(workflow | None, [(position, étape)]) : tolérant, un YAML illisible donne (None, [])."""
+    try:
+        wf = yaml.safe_load(text)
+    except yaml.YAMLError:
+        return None, []
+    if not isinstance(wf, dict):
+        return None, []
+    steps = wf.get("steps")
+    if not isinstance(steps, list):
+        return wf, []
+    return wf, [(i, s) for i, s in enumerate(steps) if isinstance(s, dict)]
+
+
+def _step_id(step: dict, pos: int) -> str:
+    return str(step.get("id") or f"step_{pos + 1}")        # même repli que le moteur
+
+
+def _step_title(step: dict, sid: str) -> str:
+    first = str(step.get("description") or "").strip().splitlines()
+    return first[0] if first else sid
+
+
+def _step_starts(text: str) -> list:
+    """Numéro de ligne (à partir de 1) où commence chaque étape de la liste `steps`."""
+    try:
+        root = yaml.compose(text)
+    except yaml.YAMLError:
+        return []
+    if not isinstance(root, yaml.MappingNode):
+        return []
+    for key, value in root.value:
+        if key.value == "steps" and isinstance(value, yaml.SequenceNode):
+            return [item.start_mark.line + 1 for item in value.value]
+    return []
+
+
+# Vue « simple » : icône et verbe par type d'étape (le chat ne montre ni les types ni les identifiants).
+STEP_KINDS = {
+    "agent": ("🤖", "Réfléchit (IA)"), "file_write": ("💾", "Enregistre un fichier"), "file_read": ("📖", "Lit un fichier"),
+    "python": ("🧮", "Calcule"), "shell": ("⚙️", "Lance un programme"), "http_get": ("🌐", "Récupère une page web"),
+    "http_post": ("📤", "Envoie des données"), "http_put": ("📤", "Envoie des données"),
+    "http_delete": ("🗑️", "Supprime à distance"), "human_approval": ("👤", "Vous demande de valider"),
+    "user_input": ("✍️", "Vous pose une question"), "mcp_call": ("🔌", "Utilise un outil"),
+    "mcp_tools": ("🔌", "Utilise un outil"), "log": ("📄", "Note un message"), "end": ("✅", "Fin"),
+    "transform": ("🔄", "Met en forme"),
+}
+
+
+def step_kind(step_type: str) -> dict:
+    """{"icon", "kind"} d'un type d'étape ; un type inconnu reste lisible."""
+    icon, kind = STEP_KINDS.get(step_type, ("▫️", "Étape"))
+    return {"icon": icon, "kind": kind}
+
+
+def describe_workflow(text: str, issues: list = None):
+    """Le workflow résumé pour l'interface, ou None si le YAML est illisible ou sans étapes.
+
+        {"name", "description", "branches": bool,
+         "steps": [{"index", "id", "type", "title", "icon", "kind", "conditional", "autonomous",
+                    "problems": [{"level", "message"}]}]}
+
+    title : « description » de l'étape, sinon son id. conditional : l'étape a un `skip_if`. autonomous : étape
+    `agent` en `auto_confirm: true` (CSAgent agit sans demander confirmation). branches : au moins une étape
+    utilise next / on_approve / on_reject, donc l'ordre du fichier n'est pas forcément l'ordre d'exécution.
+    problems : les lignes de `issues` (format de `check_yaml`) situées dans le texte de l'étape.
+    """
+    wf, items = _load(text)
+    if wf is None or not items:
+        return None
+    starts, issues = _step_starts(text), issues or []
+    steps = []
+    for pos, step in items:
+        sid = _step_id(step, pos)
+        lo = starts[pos] if pos < len(starts) else None
+        hi = starts[pos + 1] - 1 if pos + 1 < len(starts) else float("inf")
+        steps.append({
+            "index": pos,
+            "id": sid,
+            "type": str(step.get("type") or ""),
+            "title": _step_title(step, sid),
+            **step_kind(str(step.get("type") or "")),
+            "conditional": bool(step.get("skip_if")),
+            "autonomous": step.get("type") == "agent" and bool(step.get("auto_confirm")),
+            "problems": [{"level": i["level"], "message": i["message"]} for i in issues
+                         if lo is not None and i.get("line") and lo <= i["line"] <= hi],
+        })
+    return {"name": str(wf.get("name") or ""), "description": str(wf.get("description") or ""),
+            "branches": any(k in s for _, s in items for k in _FLOW_KEYS), "steps": steps}
+
+
+def step_changes(old: str, new: str):
+    """Ce qui a changé entre deux versions, étape par étape (rapprochées par id), ou None si `new` est illisible.
+
+        {"added": [id], "removed": [{"id", "type", "title"}], "changed": [{"id", "keys": [clé]}], "reordered": bool}
+
+    changed : même id dans les deux versions mais contenu différent ; keys = les clés de l'étape qui diffèrent.
+    reordered : les étapes communes ne sont plus dans le même ordre. Un id renommé compte comme retiré + ajouté.
+    """
+    wf_new, items_new = _load(new)
+    if wf_new is None or not items_new:
+        return None
+    before = {_step_id(s, p): s for p, s in _load(old)[1]}
+    after = {_step_id(s, p): s for p, s in items_new}
+    return {
+        "added": [i for i in after if i not in before],
+        "removed": [{"id": i, "type": str(s.get("type") or ""), "title": _step_title(s, i)}
+                    for i, s in before.items() if i not in after],
+        "changed": [{"id": i, "keys": sorted(k for k in set(before[i]) | set(s) if before[i].get(k) != s.get(k))}
+                    for i, s in after.items() if i in before and before[i] != s],
+        "reordered": [i for i in before if i in after] != [i for i in after if i in before],
+    }
+
+
+# Consigne de langue : quelques mots dans le prompt suffisent (aucun appel de traduction supplémentaire).
+FRENCH = "Réponds toujours en français, y compris tes commentaires de progression. "
+
+
 def build_prompt(rel_path: str, instruction: str) -> str:
     return (f"Tu dois modifier le fichier de workflow CSFlow « {rel_path} » selon la demande ci-dessous.\n"
             "Règles : édite UNIQUEMENT ce fichier, sans créer ni modifier aucun autre fichier ; "
@@ -58,7 +187,7 @@ def build_prompt(rel_path: str, instruction: str) -> str:
             "pour écrire un fichier, utilise TOUJOURS « type: file_write » (pas python+pathlib) : file_write crée les dossiers manquants automatiquement et le fichier apparaît dans l'onglet Fichiers de l'interface ; "
             "pour ouvrir un fichier HTML, utilise un step « python » avec webbrowser.open(pathlib.Path('output/{{run_id}}/fichier.html').resolve().as_uri()), "
             "jamais « start \"\" \"fichier\" » (non portable, échoue en subprocess). "
-            "Quand tu as terminé, réponds en une ou deux phrases : ce que tu as changé.\n"
+            + FRENCH + "Quand tu as terminé, réponds en une ou deux phrases : ce que tu as changé.\n"
             f"Demande : {instruction}")
 
 
@@ -67,7 +196,7 @@ def build_fix_prompt(rel_path: str, issues: list) -> str:
                       for i in issues if i["level"] == "error")
     return (f"Le fichier « {rel_path} » contient des erreurs de validation CSFlow :\n{lines}\n"
             "Corrige uniquement ces erreurs dans ce fichier, sans rien changer d'autre, "
-            "puis réponds en une phrase.")
+            + FRENCH + "puis réponds en une phrase.")
 
 
 class Assistant:
@@ -124,7 +253,11 @@ class Assistant:
                     break
                 prompt = build_fix_prompt(rel, issues)
             diff = line_diff(original, new)
+            changes = step_changes(original, new)
+            if changes is not None:
+                changes["created"] = not str(text or "").strip()      # point de départ vide : tout est nouveau
             return {"ok": True, "draft": new, "changed": new != original, "diff": diff, "issues": issues,
+                    "view": describe_workflow(new, issues), "changes": changes,
                     "answer": answers[0] if answers and answers[0] else (answers[-1] if answers else ""),
                     "attempts": attempts}
         finally:

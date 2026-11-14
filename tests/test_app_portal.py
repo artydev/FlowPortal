@@ -139,6 +139,9 @@ class AppPortalTests(unittest.TestCase):
         self.assertEqual(self.app._start_page([]), "portal.html")
         self.assertEqual(self.app._start_page(["--portal"]), "portal.html")
 
+    def test_start_page_chat(self):
+        self.assertEqual(self.app._start_page(["--chat"]), "chat.html")
+
     def test_start_page_classic(self):
         self.assertEqual(self.app._start_page(["--classic"]), "index.html")
 

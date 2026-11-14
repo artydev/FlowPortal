@@ -2,7 +2,8 @@
 
 > **Statut :** Document de travail — à mettre à jour au fil de l'avancement.
 > **Branche :** `chatui` (créée depuis `main`, poussée sur `origin/chatui`).
-> **Dernière mise à jour :** session en cours.
+> **Dernière mise à jour :** session 6 (état réel des jalons et backlog ordonné, §5 bis et §9).
+> **Public visé :** utilisateurs **non techniciens** (le mode développeur reste disponible pour les techniciens).
 
 Ce document capture les décisions, recommandations et le plan d'intégration pour
 ajouter une **interface conversationnelle (chat)** à FlowPortal, pensée pour les
@@ -104,6 +105,17 @@ Le chat doit appeler le vrai moteur, pas afficher des scénarios simulés.
 
 ---
 
+## 5 bis. État réel des jalons
+
+| Jalon | État | Fait | Reste |
+|---|---|---|---|
+| **1. Chat branché sur `assist.py`** | ✅ Fait (autrement que prévu) | `chat.html` / `chat.js` appellent `portal_assist`, `portal_save` / `portal_create`, `portal_stop`. Les demandes d'accord de l'agent s'affichent dans le chat. Carte de suivi d'exécution. `python app.py --chat`. | Le module `chat.py` et les routes `chat_send/apply/cancel` **ne sont pas nécessaires** (abandonnés). Pas d'historique de conversation côté serveur. |
+| **2. Vue simple côté serveur** | 🟡 Partiel | `assist.py` renvoie `view` (étapes, titre, icône, verbe, problèmes) et `changes` (ajouté, retiré, modifié, réordonné, créé). Bascule Vue simple ↔ développeur. | Voir backlog, phase 1. |
+| **3. Création par intention** | 🟡 Partiel | Création depuis le chat (`portal_create`, nom de fichier déduit du titre). | Mode **Brouillon** (phase 2). |
+| **4. Garde-fous** | ⬜ Non commencé | — | Composants approuvés, bac à sable (phase 2). |
+
+---
+
 ## 6. Mapping "friendly" (traduction technique → langage clair)
 
 Extrait du mockup — à générer côté Python à partir du YAML réel.
@@ -142,25 +154,52 @@ comme un suivi de progression amical, pas un schéma de pipeline.
 
 ## 8. État git
 
-- **Branche :** `chatui` (créée depuis `main`, poussée sur `origin/chatui`).
-- **Fichiers non suivis :** `docs/assessment.html`, `docs/chatui-mockup.html`.
-- **À décider :** fusion de `chatui` via pull request (PR) vers `main`.
+- **Branche :** `chatui` ; la PR #1 (documentation) est fusionnée dans `main`, le code du chat est sur la branche.
+- **Fichiers du chat :** `ui/chat.html`, `ui/chat.js`, `assist.py` (`view` / `changes`), `app.py` (`--chat`), `ui/portal.html` (lien « Chat »).
+- `typings/ui/chat.d.ts` est un instantané périmé de `chat.js` (aucune déclaration de types) : à supprimer ou à régénérer.
 
 ---
 
-## 9. Prochaines étapes suggérées
+## 9. Backlog ordonné
 
-1. **Valider le plan** (Jalons 1-4) avec les parties prenantes.
-2. **Commencer le Jalon 1** : créer `chat.py` + routes Eel, brancher le chat sur `assist.py`.
-3. **Décider du sort de la branche `chatui`** : PR vers `main` ou continuer sur la branche.
-4. **Ajouter un scénario d'échec** au mockup (étape qui passe en rouge avec option de relance) dans les deux vues.
+**Phase 0 — consolider** (fait)
+1. Mettre à jour ce document. ✅
+2. Corriger les tests `OutputPathWarningTests` (filtre périmé sur `tmp/`). ✅
+3. Essai de bout en bout avec le vrai eel et un faux CSAgent : création, demande d'accord, proposition, application. ✅
+
+**Phase 1 — chat utilisable par un non-technicien**
+4. Titre du workflow en langage courant sur la carte. ✅ (`friendly_title`)
+5. Titres d'étapes lisibles : sans description, afficher le verbe du type, jamais l'identifiant. ✅
+6. Icônes et verbes envoyés par le serveur (`friendly.py`), table en double supprimée de `chat.js`. ✅
+7. Messages de validation en langage courant, couvrant les messages de `schema.py` et de `portal.py`. ✅ (`friendly_problem`)
+8. Consigne à l'assistant (descriptions d'étapes courtes, en français). ✅ — à vérifier avec le vrai CSAgent.
+9. Écran d'accueil avec suggestions cliquables. ✅
+10. Étape en erreur : « Relancer » et « Demander à l'assistant de corriger ». ✅
+
+**Phase 2 — confiance et sécurité**
+11. Bouton « Tester » avec résultat dans le chat.
+12. Mode Brouillon : un workflow créé depuis le chat attend la validation d'un technicien.
+13. Composants approuvés : restreindre les types d'étapes pour les non-techniciens.
+14. Bac à sable : limiter chemins et API.
+
+**Phase 3 — automatisation**
+15. Déclencheur planifié (« chaque lundi »).
+16. Workflows modèles pour le public visé.
+17. Exemple `mcp.playwright.example` et workflow « Lire une page web ».
+
+**Phase 4 — distribution**
+18. Lancement unique : FlowPortal démarre CSAgent (port libre, clé générée), ouvre le chat, arrête le worker à la fermeture.
+19. Réglage de la clé du modèle dans l'interface.
+20. Paquet unique (Nuitka) avec CSAgent livré à côté.
 
 ---
 
 ## 10. Notes de session
 
-- **Session 1 :** création de la branche `chatui`, poussée sur remote. Évaluation du projet (maintenable, évolutif, mais dépend de l'usage réel).
-- **Session 2 :** création de `docs/assessment.html` (évaluation) et `docs/chatui-mockup.html` (maquette chat).
-- **Session 3 :** adaptation du mockup au design system réel de l'app + scénarios interactifs avec vrais workflows (sales-report-pipeline, weather, meeting-digest).
-- **Session 4 :** ajout de la bascule **Vue simple ↔ Vue développeur** pour les non-techniciens.
-- **Session 5 :** discussion sur la création/modification de workflows par des non-techniciens (modèle Pilote/Copilote, garde-fous). Création de ce document de référence.
+- **Session 1 :** création de la branche `chatui`, poussée sur remote. Évaluation du projet.
+- **Session 2 :** `docs/assessment.html` et `docs/chatui-mockup.html`.
+- **Session 3 :** mockup adapté au design system réel, scénarios interactifs.
+- **Session 4 :** bascule **Vue simple ↔ Vue développeur**.
+- **Session 5 :** discussion non-techniciens (Pilote/Copilote, garde-fous) ; création de ce document.
+- **Session 6 (suite) :** phase 1 terminée (`friendly.py`, accueil, échec avec relance), essais avec le vrai eel et un faux CSAgent.
+- **Session 6 :** chat réel (`chat.html`), réponse structurée `view` / `changes`, carte de suivi, demandes d'accord de l'agent, option `--chat` ; état des jalons et backlog ordonné ; phase 0 terminée.

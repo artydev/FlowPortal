@@ -207,6 +207,144 @@ class RunTests(Base):
         self.assertIs(agent.calls[0]["_wait_approval"], wa)
 
 
+class FriendlyTests(Base):
+    def test_step_label_falls_back_to_kind_never_to_id(self):
+        view = assist.describe_workflow("name: x-y_z\nsteps:\n  - id: fin\n    type: end\n  - id: a\n    type: agent\n    description: Rédiger\n")
+        self.assertEqual([s["label"] for s in view["steps"]], ["Fin", "Rédiger"])
+        self.assertEqual(view["title"], "X y z")
+
+    def test_problems_are_translated(self):
+        import friendly
+        self.assertIn("il manque le fichier", friendly.friendly_problem("étape « a » (file_write) : paramètre obligatoire « path » manquant", "Archiver"))
+        self.assertIsNone(friendly.friendly_problem("étape n°2 : pas d'« id » (le moteur utilisera step_2)", "x"))
+        self.assertIn("à revoir", friendly.friendly_problem("message inconnu", "x"))
+        self.assertIn("mal écrit", friendly.friendly_problem("YAML invalide : boom"))
+
+    def test_view_problems_carry_friendly_text(self):
+        text = "name: w\nsteps:\n  - id: ecrire\n    type: file_write\n    content: x\n"
+        issues = self.portal.check_yaml(text)["issues"]
+        view = assist.describe_workflow(text, issues)
+        problems = view["steps"][0]["problems"]
+        self.assertTrue(problems and all("friendly" in p for p in problems))
+        self.assertTrue(any("il manque le fichier" in (p["friendly"] or "") for p in problems))
+
+    def test_cards_expose_icon_kind_and_friendly_title(self):
+        (self.portal.dir / "rapport-hebdo.yaml").write_text("name: rapport-hebdo\nsteps:\n  - id: a\n    type: file_write\n    path: output/x.txt\n    content: x\n", encoding="utf-8")
+        card = next(c for c in self.portal.list_cards() if c["filename"] == "rapport-hebdo.yaml")
+        self.assertEqual(card["friendly_title"], "Rapport hebdo")
+        self.assertEqual((card["steps"][0]["icon"], card["steps"][0]["kind"]), ("💾", "Enregistre un fichier"))
+        self.assertEqual(card["steps"][0]["friendly"], "Enregistre un fichier")
+
+
+class LanguageTests(Base):
+    def test_prompts_ask_for_french(self):
+        self.assertIn("en français", assist.build_prompt("tmp/x.yaml", "ajoute une étape"))
+        self.assertIn("en français", assist.build_fix_prompt("tmp/x.yaml", [{"level": "error", "message": "m"}]))
+
+
+class StructuredResultTests(Base):
+    def test_steps_carry_icon_and_friendly_kind(self):
+        view = assist.describe_workflow("name: x\nsteps:\n  - id: a\n    type: agent\n  - id: b\n    type: zzz\n")
+        self.assertEqual((view["steps"][0]["icon"], view["steps"][0]["kind"]), ("🤖", "Réfléchit (IA)"))
+        self.assertEqual(view["steps"][1]["kind"], "Étape")      # type inconnu : repli lisible
+
+    """`view` (workflow résumé) et `changes` (ce qui a bougé) : calculés depuis le YAML, jamais demandés à CSAgent."""
+
+    def test_added_step(self):
+        a, _ = self.assistant(EXTRA)
+        res = a.run(BASE, "ajoute une étape")
+        self.assertEqual(res["changes"], {"added": ["b"], "removed": [], "changed": [], "reordered": False, "created": False})
+        self.assertEqual([s["id"] for s in res["view"]["steps"]], ["a", "b", "fin"])
+        self.assertEqual(res["view"]["name"], "demo")
+
+    def test_removed_and_changed_steps(self):
+        new = BASE.replace("message: ok", "message: autre").replace("  - id: fin\n    type: end\n    message: fini\n", "")
+        a, _ = self.assistant(new)
+        res = a.run(BASE, "x")
+        self.assertEqual(res["changes"]["added"], [])
+        self.assertEqual(res["changes"]["removed"], [{"id": "fin", "type": "end", "title": "fin"}])
+        self.assertEqual(res["changes"]["changed"], [{"id": "a", "keys": ["message"]}])
+
+    def test_unchanged_workflow_has_empty_changes(self):
+        a, _ = self.assistant()                         # l'agent ne touche à rien
+        res = a.run(BASE, "x")
+        self.assertFalse(res["changed"])
+        self.assertEqual(res["changes"], {"added": [], "removed": [], "changed": [], "reordered": False, "created": False})
+
+    def test_reordered_steps(self):
+        two = "name: d\nsteps:\n  - id: a\n    type: log\n    message: 1\n  - id: b\n    type: log\n    message: 2\n"
+        swapped = "name: d\nsteps:\n  - id: b\n    type: log\n    message: 2\n  - id: a\n    type: log\n    message: 1\n"
+        a, _ = self.assistant(swapped)
+        res = a.run(two, "inverse")
+        self.assertTrue(res["changes"]["reordered"])
+        self.assertEqual((res["changes"]["added"], res["changes"]["removed"], res["changes"]["changed"]), ([], [], []))
+
+    def test_created_when_starting_from_nothing(self):
+        a, _ = self.assistant(BASE)
+        res = a.run("", "crée un workflow")
+        self.assertTrue(res["changes"]["created"])
+        self.assertEqual([s["id"] for s in res["view"]["steps"]], ["a", "fin"])
+
+    def test_title_comes_from_description_then_id(self):
+        wf = "name: d\nsteps:\n  - id: a\n    type: log\n    description: Dire bonjour\n    message: x\n  - id: b\n    type: log\n    message: y\n"
+        view = assist.describe_workflow(wf)
+        self.assertEqual([s["title"] for s in view["steps"]], ["Dire bonjour", "b"])
+
+    def test_step_without_id_gets_the_engine_fallback(self):
+        view = assist.describe_workflow("name: d\nsteps:\n  - type: log\n    message: x\n  - id: b\n    type: log\n    message: y\n")
+        self.assertEqual([s["id"] for s in view["steps"]], ["step_1", "b"])
+
+    def test_flags_conditional_autonomous_and_branches(self):
+        wf = ("name: d\nsteps:\n"
+              "  - id: ia\n    type: agent\n    prompt: p\n    auto_confirm: true\n    skip_if: \"'{{x.output}}' == 'oui'\"\n"
+              "  - id: ia2\n    type: agent\n    prompt: p\n"
+              "  - id: ok\n    type: human_approval\n    on_approve: fin\n    on_reject: fin\n"
+              "  - id: fin\n    type: end\n    message: m\n")
+        view = assist.describe_workflow(wf)
+        by_id = {s["id"]: s for s in view["steps"]}
+        self.assertTrue(by_id["ia"]["autonomous"] and by_id["ia"]["conditional"])
+        self.assertFalse(by_id["ia2"]["autonomous"] or by_id["ia2"]["conditional"])
+        self.assertFalse(by_id["ok"]["autonomous"])           # auto_confirm ne concerne que les étapes agent
+        self.assertTrue(view["branches"])
+        self.assertFalse(assist.describe_workflow(BASE)["branches"])
+
+    def test_problems_are_attached_to_the_right_step(self):
+        wf = BASE.replace("  - id: fin", "  - id: w\n    type: file_write\n    path: output/{{run_id}}/x.txt\n  - id: fin")
+        issues = self.portal.check_yaml(wf)["issues"]
+        view = assist.describe_workflow(wf, issues)
+        by_id = {s["id"]: s for s in view["steps"]}
+        self.assertTrue(any(p["level"] == "error" and "content" in p["message"] for p in by_id["w"]["problems"]))
+        self.assertEqual(by_id["a"]["problems"], [])
+        self.assertEqual(by_id["fin"]["problems"], [])
+
+    def test_run_attaches_problems_when_errors_remain(self):
+        broken = BASE.replace("type: log", "type: logg", 1)
+        a, _ = self.assistant(broken, broken, broken)
+        res = a.run(BASE, "x")
+        by_id = {s["id"]: s for s in res["view"]["steps"]}
+        self.assertTrue(any("logg" in p["message"] for p in by_id["a"]["problems"]))
+
+    def test_unreadable_yaml_gives_none(self):
+        self.assertIsNone(assist.describe_workflow("a: [unclosed"))
+        self.assertIsNone(assist.describe_workflow("juste du texte"))
+        self.assertIsNone(assist.describe_workflow("name: d\nsteps: []\n"))
+        self.assertIsNone(assist.step_changes(BASE, "a: [unclosed"))
+        a, _ = self.assistant("a: [unclosed", "a: [unclosed", "a: [unclosed")
+        res = a.run(BASE, "x")
+        self.assertTrue(res["ok"])
+        self.assertIsNone(res["view"])
+        self.assertIsNone(res["changes"])
+
+    def test_non_dict_steps_do_not_crash(self):
+        view = assist.describe_workflow("name: d\nsteps:\n  - juste une chaîne\n  - id: b\n    type: log\n    message: y\n")
+        self.assertEqual([s["id"] for s in view["steps"]], ["b"])
+
+    def test_result_is_json_serializable(self):
+        import json
+        a, _ = self.assistant(EXTRA)
+        json.dumps(a.run(BASE, "ajoute une étape"))
+
+
 class TemplateTests(unittest.TestCase):
 
     def test_every_template_is_valid(self):
@@ -236,7 +374,7 @@ class OutputPathWarningTests(Base):
 
     def warns(self, path):
         res = self.portal.check_yaml(self.wf(path))
-        return [i for i in res["issues"] if i["level"] == "warn" and "tmp/" in i["message"]], res
+        return [i for i in res["issues"] if i["level"] == "warn" and "racine" in i["message"]], res
 
     def test_root_path_warns_on_the_right_line(self):
         w, res = self.warns("hello.html")

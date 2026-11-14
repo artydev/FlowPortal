@@ -100,7 +100,71 @@ steps:
     path: 'tmp/weather_marseille.json'
     content: '{{fetch_marseille.body}}'
 
-  # ── 7. script de génération HTML combinée ───────────────────────────────────
+  # ── 7. météo de Nantes ──────────────────────────────────────────────────────
+  - id: fetch_nantes
+    type: http_get
+    description: Récupération météo Nantes (Open‑Meteo)
+    url: 'https://api.open-meteo.com/v1/forecast?latitude=47.21837&longitude=-1.55362&current_weather=true'
+    headers:
+      User-Agent: 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0 Safari/537.36'
+      Accept: 'application/json'
+    timeout: 30
+
+  - id: save_nantes_json
+    type: file_write
+    description: Sauvegarde du JSON Nantes
+    path: 'tmp/weather_nantes.json'
+    content: '{{fetch_nantes.body}}'
+
+  # ── 8. météo de Limoges ─────────────────────────────────────────────────────
+  - id: fetch_limoges
+    type: http_get
+    description: Récupération météo Limoges (Open‑Meteo)
+    url: 'https://api.open-meteo.com/v1/forecast?latitude=45.8315&longitude=1.2578&current_weather=true'
+    headers:
+      User-Agent: 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0 Safari/537.36'
+      Accept: 'application/json'
+    timeout: 30
+
+  - id: save_limoges_json
+    type: file_write
+    description: Sauvegarde du JSON Limoges
+    path: 'tmp/weather_limoges.json'
+    content: '{{fetch_limoges.body}}'
+
+  # ── 9. météo de Strasbourg ──────────────────────────────────────────────────
+  - id: fetch_strasbourg
+    type: http_get
+    description: Récupération météo Strasbourg (Open‑Meteo)
+    url: 'https://api.open-meteo.com/v1/forecast?latitude=48.5734&longitude=7.7521&current_weather=true'
+    headers:
+      User-Agent: 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0 Safari/537.36'
+      Accept: 'application/json'
+    timeout: 30
+
+  - id: save_strasbourg_json
+    type: file_write
+    description: Sauvegarde du JSON Strasbourg
+    path: 'tmp/weather_strasbourg.json'
+    content: '{{fetch_strasbourg.body}}'
+
+  # ── 10. météo de Valenciennes ───────────────────────────────────────────────
+  - id: fetch_valenciennes
+    type: http_get
+    description: Récupération météo Valenciennes (Open‑Meteo)
+    url: 'https://api.open-meteo.com/v1/forecast?latitude=50.3592&longitude=3.5250&current_weather=true'
+    headers:
+      User-Agent: 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0 Safari/537.36'
+      Accept: 'application/json'
+    timeout: 30
+
+  - id: save_valenciennes_json
+    type: file_write
+    description: Sauvegarde du JSON Valenciennes
+    path: 'tmp/weather_valenciennes.json'
+    content: '{{fetch_valenciennes.body}}'
+
+  # ── 11. script de génération HTML combinée ──────────────────────────────────
   - id: write_script
     type: file_write
     description: Écriture du script Python qui crée la page HTML combinée et imprime son chemin file://
@@ -120,6 +184,10 @@ steps:
           'Lyon':      {'file': 'lyon',      'zip': None},
           'Lille':     {'file': 'lille',     'zip': None},
           'Marseille': {'file': 'marseille', 'zip': None},
+          'Nantes':    {'file': 'nantes',    'zip': None},
+          'Limoges':   {'file': 'limoges',   'zip': None},
+          'Strasbourg': {'file': 'strasbourg', 'zip': None},
+          'Valenciennes': {'file': 'valenciennes', 'zip': None},
       }
 
       def extract(info):
@@ -156,7 +224,7 @@ steps:
       html.append('<!DOCTYPE html>')
       html.append('<html lang="fr"><head><meta charset="UTF-8">')
       html.append('<meta name="viewport" content="width=device-width, initial-scale=1.0">')
-      html.append('<title>Météo France — 6 villes</title>')
+      html.append('<title>Météo France — 10 villes</title>')
       html.append('<style>')
       html.append('*{margin:0;padding:0;box-sizing:border-box;}')
       html.append('body{font-family:"Segoe UI",system-ui,sans-serif;min-height:100vh;display:flex;align-items:center;justify-content:center;background:linear-gradient(135deg,#0d47a1,#1976d2,#42a5f5);color:#fff;padding:24px;}')
@@ -206,13 +274,13 @@ steps:
       # Imprime le chemin absolu file:// pour l'ouverture dans le navigateur
       print(out_path.resolve().as_uri())
 
-  # ── 8. exécuter le script (génère le HTML et imprime le chemin file://) ─────
+  # ── 12. exécuter le script (génère le HTML et imprime le chemin file://) ─────
   - id: generate_html
     type: python
     description: Génération de la page HTML combinée et impression du chemin file://
     script: 'tmp/paris_cuvergnon_to_html.py'
 
-  # ── 9. ouvrir la page dans le navigateur par défaut (Windows et Linux) ──────
+  # ── 13. ouvrir la page dans le navigateur par défaut (Windows et Linux) ──────
   - id: open_html
     type: python
     description: Ouverture de la page combinée dans le navigateur par défaut
@@ -222,8 +290,8 @@ steps:
       if not webbrowser.open("{{generate_html.output}}".strip()):
           print("Aucun navigateur lancé : ouvrez tmp/weather_paris_cuvergnon.html")
 
-  # ── 10. fin ────────────────────────────────────────────────────────────────
+  # ── 14. fin ────────────────────────────────────────────────────────────────
   - id: done
     type: log
     level: success
-    message: "Terminé : la page météo France (6 villes) est dans tmp/weather_paris_cuvergnon.html, ouverte dans le navigateur par défaut."
+    message: "Terminé : la page météo France (10 villes) est dans tmp/weather_paris_cuvergnon.html, ouverte dans le navigateur par défaut."

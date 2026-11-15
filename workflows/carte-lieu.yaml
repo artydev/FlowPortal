@@ -1,0 +1,195 @@
+# yaml-language-server: $schema=../csflow.schema.json
+name: carte-lieu
+description: >-
+  L'utilisateur saisit un lieu (ville, adresse, monument…). Le workflow géocode ce lieu
+  via le serveur MCP geocontext (IGN), génère une page HTML avec une carte Plan IGN v2
+  centrée sur le lieu, puis l'ouvre dans le navigateur par défaut (Windows et Linux).
+  Prérequis : mcp.json avec l'entrée « geocontext ».
+
+steps:
+
+  # ── 1. Saisie du lieu par l'utilisateur ────────────────────────────────────
+  - id: saisie
+    type: user_input
+    description: "Saisie du lieu à localiser"
+    prompt: "Quel lieu souhaitez-vous afficher sur la carte ? (ex : Tour Eiffel, Lyon, 10 rue de la Paix Paris…)"
+    default: "Tour Eiffel"
+    required: true
+    save_as: tmp/carte_lieu/lieu.txt
+
+  - id: log_lieu
+    type: log
+    level: info
+    message: "Lieu saisi : {{saisie.output}}"
+
+  # ── 2. Géocodage du lieu via le serveur MCP geocontext (IGN) ───────────────
+  - id: geocode
+    type: mcp_call
+    description: "Géocodage du lieu saisi (autocomplétion IGN)"
+    server: geocontext
+    tool: geocode
+    arguments:
+      text: "{{saisie.output}}"
+      maximumResponses: 1
+    save_as: tmp/carte_lieu/geocode.txt
+
+  - id: log_geocode
+    type: log
+    level: info
+    message: "Résultat du géocodage :\n{{geocode.output}}"
+
+  # ── 3. Génération de la page HTML avec la carte centrée sur le lieu ────────
+  - id: write_script
+    type: file_write
+    description: "Écriture du script Python qui génère la carte HTML et imprime son chemin file://"
+    path: 'tmp/carte_lieu/generer_carte.py'
+    content: |
+      import json, pathlib, re
+
+      # ---------- Lecture du lieu saisi ----------
+      lieu = pathlib.Path('tmp/carte_lieu/lieu.txt').read_text(encoding='utf-8').strip()
+
+      # ---------- Lecture et analyse du résultat de géocodage ----------
+      raw = pathlib.Path('tmp/carte_lieu/geocode.txt').read_text(encoding='utf-8')
+
+      lon = lat = None
+      label = lieu
+
+      # Tente de lire le JSON complet pour récupérer coordonnées et libellé
+      try:
+          data = json.loads(raw)
+          items = data if isinstance(data, list) else [data]
+          for it in items:
+              if isinstance(it, dict):
+                  if 'lon' in it and 'lat' in it:
+                      lon = float(it['lon']); lat = float(it['lat'])
+                  elif 'longitude' in it and 'latitude' in it:
+                      lon = float(it['longitude']); lat = float(it['latitude'])
+                  if it.get('label') or it.get('libelle'):
+                      label = it.get('label') or it.get('libelle')
+                  break
+      except Exception:
+          pass
+
+      # Repli : recherche des coordonnées dans le texte brut
+      if lon is None or lat is None:
+          m = re.search(r'["\']?lon(?:gitude)?["\']?\s*[:=]\s*([-+]?\d+\.?\d*)', raw, re.I)
+          n = re.search(r'["\']?lat(?:itude)?["\']?\s*[:=]\s*([-+]?\d+\.?\d*)', raw, re.I)
+          if m and n:
+              lon = float(m.group(1)); lat = float(n.group(1))
+
+      if lon is None or lat is None:
+          raise SystemExit("Impossible de géocoder le lieu : " + lieu)
+
+      # ---------- Construction de la page HTML (OpenLayers + Plan IGN v2) ----------
+      # On utilise un gabarit avec des marqueurs @@...@@ remplacés ensuite,
+      # pour éviter toute confusion avec la substitution de variables de CSFlow.
+      template = """<!DOCTYPE html>
+      <html lang="fr">
+      <head>
+        <meta charset="UTF-8">
+        <meta name="viewport" content="width=device-width, initial-scale=1.0">
+        <title>Carte IGN — @@LABEL@@</title>
+        <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/ol@v9.2.4/ol.css" type="text/css">
+        <style>
+          html, body { margin: 0; height: 100%; font-family: 'Segoe UI', system-ui, sans-serif; }
+          #map { height: 100%; width: 100%; }
+          .header {
+            position: absolute; top: 12px; left: 50%; transform: translateX(-50%);
+            background: rgba(255,255,255,0.92); padding: 10px 20px; border-radius: 8px;
+            box-shadow: 0 2px 8px rgba(0,0,0,0.3); z-index: 1000; font-weight: 600;
+            font-size: 15px; text-align: center; max-width: 90%;
+          }
+          .coords {
+            position: absolute; bottom: 12px; left: 50%; transform: translateX(-50%);
+            background: rgba(255,255,255,0.85); padding: 6px 14px; border-radius: 6px;
+            box-shadow: 0 1px 4px rgba(0,0,0,0.25); z-index: 1000; font-size: 12px;
+            color: #333;
+          }
+        </style>
+      </head>
+      <body>
+        <div class="header">&#128205; @@LABEL@@</div>
+        <div class="coords">lon @@LON@@ · lat @@LAT@@</div>
+        <div id="map"></div>
+
+        <script src="https://cdn.jsdelivr.net/npm/ol@v9.2.4/dist/ol.js"></script>
+        <script>
+          const lon = @@LON@@;
+          const lat = @@LAT@@;
+          const center = ol.proj.fromLonLat([lon, lat]);
+
+          const planIGN = new ol.layer.Tile({
+            source: new ol.source.WMTS({
+              url: 'https://data.geopf.fr/wmts?SERVICE=WMTS&REQUEST=GetTile&VERSION=1.0.0&LAYER=GEOGRAPHICALGRIDSYSTEMS.PLANIGNV2&STYLE=normal&FORMAT=image/png&TILEMATRIXSET=PM&',
+              layer: 'GEOGRAPHICALGRIDSYSTEMS.PLANIGNV2',
+              matrixSet: 'PM',
+              format: 'image/png',
+              projection: 'EPSG:3857',
+              tileGrid: new ol.tilegrid.WMTS({
+                origin: [-20037508.342789244, 20037508.342789244],
+                resolutions: [
+                  156543.03392804097, 78271.51696402048, 39135.75848201024,
+                  19567.87924100512, 9783.93962050256, 4891.96981025128,
+                  2445.98490512564, 1222.99245256282, 611.49622628141,
+                  305.748113140705, 152.8740565703525, 76.43702828517625,
+                  38.21851414258813, 19.109257071294063, 9.554628535647032,
+                  4.777314267823516, 2.388657133911758, 1.194328566955879,
+                  0.5971642834779395, 0.29858214173896974
+                ],
+                matrixIds: ['0','1','2','3','4','5','6','7','8','9','10','11','12','13','14','15','16','17','18','19']
+              })
+            })
+          });
+
+          const map = new ol.Map({
+            target: 'map',
+            layers: [planIGN],
+            view: new ol.View({ center: center, zoom: 15, maxZoom: 19 })
+          });
+
+          const marker = new ol.Feature({ geometry: new ol.geom.Point(center) });
+          marker.setStyle(new ol.style.Style({
+            image: new ol.style.Icon({
+              src: 'https://openlayers.org/en/latest/examples/data/icon.png',
+              scale: 0.8, anchor: [0.5, 1]
+            })
+          }));
+          map.addLayer(new ol.layer.Vector({ source: new ol.source.Vector({ features: [marker] }) }));
+        </script>
+      </body>
+      </html>"""
+
+      html = (template
+              .replace('@@LON@@', format(lon, '.5f'))
+              .replace('@@LAT@@', format(lat, '.5f'))
+              .replace('@@LABEL@@', label))
+
+      out_path = pathlib.Path('tmp/carte_lieu/carte.html')
+      out_path.write_text(html, encoding='utf-8')
+      # Imprime le chemin absolu file:// pour l'ouverture dans le navigateur
+      print(out_path.resolve().as_uri())
+
+  # ── 4. Exécution du script (génère le HTML et imprime le chemin file://) ───
+  - id: generate_html
+    type: python
+    description: "Génération de la page HTML avec la carte centrée sur le lieu"
+    script: 'tmp/carte_lieu/generer_carte.py'
+
+  # ── 5. Ouverture de la page dans le navigateur par défaut ──────────────────
+  - id: open_html
+    type: python
+    description: "Ouverture de la carte dans le navigateur par défaut"
+    continue_on_error: true
+    code: |
+      import webbrowser
+      if not webbrowser.open("{{generate_html.output}}".strip()):
+          print("Aucun navigateur lancé : ouvrez tmp/carte_lieu/carte.html")
+
+  # ── 6. Fin ─────────────────────────────────────────────────────────────────
+  - id: done
+    type: log
+    level: success
+    message: |
+      ✓ Carte générée pour « {{saisie.output}} » : tmp/carte_lieu/carte.html
+      Coordonnées : lon {{geocode.output}} — ouverte dans le navigateur par défaut.

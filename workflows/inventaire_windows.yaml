@@ -1,0 +1,267 @@
+# yaml-language-server: $schema=../csflow.schema.json
+# ════════════════════════════════════════════════════════════════════════════
+#  inventaire-windows — inventaire de la machine locale Windows (équivalent
+#  de inventaire-actifs pour un hôte Windows)
+# ════════════════════════════════════════════════════════════════════════════
+#
+#  Ce que ça fait :
+#    1. relève en LECTURE SEULE la machine locale Windows (OS, version,
+#       uptime, CPU, RAM, disques, ports en écoute, correctifs installés,
+#       mises à jour disponibles) via PowerShell (CIM) ;
+#    2. agrège ce relevé avec les fichiers CSV présents dans un dossier
+#       (un par machine, même format — ex. produits par ce même workflow
+#       sur chaque machine) ;
+#    3. demande à CSAgent un enrichissement : rôle supposé de chaque
+#       machine, signaux d'obsolescence, « à traiter » (notes.md) ;
+#    4. produit un rapport HTML (tableau machine × check, détections de
+#       dérive) + export CSV agrégé + ouvre le navigateur par défaut.
+#
+#  Préréquis : Windows (PowerShell 5.1+) ; un worker CSAgent démarré
+#              (start_agent.bat) pour l'étape « enrichir ».
+#
+#  Compatibilité : le relevé local est orienté Windows (CIM/PowerShell) ;
+#  l'agrégation et le rapport sont portables Windows / Linux.
+#
+#  Sorties : tmp/inventaire_win/ (CSV par machine, notes, rapport HTML).
+#
+#  Mode par défaut : simulation — machines fictives, aucun relevé local.
+# ════════════════════════════════════════════════════════════════════════════
+name: inventaire-windows
+description: >-
+  Inventaire de la machine locale Windows : relevé lecture seule (OS, CPU,
+  RAM, disques, ports, correctifs), agrégation de CSV par machine,
+  enrichissement par CSAgent (rôles, obsolescence), rapport HTML avec
+  détections de dérive. Par défaut : machines fictives, aucun relevé.
+
+inputs:
+  source: simulation    # "simulation" (machines fictives) | "reel" (relevé local + dossier)
+  dossier: ""           # dossier de CSV par machine à agréger (optionnel), ex : "tmp/inventaire_win_csv"
+
+steps:
+
+  # ── 1. relevé lecture seule (local en reel, fictif en simulation) ─────────
+  - id: collecter
+    type: python
+    description: Relevé de la machine locale Windows et agrégation des CSV
+    code: |
+      import csv, pathlib, platform, shutil, subprocess
+
+      mode = "{{source}}".strip().lower()
+      dossier = pathlib.Path("tmp/inventaire_win/machines")
+      dossier.mkdir(parents=True, exist_ok=True)
+
+      def ps(script):
+          """Exécute un script PowerShell et renvoie sa sortie (stdout)."""
+          try:
+              r = subprocess.run(
+                  ["powershell", "-NoProfile", "-NonInteractive", "-Command", script],
+                  capture_output=True, text=True, timeout=60)
+              return r.stdout.strip()
+          except Exception:
+              return ""
+
+      def releve():
+          h = platform.node()
+
+          # OS + version + uptime
+          os_name = ps("(Get-CimInstance Win32_OperatingSystem).Caption")
+          version = ps("(Get-CimInstance Win32_OperatingSystem).Version")
+          boot = ps("(Get-CimInstance Win32_OperatingSystem).LastBootUpTime")
+          up = "—"
+          if boot:
+              try:
+                  from datetime import datetime
+                  b = datetime.fromisoformat(boot.replace("Z", "+00:00"))
+                  hh = int((datetime.now().astimezone() - b).total_seconds() // 3600)
+                  up = str(hh) + " h"
+              except Exception:
+                  up = boot
+
+          # CPU
+          cpu = ps("(Get-CimInstance Win32_Processor).Name")
+          cpu = cpu or "—"
+
+          # RAM (Go)
+          ram = "—"
+          r = ps("[math]::Round((Get-CimInstance Win32_ComputerSystem).TotalPhysicalMemory / 1GB, 0)")
+          if r and r.replace(".", "").isdigit():
+              ram = r + " Go"
+
+          # Disques (lecture seule, % libre)
+          disques = ps(
+              "Get-CimInstance Win32_LogicalDisk -Filter \"DriveType=3\" | "
+              "ForEach-Object { $_.DeviceID + ' ' + [math]::Round($_.Size/1GB,0) + 'G ' + "
+              "[math]::Round(($_.FreeSpace/$_.Size)*100,0) + '% libre' }")
+          disques = " ; ".join(l for l in disques.splitlines() if l.strip()) or "—"
+
+          # Ports en écoute
+          ports = ps(
+              "Get-NetTCPConnection -State Listen | "
+              "Select-Object -ExpandProperty LocalPort -Unique | Sort-Object")
+          ports = ", ".join(p for p in ports.splitlines() if p.strip().isdigit()) or "—"
+
+          # Correctifs installés (Get-HotFix)
+          hotfixes = ps("(Get-HotFix).Count")
+          maj = hotfixes if hotfixes and hotfixes.isdigit() else "0"
+
+          return [h, os_name, version, up, cpu, ram, disques, ports, maj]
+
+      NOMS = ["host", "os", "version", "uptime", "cpu", "ram", "disques", "ports", "correctifs"]
+      if mode == "reel":
+          with open(dossier / (platform.node() + ".csv"), "w", encoding="utf-8", newline="") as f:
+              csv.writer(f, delimiter=";").writerows([NOMS, releve()])
+          print("Relevé local : tmp/inventaire_win/machines/" + platform.node() + ".csv")
+      else:
+          fictions = [
+              ["pc-bureau", "Microsoft Windows 11 Professionnel", "10.0.26100", "312 h",
+               "Intel Core i7-13700", "32 Go", "C: 512G 58% libre ; D: 1T 71% libre",
+               "135, 445, 3389", "18"],
+              ["pc-portable", "Microsoft Windows 10 Professionnel", "10.0.19045", "96 h",
+               "Intel Core i5-1335U", "16 Go", "C: 256G 22% libre",
+               "135, 445", "42"],
+              ["serveur-win", "Microsoft Windows Server 2022 Standard", "10.0.20348", "1400 h",
+               "Intel Xeon Silver 4310", "64 Go", "C: 200G 34% libre ; E: 2T 88% libre",
+               "135, 445, 3389, 5985", "9"],
+          ]
+          for m in fictions:
+              with open(dossier / (m[0] + ".csv"), "w", encoding="utf-8", newline="") as f:
+                  csv.writer(f, delimiter=";").writerows([NOMS, m])
+          print("Simulation : 3 machines fictives dans tmp/inventaire_win/machines/")
+
+      # Agrégation des CSV fournis par l'utilisateur (même format)
+      fourni = "{{dossier}}".strip()
+      if fourni:
+          d = pathlib.Path(fourni)
+          if not d.is_dir():
+              raise SystemExit("Dossier de CSV introuvable : " + fourni)
+          n = 0
+          for f in sorted(d.glob("*.csv")):
+              shutil.copy2(f, dossier / f.name)
+              n += 1
+          print(f"{n} CSV externe(s) agrégé(s).")
+
+      total = len(list(dossier.glob("*.csv")))
+      print(f"Inventaire : {total} machine(s) -> tmp/inventaire_win/machines/")
+
+  # ── 2. enrichissement par CSAgent ──────────────────────────────────────────
+  - id: enrichir
+    type: agent
+    description: Rôles, obsolescence, « à traiter » (par CSAgent)
+    auto_confirm: true
+    prompt: |
+      Read every CSV file in tmp/inventaire_win/machines/ (semicolon-separated:
+      host; os; version; uptime; cpu; ram; disques; ports; correctifs).
+
+      Write the file tmp/inventaire_win/notes.md in French:
+        - « Lecture du parc » : for each machine, one line — its likely
+          role and any signal that matters (old Windows release, disk almost
+          full, many pending updates, very long uptime).
+        - « Dérives » : differences BETWEEN machines that matter (Windows
+          version generation, missing ports that should be common).
+        - « À traiter » : a short numbered list, most urgent first, each
+          item phrased as an action (never executed by this workflow).
+
+      Do NOT modify any file except notes.md.
+
+  # ── 3. rapport HTML + export agrégé ────────────────────────────────────────
+  - id: rapport
+    type: python
+    description: Tableau machine × check, dérivations, export CSV
+    code: |
+      import csv, html, pathlib
+      p = pathlib.Path
+      machines = sorted(p("tmp/inventaire_win/machines").glob("*.csv"))
+      notes = p("tmp/inventaire_win/notes.md")
+      mode = "{{source}}".strip().lower()
+
+      def lire(f):
+          with open(f, encoding="utf-8") as fh:
+              lignes = [l for l in csv.reader(fh, delimiter=";") if l]
+          return lignes[0], lignes[1]
+
+      col0 = lire(machines[0])[0]
+      lignes = [l for f in machines for l in [lire(f)[1]]]
+      idx = {h: i for i, h in enumerate(col0)}
+
+      def det(v):
+          if v and v.replace(".", "").isdigit():
+              return int(v.replace(".", ""))
+          return 0
+
+      alertes = []
+      for l in lignes:
+          h = l[idx["host"]]
+          for partie in l[idx["disques"]].split(";"):
+              pct = next((tok for tok in partie.split() if tok.endswith("%") and tok[:-1].isdigit()), None)
+              if pct and int(pct[:-1]) <= 10:
+                  alertes.append(f"{h} : disque presque plein ({partie.strip()})")
+          maj = det(l[idx["correctifs"]])
+          if maj >= 20:
+              alertes.append(f"{h} : {maj} correctifs installés (à vérifier si à jour)")
+          try:
+              up = int(l[idx["uptime"]].split()[0])
+              if up >= 1000:
+                  alertes.append(f"{h} : uptime de {up} h sans redémarrage")
+          except Exception:
+              pass
+      versions = {l[idx["version"]].split(".")[0] for l in lignes}
+      if len(versions) > 1:
+          alertes.append("Dérive de génération Windows : " + ", ".join(sorted(versions)))
+
+      lignes_html = []
+      if mode == "simulation":
+          lignes_html.append('<div class="demo">MODE SIMULATION — machines fictives, aucun relevé réel.</div>')
+      lignes_html.append('<h1>Inventaire des actifs (Windows)</h1>')
+      lignes_html.append(f'<div class="sub">{len(lignes)} machine(s) — {{now}}</div>')
+      if alertes:
+          lignes_html.append('<h2>Points à surveiller</h2><ul>' +
+                             "".join(f"<li>{html.escape(a)}</li>" for a in alertes) + "</ul>")
+      lignes_html.append('<h2>Tableau</h2><table><tr>' +
+                         "".join(f"<th>{html.escape(h)}</th>" for h in col0) + "</tr>")
+      for i, h in enumerate(col0):
+          lignes_html.append(f"<tr><td>{html.escape(h)}</td>" +
+                             "".join(f"<td>{html.escape(l[idx[h]])}</td>" for l in lignes) + "</tr>")
+      lignes_html.append("</table>")
+      if notes.is_file():
+          lignes_html.append('<h2>Enrichissement (CSAgent)</h2>')
+          for ligne in notes.read_text(encoding="utf-8").splitlines():
+              if ligne.startswith("# "):
+                  continue
+              lignes_html.append(f'<p>{html.escape(ligne) or "&nbsp;"}</p>')
+
+      # Export CSV agrégé
+      export = p("tmp/inventaire_win/inventaire_agrege.csv")
+      with open(export, "w", encoding="utf-8", newline="") as f:
+          w = csv.writer(f, delimiter=";")
+          w.writerow(col0)
+          for l in lignes:
+              w.writerow(l)
+
+      rapport = p("tmp/inventaire_win/rapport_inventaire.html")
+      rapport.write_text("<html><head><meta charset='utf-8'>"
+        "<style>body{font-family:system-ui,sans-serif;margin:2rem;color:#1e293b}"
+        "table{border-collapse:collapse;width:100%}td,th{border:1px solid #cbd5e1;padding:.45rem .7rem}"
+        "h1{color:#0f172a}.sub{color:#64748b}.demo{background:#fef3c7;border:1px solid #f59e0b;"
+        "padding:.6rem 1rem;border-radius:8px;font-weight:600}</style></head><body>"
+        + "\n".join(lignes_html) + "</body></html>", encoding="utf-8")
+      print(rapport.resolve().as_uri())
+
+  # ── 4. ouvrir le rapport dans le navigateur par défaut ─────────────────────
+  - id: ouvrir
+    type: python
+    description: Ouverture du rapport dans le navigateur par défaut
+    continue_on_error: true
+    code: |
+      import webbrowser
+      if not webbrowser.open("{{rapport.output}}".strip()):
+          print("Aucun navigateur lancé : ouvrez tmp/inventaire_win/rapport_inventaire.html")
+
+  # ── 5. fin ──────────────────────────────────────────────────────────────────
+  - id: fin
+    type: log
+    level: success
+    message: "Terminé : inventaire agrégé dans tmp/inventaire_win/ (rapport_inventaire.html + inventaire_agrege.csv)."
+    next: end
+
+  - id: end
+    type: end

@@ -24,6 +24,7 @@ Run the user's CSFlow workflows (YAML files in `workflows/`) through the `csflow
 - Run **one workflow at a time**. If `csflow_run` answers `started: false`, wait for the running one.
 - Do **not** create, edit or delete files in `workflows/` unless the user explicitly asks: a workflow
   can run shell commands and Python scripts that bypass this agent's own command filter.
+  When they do ask to create one, follow the CSFlow Workflow Authoring skill.
 - If `uses_agent` is true, a second CSAgent in API mode (`csagent --api`, port 8080) must be running
   for the workflow's agent steps. If a step fails with "Connection refused", tell the user to start it.
 - Paths inside workflows are relative to the CSFlow folder, which must be the folder CSAgent runs in

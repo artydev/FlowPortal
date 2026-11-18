@@ -1,0 +1,203 @@
+# yaml-language-server: $schema=../csflow.schema.json
+# ════════════════════════════════════════════════════════════════════════════
+#  win-security-patches — liste des correctifs de sécurité Windows installés
+#  et disponibles sur la machine locale
+# ════════════════════════════════════════════════════════════════════════════
+#
+#  Ce que ça fait (100 % non interactif, lecture seule) :
+#    1. relève les correctifs de sécurité INSTALLÉS via Get-HotFix
+#       (PowerShell) : KB, description, date d'installation, installé par ;
+#    2. relève les mises à jour DISPONIBLES via l'API Windows Update
+#       (Microsoft.Update.Session) : KB, titre, catégorie, taille ;
+#    3. agrège les deux listes en CSV + rapport HTML (tableau des
+#       correctifs installés, tableau des mises à jour disponibles,
+#       compteurs) et ouvre le navigateur par défaut.
+#
+#  Préréquis : Windows (PowerShell 5.1+). Aucun worker CSAgent requis :
+#  flux 100 % déterministe. Aucune modification système : lecture seule.
+#
+#  Sorties : output/{{run_id}}/ (hotfixes.csv, updates.csv, rapport.html).
+# ════════════════════════════════════════════════════════════════════════════
+name: win-security-patches
+description: >-
+  Liste les correctifs de sécurité Windows installés (Get-HotFix) et les
+  mises à jour disponibles (API Windows Update) sur la machine locale,
+  puis produit un rapport HTML. Non interactif, lecture seule.
+
+inputs:
+  inclure_disponibles: oui   # "oui" = interroger aussi les mises à jour disponibles | "non" = installés seulement
+
+steps:
+
+  # ── 0. créer le dossier de sortie ──────────────────────────────────────────
+  - id: init
+    type: python
+    description: Création du dossier de sortie
+    code: |
+      import pathlib
+      pathlib.Path("output/{{run_id}}").mkdir(parents=True, exist_ok=True)
+      print("output/{{run_id}}")
+
+  # ── 1. correctifs installés (Get-HotFix) → fichier CSV ────────────────────
+  - id: hotfixes
+    type: shell
+    description: Relevé des correctifs installés (Get-HotFix) vers hotfixes.csv
+    shell: pwsh
+    timeout: 60
+    cmd: |
+      Get-HotFix | Select-Object HotFixID, Description, InstalledOn, InstalledBy |
+        ConvertTo-Csv -NoTypeInformation | Out-File -FilePath "output/{{run_id}}/hotfixes.csv" -Encoding utf8
+
+  # ── 2. mises à jour disponibles (API Windows Update) → fichier CSV ────────
+  - id: updates
+    type: shell
+    description: Relevé des mises à jour disponibles (API Windows Update) vers updates.csv
+    shell: pwsh
+    timeout: 120
+    continue_on_error: true
+    cmd: |
+      $Session = New-Object -ComObject Microsoft.Update.Session
+      $Searcher = $Session.CreateUpdateSearcher()
+      $Result = $Searcher.Search("IsInstalled=0")
+      $Result.Updates | ForEach-Object {
+        $kb = ($_.KBArticleIDs -join ',')
+        $cat = ($_.Categories | ForEach-Object { $_.Name }) -join '; '
+        [PSCustomObject]@{
+          KB = $kb
+          Titre = $_.Title
+          Categorie = $cat
+          TailleMo = [math]::Round($_.MaxDownloadSize / 1MB, 1)
+          EstSecurite = ($_.Categories | Where-Object { $_.Name -match 'Sécurité|Security' }).Count -gt 0
+        }
+      } | ConvertTo-Csv -NoTypeInformation | Out-File -FilePath "output/{{run_id}}/updates.csv" -Encoding utf8
+
+  # ── 3. traitement et rapport ───────────────────────────────────────────────
+  - id: rapport
+    type: python
+    description: Agrégation des correctifs, compteurs, rapport HTML
+    code: |
+      import csv, html, io, pathlib, platform
+
+      p = pathlib.Path
+      out = p("output/{{run_id}}")
+      out.mkdir(parents=True, exist_ok=True)
+
+      def lire_csv(chemin):
+          """Lit un CSV produit par ConvertTo-Csv (avec en-tête)."""
+          if not chemin.is_file():
+              return []
+          lignes = []
+          for l in chemin.read_text(encoding="utf-8-sig").splitlines():
+              if l.startswith('#'):
+                  continue
+              lignes.append(l)
+          if not lignes:
+              return []
+          return list(csv.DictReader(io.StringIO("\n".join(lignes))))
+
+      hotfixes = lire_csv(out / "hotfixes.csv")
+      updates = lire_csv(out / "updates.csv")
+
+      # Nettoyage des champs
+      for h in hotfixes:
+          for k in h:
+              h[k] = (h[k] or "").strip()
+      for u in updates:
+          for k in u:
+              u[k] = (u[k] or "").strip()
+
+      # Compteurs
+      nb_installes = len(hotfixes)
+      nb_disponibles = len(updates)
+      nb_securite_dispo = sum(1 for u in updates if u.get("EstSecurite", "").lower() == "true")
+
+      # Tri : installés par date décroissante, disponibles par taille décroissante
+      hotfixes.sort(key=lambda h: h.get("InstalledOn", ""), reverse=True)
+      updates.sort(key=lambda u: float(u.get("TailleMo", 0) or 0), reverse=True)
+
+      # Export CSV normalisé
+      with open(out / "hotfixes_clean.csv", "w", encoding="utf-8", newline="") as f:
+          w = csv.DictWriter(f, fieldnames=["HotFixID", "Description", "InstalledOn", "InstalledBy"])
+          w.writeheader()
+          w.writerows(hotfixes)
+      with open(out / "updates_clean.csv", "w", encoding="utf-8", newline="") as f:
+          w = csv.DictWriter(f, fieldnames=["KB", "Titre", "Categorie", "TailleMo", "EstSecurite"])
+          w.writeheader()
+          w.writerows(updates)
+
+      # ── Rapport HTML ──
+      lignes = []
+      lignes.append('<h1>Correctifs de sécurité Windows</h1>')
+      lignes.append(f'<div class="sub">Machine : {html.escape(platform.node())} — {{now}}</div>')
+
+      # Cartes compteurs
+      lignes.append('<div class="cards">')
+      lignes.append(f'<div class="card"><div class="num">{nb_installes}</div><div class="lbl">Correctifs installés</div></div>')
+      lignes.append(f'<div class="card"><div class="num">{nb_disponibles}</div><div class="lbl">Mises à jour disponibles</div></div>')
+      lignes.append(f'<div class="card"><div class="num">{nb_securite_dispo}</div><div class="lbl">dont sécurité</div></div>')
+      lignes.append('</div>')
+
+      # Tableau des correctifs installés
+      lignes.append('<h2>Correctifs installés</h2>')
+      if hotfixes:
+          lignes.append('<table><tr><th>KB</th><th>Description</th><th>Installé le</th><th>Installé par</th></tr>')
+          for h in hotfixes:
+              lignes.append(
+                  f'<tr><td class="kb">{html.escape(h.get("HotFixID", ""))}</td>'
+                  f'<td>{html.escape(h.get("Description", ""))}</td>'
+                  f'<td>{html.escape(h.get("InstalledOn", ""))}</td>'
+                  f'<td>{html.escape(h.get("InstalledBy", ""))}</td></tr>')
+          lignes.append('</table>')
+      else:
+          lignes.append('<p class="vide">Aucun correctif détecté (Get-HotFix vide ou indisponible).</p>')
+
+      # Tableau des mises à jour disponibles
+      if "{{inclure_disponibles}}".strip().lower() == "oui":
+          lignes.append('<h2>Mises à jour disponibles</h2>')
+          if updates:
+              lignes.append('<table><tr><th>KB</th><th>Titre</th><th>Catégorie</th><th>Taille (Mo)</th><th>Sécurité</th></tr>')
+              for u in updates:
+                  sec = u.get("EstSecurite", "").lower() == "true"
+                  lignes.append(
+                      f'<tr><td class="kb">{html.escape(u.get("KB", ""))}</td>'
+                      f'<td>{html.escape(u.get("Titre", ""))}</td>'
+                      f'<td>{html.escape(u.get("Categorie", ""))}</td>'
+                      f'<td>{html.escape(u.get("TailleMo", ""))}</td>'
+                      f'<td class="{"sec" if sec else ""}">{"OUI" if sec else "non"}</td></tr>')
+              lignes.append('</table>')
+          else:
+              lignes.append('<p class="vide">Aucune mise à jour disponible détectée (API Windows Update vide ou indisponible).</p>')
+
+      rapport = out / "rapport.html"
+      rapport.write_text("<html><head><meta charset='utf-8'>"
+        "<style>body{font-family:system-ui,sans-serif;margin:2rem;color:#1e293b}"
+        "table{border-collapse:collapse;width:100%;margin-bottom:1.5rem}"
+        "td,th{border:1px solid #cbd5e1;padding:.45rem .7rem;text-align:left;font-size:.9rem}"
+        "th{background:#f1f5f9}h1{color:#0f172a}.sub{color:#64748b;margin-bottom:1rem}"
+        ".cards{display:flex;gap:1rem;margin:1rem 0 1.5rem}"
+        ".card{background:#f8fafc;border:1px solid #e2e8f0;border-radius:10px;padding:1rem 1.5rem;text-align:center}"
+        ".num{font-size:2rem;font-weight:800;color:#0f172a}.lbl{color:#64748b;font-size:.85rem}"
+        ".kb{font-family:monospace;font-weight:600}.sec{color:#dc2626;font-weight:700}"
+        ".vide{color:#94a3b8;font-style:italic}</style></head><body>"
+        + "\n".join(lignes) + "</body></html>", encoding="utf-8")
+      print(rapport.resolve().as_uri())
+
+  # ── 4. ouvrir le rapport dans le navigateur par défaut ─────────────────────
+  - id: ouvrir
+    type: python
+    description: Ouverture du rapport dans le navigateur par défaut
+    continue_on_error: true
+    code: |
+      import webbrowser
+      if not webbrowser.open("{{rapport.output}}".strip()):
+          print("Aucun navigateur lancé : ouvrez output/{{run_id}}/rapport.html")
+
+  # ── 5. fin ──────────────────────────────────────────────────────────────────
+  - id: fin
+    type: log
+    level: success
+    message: "Terminé : correctifs listés dans output/{{run_id}}/ (hotfixes.csv, updates.csv, rapport.html)."
+    next: end
+
+  - id: end
+    type: end

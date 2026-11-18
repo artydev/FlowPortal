@@ -416,7 +416,7 @@ workflow/
 ├── start_csagent.bat / .sh  ← mode MCP : worker CSAgent + CSAgent interactif qui pilote CSFlow
 ├── mcp.json.example         ← config MCP (Linux, exe) ; mcp.windows.*.example, mcp.linux.source.example
 ├── build_nuitka.bat / .sh   ← compilation en exécutable unique
-├── skills/                  ← skill CSAgent « CSFlow Workflows » (csflow.md, INDEX.md)
+├── skills/                  ← skills CSAgent « CSFlow Workflows » et « CSFlow Workflow Authoring » (csflow.md, csflow-create-workflow.md, INDEX.md)
 ├── tests/mcp_smoke.py       ← test du serveur MCP, sans CSAgent
 ├── ui/index.html            ← interface (Umai embarqué, aucun CDN)
 ├── nodes/
@@ -545,7 +545,7 @@ Autres cas : depuis les sources, les scripts choisissent la bonne config MCP —
 `start_csagent.bat` copie `mcp.windows.source.example` (`python.exe app.py --mcp`) ; sous Linux,
 `./start_csagent.sh` copie `mcp.json.example` (`./FlowPortal --mcp`) si l'exe est à côté, sinon
 `mcp.linux.source.example` (`python3 app.py --mcp`).
-CSAgent lit la skill `skills/csflow.md` depuis son dossier de travail : lancez-le depuis le dossier de CSFlow.
+CSAgent lit les skills `skills/csflow.md` (lancer un workflow) et `skills/csflow-create-workflow.md` (en écrire un : `name:` renseigné, fichiers produits sous `output/{{run_id}}/`, validation par `csflow_check`) depuis son dossier de travail : lancez-le depuis le dossier de CSFlow.
 
 ### Linux/WSL sans l'exe (depuis les sources)
 

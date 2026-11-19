@@ -15,7 +15,7 @@ steps:
     prompt: "Quel lieu souhaitez-vous afficher sur la carte ? (ex : Tour Eiffel, Lyon, 10 rue de la Paix Paris…)"
     default: "Tour Eiffel"
     required: true
-    save_as: tmp/carte_lieu/lieu.txt
+    save_as: output/{{run_id}}/lieu.txt
 
   - id: log_lieu
     type: log
@@ -31,7 +31,7 @@ steps:
     arguments:
       text: "{{saisie.output}}"
       maximumResponses: 1
-    save_as: tmp/carte_lieu/geocode.txt
+    save_as: output/{{run_id}}/geocode.txt
 
   - id: log_geocode
     type: log
@@ -42,15 +42,15 @@ steps:
   - id: write_script
     type: file_write
     description: "Écriture du script Python qui génère la carte HTML et imprime son chemin file://"
-    path: 'tmp/carte_lieu/generer_carte.py'
+    path: 'output/{{run_id}}/generer_carte.py'
     content: |
       import json, pathlib, re
 
       # ---------- Lecture du lieu saisi ----------
-      lieu = pathlib.Path('tmp/carte_lieu/lieu.txt').read_text(encoding='utf-8').strip()
+      lieu = pathlib.Path('output/{{run_id}}/lieu.txt').read_text(encoding='utf-8').strip()
 
       # ---------- Lecture et analyse du résultat de géocodage ----------
-      raw = pathlib.Path('tmp/carte_lieu/geocode.txt').read_text(encoding='utf-8')
+      raw = pathlib.Path('output/{{run_id}}/geocode.txt').read_text(encoding='utf-8')
 
       lon = lat = None
       label = lieu
@@ -165,7 +165,7 @@ steps:
               .replace('@@LAT@@', format(lat, '.5f'))
               .replace('@@LABEL@@', label))
 
-      out_path = pathlib.Path('tmp/carte_lieu/carte.html')
+      out_path = pathlib.Path('output/{{run_id}}/carte.html')
       out_path.write_text(html, encoding='utf-8')
       # Imprime le chemin absolu file:// pour l'ouverture dans le navigateur
       print(out_path.resolve().as_uri())
@@ -174,7 +174,7 @@ steps:
   - id: generate_html
     type: python
     description: "Génération de la page HTML avec la carte centrée sur le lieu"
-    script: 'tmp/carte_lieu/generer_carte.py'
+    script: 'output/{{run_id}}/generer_carte.py'
 
   # ── 5. Ouverture de la page dans le navigateur par défaut ──────────────────
   - id: open_html
@@ -184,12 +184,12 @@ steps:
     code: |
       import webbrowser
       if not webbrowser.open("{{generate_html.output}}".strip()):
-          print("Aucun navigateur lancé : ouvrez tmp/carte_lieu/carte.html")
+          print("Aucun navigateur lancé : ouvrez output/{{run_id}}/carte.html")
 
   # ── 6. Fin ─────────────────────────────────────────────────────────────────
   - id: done
     type: log
     level: success
     message: |
-      ✓ Carte générée pour « {{saisie.output}} » : tmp/carte_lieu/carte.html
+      ✓ Carte générée pour « {{saisie.output}} » : output/{{run_id}}/carte.html
       Coordonnées : lon {{geocode.output}} — ouverte dans le navigateur par défaut.

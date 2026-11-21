@@ -1145,3 +1145,80 @@ fieldset {
     transition: none !important;
   }
 }
+
+/* catégories : la teinte vient de --cat-hue (calculée depuis le nom, voir categoryHue) */
+.category-bar {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  margin: -8px 0 20px;
+}
+.category-bar[hidden] {
+  display: none;
+}
+.category-chip {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+}
+.category-dot {
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  background: hsl(var(--cat-hue, 0) 65% 55%);
+  flex: none;
+}
+.category-chip[aria-pressed="true"] .category-dot {
+  background: currentColor;
+}
+.category-count {
+  font-size: 12px;
+  opacity: 0.7;
+}
+.category-label {
+  display: inline-block;
+  align-self: flex-start;
+  font-size: 12px;
+  font-weight: 600;
+  padding: 1px 8px;
+  border-radius: 999px;
+  color: color-mix(in srgb, hsl(var(--cat-hue, 0) 75% 50%) 55%, var(--ink));
+  background: hsl(var(--cat-hue, 0) 60% 50% / 0.15);
+}
+.workflow-card .category-label {
+  margin: -2px 0 2px;
+}
+.category-row th {
+  padding: 0;
+  background: var(--bg);
+  border-bottom: 1px solid var(--line);
+}
+.category-toggle {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  width: 100%;
+  padding: 8px 14px;
+  border: 0;
+  background: transparent;
+  color: var(--ink);
+  font: inherit;
+  text-align: left;
+  cursor: pointer;
+}
+.category-toggle:focus-visible {
+  outline: 2px solid var(--accent);
+  outline-offset: -2px;
+}
+.category-caret {
+  width: 1em;
+  color: var(--mute);
+}
+.category-none {
+  color: var(--mute);
+  font-weight: 600;
+  font-size: 13px;
+}
+.category-chip:not([style]) .category-dot {
+  background: var(--mute);
+}

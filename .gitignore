@@ -51,6 +51,12 @@ coverage.xml
 # Journaux
 *.log
 
+# Correctifs / patchs
+*.patch
+*.diff
+*.rej
+*.orig
+
 # Bases de données locales
 *.db
 *.sqlite

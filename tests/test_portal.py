@@ -117,6 +117,15 @@ class CardTests(Base):
         self.assertTrue(card["ready"])
         self.assertIsNone(card["last_run"])
 
+    def test_category(self):
+        self.put("a.yaml", SIMPLE)
+        self.put("b.yaml", "category:   Démo   IA \n" + HUMAN)
+        self.put("c.yaml", "category: 42\n" + HUMAN)
+        cards = {c["filename"]: c for c in self.portal.list_cards()}
+        self.assertEqual(cards["a.yaml"]["category"], "")
+        self.assertEqual(cards["b.yaml"]["category"], "Démo IA")
+        self.assertEqual(cards["c.yaml"]["category"], "42")
+
     def test_tags(self):
         self.put("a.yaml", SIMPLE)
         self.put("b.yaml", HUMAN)

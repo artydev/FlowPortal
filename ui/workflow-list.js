@@ -77,6 +77,68 @@ function renderTags(workflow) {
     </div>
   `;
 }
+/** Étiquette colorée de catégorie (rien si le workflow n'en a pas). */
+function renderCategoryLabel(category) {
+  return category
+    ? html`<span class="category-label" style="--cat-hue:${categoryHue(category)}">${category}</span>`
+    : "";
+}
+/**
+ * Barre des catégories : « Toutes » puis une pastille par catégorie avec son effectif.
+ * Masquée tant qu'aucun workflow n'a de catégorie. Une catégorie qui n'existe plus
+ * (workflow renommé ou supprimé) ramène le filtre sur « Toutes ».
+ */
+function renderCategoryBar() {
+  const categories = listCategories(appState.workflows);
+  const hasCategory = categories.some((category) => category.name != NO_CATEGORY);
+  if (
+    appState.category != "all" &&
+    !categories.some((category) => category.name == appState.category)
+  )
+    appState.category = "all";
+  const bar = $("#category-bar");
+  bar.hidden = !hasCategory;
+  bar.innerHTML = !hasCategory
+    ? ""
+    : html`
+        <button class="button-secondary" data-category="all" aria-pressed="${appState.category == "all"}">Toutes</button>
+        ${categories.map(
+          (category) => html`<button class="button-secondary category-chip" data-category="${category.name}" aria-pressed="${appState.category == category.name}" ${category.name == NO_CATEGORY ? "" : html`style="--cat-hue:${categoryHue(category.name)}"`}><i class="category-dot"></i>${category.name || NO_CATEGORY_LABEL} <span class="category-count">${category.count}</span></button>`,
+        )}
+      `;
+}
+/** Replie ou déplie un groupe de la vue liste ; le choix est mémorisé par le navigateur. */
+function toggleCategoryGroup(name) {
+  const collapsed = new Set(appState.collapsedCategories);
+  collapsed.has(name) ? collapsed.delete(name) : collapsed.add(name);
+  appState.collapsedCategories = [...collapsed];
+  try {
+    localStorage.setItem("fp-collapsed-categories", JSON.stringify(appState.collapsedCategories));
+  } catch (error) {}
+  renderWorkflowList();
+}
+/**
+ * Lignes d'une catégorie dans la vue liste : un en-tête cliquable (replier/déplier)
+ * puis, si le groupe est ouvert, ses workflows. Une recherche ou un filtre actif
+ * garde tous les groupes ouverts pour ne pas cacher des résultats.
+ */
+function renderCategoryGroupHtml(group, forceOpen) {
+  const isOpen = forceOpen || !appState.collapsedCategories.includes(group.name);
+  return html`
+    <tbody class="category-group" style="--cat-hue:${categoryHue(group.name)}">
+      <tr class="category-row">
+        <th colspan="4" scope="colgroup">
+          <button class="category-toggle" type="button" data-toggle-category="${group.name}" aria-expanded="${isOpen}">
+            <span class="category-caret" aria-hidden="true">${isOpen ? "▾" : "▸"}</span>
+            ${group.name ? html`<span class="category-label">${group.name}</span>` : html`<span class="category-none">${NO_CATEGORY_LABEL}</span>`}
+            <span class="category-count">${group.workflows.length}</span>
+          </button>
+        </th>
+      </tr>
+      ${isOpen ? group.workflows.map(renderRowHtml) : ""}
+    </tbody>
+  `;
+}
 /**
  * HTML d'une carte (vue « cartes »). Le bouton Lancer porte `data-launch-workflow` : le
  * gestionnaire de clic global l'intercepte avant l'ouverture de la carte.
@@ -85,6 +147,7 @@ function renderCardHtml(workflow) {
   return html`
     <div class="workflow-card" tabindex="0" role="button" data-filename="${workflow.filename}">
       <h3>${workflow.title}</h3>
+      ${renderCategoryLabel(workflow.category)}
       <p>${workflow.summary || "Pas de description."}</p>
       ${renderStepTimeline(workflow)}
       ${renderTags(workflow)}
@@ -122,7 +185,10 @@ function renderRowHtml(workflow) {
  */
 function renderWorkflowList() {
   const isListView = appState.viewMode == "list";
+  renderCategoryBar();
   const visibleWorkflows = filterWorkflows(appState.workflows, appState);
+  const hasCategories = appState.workflows.some((workflow) => workflow.category);
+  const isFiltering = !!appState.searchText || appState.filter != "all" || appState.category != "all";
   $("#workflow-grid").classList.toggle("list-view", isListView);
   const viewToggleButton = $("#view-mode-toggle-button");
   viewToggleButton.textContent = isListView ? "Vue cartes" : "Vue liste";
@@ -142,7 +208,9 @@ function renderWorkflowList() {
                     <th scope="col"><span class="sr-only">Actions</span></th>
                   </tr>
                 </thead>
-                <tbody>${visibleWorkflows.map(renderRowHtml)}</tbody>
+                ${hasCategories
+                  ? groupByCategory(visibleWorkflows).map((group) => renderCategoryGroupHtml(group, isFiltering))
+                  : html`<tbody>${visibleWorkflows.map(renderRowHtml)}</tbody>`}
               </table>
             </div>
           `

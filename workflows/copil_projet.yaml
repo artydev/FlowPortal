@@ -1,5 +1,6 @@
 # yaml-language-server: $schema=../csflow.schema.json
 name: Préparation du COPIL
+category: Démo
 description: "Du plan de projet brut au rapport COPIL validé : indicateurs calculés par Python, analyse par CSAgent, décision humaine."
 
 # ─────────────────────────────────────────────────────────────────────────────

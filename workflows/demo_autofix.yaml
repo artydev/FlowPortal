@@ -1,5 +1,6 @@
 # yaml-language-server: $schema=../csflow.schema.json
 name: auto-fix-demo
+category: Démo
 description: Crée un script Python cassé, l'exécute, demande à CSAgent de corriger les bugs, puis vérifie.
 
 # Les chemins sont RELATIFS au dossier CSFlow/ (CSAgent n'écrit que dans son dossier

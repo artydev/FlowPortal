@@ -1,5 +1,6 @@
 # yaml-language-server: $schema=../csflow.schema.json
 name: sales-report-pipeline
+category: Démo
 description: Écrit un CSV, CSAgent l'analyse et produit un rapport markdown, puis l'affiche.
 
 # Chemins RELATIFS au dossier CSFlow/ (CSAgent n'écrit que dans son dossier

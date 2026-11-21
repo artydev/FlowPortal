@@ -1,5 +1,6 @@
 # yaml-language-server: $schema=../csflow.schema.json
 name: weather
+category: Démo
 description: Récupère la météo de Paris, Cuvergnon, Bordeaux, Lyon, Lille et Marseille, génère une page HTML combinée au thème bleu "award‑winning" et l'ouvre dans le navigateur par défaut (Windows et Linux).
 
 steps:

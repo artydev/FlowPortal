@@ -146,6 +146,20 @@ def _yaml_scalar(value: str) -> str:
     return json.dumps(value, ensure_ascii=False)
 
 
+MAX_CATEGORY = 40
+
+
+def clean_category(value) -> str:
+    """Catégorie normalisée : espaces réduits, vide si absente."""
+    return " ".join(str(value or "").split())
+
+
+def _category_line(category: str) -> str:
+    """Ligne `category: …` ; entre guillemets sauf pour un texte simple (lettres, chiffres, espaces, tirets)."""
+    simple = re.fullmatch(r"[^\W\d_][\w -]*", category) and category.lower() not in _YAML_WORDS
+    return "category: " + (category if simple else json.dumps(category, ensure_ascii=False)) + "\n"
+
+
 def _top_name(text: str):
     """(valeur, correspondance) de la première ligne `name:` de premier niveau, ou (None, None)."""
     m = _NAME_LINE.search(text)
@@ -446,13 +460,20 @@ class Portal:
         return [{k: t[k] for k in ("id", "label", "description")} for t in TEMPLATES]
 
     @staticmethod
-    def template_text(template_id: str, filename: str) -> str:
-        """Texte d'un modèle, avec le nom du workflow tiré du nom de fichier."""
+    def template_text(template_id: str, filename: str, category: str = "") -> str:
+        """Texte d'un modèle, avec le nom du workflow tiré du nom de fichier et, si elle est donnée, sa catégorie."""
+        category = clean_category(category)
+        if len(category) > MAX_CATEGORY:
+            raise PortalError(f"Catégorie trop longue ({MAX_CATEGORY} caractères au plus).")
         name = re.sub(r"\.ya?ml$", "", safe_name(filename), flags=re.I)
         slug = re.sub(r"[^A-Za-z0-9_-]+", "-", name).strip("-") or "nouveau-workflow"
         for t in TEMPLATES:
             if t["id"] == template_id:
-                return t["yaml"].replace("{NOM}", slug)
+                text = t["yaml"].replace("{NOM}", slug)
+                if category:
+                    first, _, rest = text.partition("\n")          # les modèles commencent tous par « name: … »
+                    text = first + "\n" + _category_line(category) + rest
+                return text
         raise PortalError(f"Modèle inconnu : « {template_id} ».")
 
     # -- cartes -------------------------------------------------------------
@@ -475,7 +496,7 @@ class Portal:
 
     def _card(self, path: Path, last: dict | None, nruns: int) -> dict:
         base = {"filename": path.name, "path": str(path), "name": path.stem, "title": title_of(path.stem),
-                "summary": "", "description": "", "inputs": {}, "steps": [],
+                "summary": "", "description": "", "category": "", "inputs": {}, "steps": [],
                 "tags": {"agent": False, "human": False, "mcp": False},
                 "requirements": {"servers": [], "env": []}, "missing": [], "ready": False,
                 "last_run": self._brief(last), "runs": nruns, "error": ""}
@@ -495,6 +516,7 @@ class Portal:
         base.update({
             "name": str(wf.get("name") or path.stem), "title": title_of(wf.get("name") or path.stem),
             "summary": summary_of(wf.get("description")), "description": str(wf.get("description") or "").strip(),
+            "category": clean_category(wf.get("category")),
             "inputs": {str(k): "" if v is None else str(v) for k, v in inputs.items()},
             "friendly_title": friendly_title(wf.get("name") or path.stem),
             "steps": [{"id": str(s.get("id", f"step_{i + 1}")), "type": str(s.get("type", "unknown")),

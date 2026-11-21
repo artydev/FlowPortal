@@ -795,7 +795,8 @@ function proposalChangesHtml(event) {
 
   const compact     = !created && steps.length > PROPOSAL_COMPACT_FROM && touchedCount > 0;
   const hiddenCount = steps.length - touchedCount;
-  const nothingTouched = !created && !touchedCount && !removed.length && !changes.reordered;
+  const categoryChange = changes.category;                                     // { from, to } ou null ("" = aucune)
+  const nothingTouched = !created && !touchedCount && !removed.length && !changes.reordered && !categoryChange;
 
   return html`
     <div class="proposal-steps-wrap">
@@ -804,6 +805,7 @@ function proposalChangesHtml(event) {
           onclick="this.closest('.proposal-steps-wrap').classList.toggle('show-all')">Voir ou masquer les ${hiddenCount} étapes qui ne changent pas</button>` : ""}
       ${removed.length ? html`<p class="proposal-removed">Retiré : ${joinHtml(removed.map(entry => html`<s>${entry.title}</s>`), ", ")}</p>` : ""}
       ${changes.reordered ? html`<p class="proposal-note">L'ordre des étapes a changé.</p>` : ""}
+      ${categoryChange ? html`<p class="proposal-note">Catégorie : ${categoryChange.from ? html`<s>${categoryChange.from}</s> → ` : ""}${categoryChange.to ? html`<b>${categoryChange.to}</b>` : "aucune"}</p>` : ""}
       ${nothingTouched ? html`<p class="proposal-note">Les étapes restent identiques : seul le descriptif a changé.</p>` : ""}
       ${view.branches ? html`<p class="proposal-note warn">Ces étapes ne se suivent pas toujours dans cet ordre : certaines dépendent de vos réponses.</p>` : ""}
     </div>

@@ -6,10 +6,15 @@
 /* ── interactions générales ────────────────────────────────────────── */
 // Délégation de clic unique pour cartes et lignes (rendues dynamiquement), via les attributs data-* :
 //   data-launch-workflow lancer · data-open-workflow ouvrir · data-edit-workflow modifier · data-delete-workflow supprimer
-//   data-duplicate-workflow dupliquer · data-rename-workflow renommer · data-run-id résultat d'un lancement récent
+//   data-duplicate-workflow dupliquer · data-rename-workflow renommer · data-toggle-category replier/déplier un groupe · data-run-id résultat d'un lancement récent
 // L'ordre est important : `data-launch-workflow` est testé en premier et stoppe la propagation
 // pour ne pas ouvrir la carte dont le bouton fait partie.
 document.addEventListener("click", (event) => {
+  const groupToggle = event.target.closest("[data-toggle-category]");
+  if (groupToggle) {
+    toggleCategoryGroup(groupToggle.dataset.toggleCategory);
+    return;
+  }
   const runButton = event.target.closest("[data-launch-workflow]");
   if (runButton) {
     event.stopPropagation();
@@ -54,6 +59,16 @@ document.addEventListener("keydown", (event) => {
   if (event.key == "Enter" && event.target.classList.contains("workflow-card"))
     openWorkflowPanel(event.target.dataset.filename);
 });
+$("#category-bar").onclick = (event) => {
+  const chip = event.target.closest("[data-category]");
+  if (!chip) return;
+  appState.category = chip.dataset.category;
+  renderWorkflowList();
+};
+try {
+  const collapsed = JSON.parse(localStorage.getItem("fp-collapsed-categories") || "[]");
+  if (Array.isArray(collapsed)) appState.collapsedCategories = collapsed.map(String);
+} catch (error) {}
 $("#search-input").oninput = (event) => {
   appState.searchText = event.target.value.toLowerCase();
   renderWorkflowList();

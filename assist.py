@@ -100,7 +100,7 @@ def _step_starts(text: str) -> list:
 def describe_workflow(text: str, issues: list = None):
     """Le workflow résumé pour l'interface, ou None si le YAML est illisible ou sans étapes.
 
-        {"name", "title", "description", "branches": bool,
+        {"name", "title", "description", "category", "branches": bool,
          "steps": [{"index", "id", "type", "title", "label", "icon", "kind", "conditional", "autonomous",
                     "problems": [{"level", "message", "friendly"}]}]}
 
@@ -136,21 +136,27 @@ def describe_workflow(text: str, issues: list = None):
                           "friendly": friendly_problem(i["message"], label)} for i in found],
         })
     return {"name": str(wf.get("name") or ""), "title": friendly_title(wf.get("name") or ""), "description": str(wf.get("description") or ""),
+            "category": " ".join(str(wf.get("category") or "").split()),
             "branches": any(k in s for _, s in items for k in _FLOW_KEYS), "steps": steps}
 
 
 def step_changes(old: str, new: str):
     """Ce qui a changé entre deux versions, étape par étape (rapprochées par id), ou None si `new` est illisible.
 
-        {"added": [id], "removed": [{"id", "type", "title"}], "changed": [{"id", "keys": [clé]}], "reordered": bool}
+        {"added": [id], "removed": [{"id", "type", "title"}], "changed": [{"id", "keys": [clé]}], "reordered": bool,
+         "category": {"from": str, "to": str} | None}
 
     changed : même id dans les deux versions mais contenu différent ; keys = les clés de l'étape qui diffèrent.
     reordered : les étapes communes ne sont plus dans le même ordre. Un id renommé compte comme retiré + ajouté.
+    category : la catégorie du workflow a changé ("" = aucune) ; None si elle est restée la même.
     """
     wf_new, items_new = _load(new)
     if wf_new is None or not items_new:
         return None
-    before = {_step_id(s, p): s for p, s in _load(old)[1]}
+    wf_old, items_old = _load(old)
+    before = {_step_id(s, p): s for p, s in items_old}
+    cat_old = " ".join(str((wf_old or {}).get("category") or "").split())
+    cat_new = " ".join(str(wf_new.get("category") or "").split())
     after = {_step_id(s, p): s for p, s in items_new}
     return {
         "added": [i for i in after if i not in before],
@@ -159,6 +165,7 @@ def step_changes(old: str, new: str):
         "changed": [{"id": i, "keys": sorted(k for k in set(before[i]) | set(s) if before[i].get(k) != s.get(k))}
                     for i, s in after.items() if i in before and before[i] != s],
         "reordered": [i for i in before if i in after] != [i for i in after if i in before],
+        "category": {"from": cat_old, "to": cat_new} if cat_old != cat_new else None,
     }
 
 
@@ -168,12 +175,27 @@ FRENCH = ("Réponds toujours en français, y compris tes commentaires de progres
           "(par exemple « Rédaction du résumé »), et un « name » du workflow lisible. ")
 
 
-def build_prompt(rel_path: str, instruction: str) -> str:
+def category_rule(categories=None) -> str:
+    """Consigne sur la clé racine `category:` (rangement des cartes du portail), à glisser dans le prompt."""
+    names = [c for c in (categories or []) if c]
+    rule = ("Le workflow peut porter une clé racine « category » (texte court, ex. « category: Démo ») qui le range dans le portail : "
+            "conserve celle qui existe, sauf si la demande dit de la changer ou de la retirer ; "
+            "si la demande nomme une catégorie, utilise exactement ce nom. ")
+    if names:
+        rule += ("Si le fichier n'en a pas et que tu crées ou refais le workflow, reprends l'une des catégories déjà utilisées si l'une convient ("
+                 + ", ".join(f"« {n} »" for n in names) + "), sinon n'en ajoute pas. ")
+    else:
+        rule += "N'en invente pas si la demande n'en parle pas. "
+    return rule
+
+
+def build_prompt(rel_path: str, instruction: str, categories=None) -> str:
     return (f"Tu dois modifier le fichier de workflow CSFlow « {rel_path} » selon la demande ci-dessous.\n"
             "Règles : édite UNIQUEMENT ce fichier, sans créer ni modifier aucun autre fichier ; "
             "respecte la compétence « csflow » (types d'étapes, ids uniques, références {{id.output}}) ; "
             "conserve tout ce que la demande ne concerne pas (ids, commentaires, ordre) ; "
             "le fichier doit rester un YAML valide avec au moins « name » et « steps ». "
+            + category_rule(categories) +
             "Le workflow s'exécute sous Windows et Linux : les chemins des fichiers qu'il lit ou écrit sont relatifs au dossier de FlowPortal ; "
             "les fichiers qu'il produit vont dans le sous-dossier « output/{{run_id}}/ » (par exemple « output/{{run_id}}/rapport.html »), jamais dans « tmp/ » ni à la racine — cela isole chaque run automatiquement ; "
             "pour écrire un fichier, utilise TOUJOURS « type: file_write » (pas python+pathlib) : file_write crée les dossiers manquants automatiquement et le fichier apparaît dans l'onglet Fichiers de l'interface ; "
@@ -200,6 +222,13 @@ class Assistant:
         self.max_fixes = max(0, int(max_fixes))
         self.root = self.base / "tmp" / "assist"
 
+    def _categories(self) -> list:
+        """Catégories déjà utilisées par les workflows du portail (triées, sans doublon) ; vide si le portail ne répond pas."""
+        try:
+            return sorted({c["category"] for c in self.portal.list_cards() if c.get("category")}, key=lambda n: (n.casefold(), n))
+        except Exception:
+            return []
+
     def cleanup_stale(self) -> None:
         """Supprime les brouillons laissés par une session précédente."""
         shutil.rmtree(self.root, ignore_errors=True)
@@ -218,7 +247,7 @@ class Assistant:
         try:
             folder.mkdir(parents=True, exist_ok=True)
             draft.write_text(original, encoding="utf-8")
-            prompt, answers = build_prompt(rel, instruction), []
+            prompt, answers = build_prompt(rel, instruction, self._categories()), []
             issues, attempts = [], 0
             for attempt in range(self.max_fixes + 1):
                 attempts = attempt + 1

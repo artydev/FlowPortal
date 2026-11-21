@@ -5,6 +5,7 @@ _Générée par `python engine.py --nodes --md` à partir des `@register` de `no
 
 - `name` : nom du workflow (affiché dans l'interface)
 - `description` : description du workflow
+- `category` : catégorie du workflow (texte libre) : sert à filtrer et regrouper les cartes du portail
 - `inputs` : variables d'entrée, utilisables dans tout le workflow avec {{nom}}
 - `steps` *(obligatoire)* : liste des étapes
 

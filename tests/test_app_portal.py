@@ -251,6 +251,10 @@ class AppPortalTests(unittest.TestCase):
         self.assertTrue(res["ok"])
         self.assertIn("name:", res["yaml"])
         self.assertFalse(self.app.portal_template("nope", "a.yaml")["ok"])
+        res = self.app.portal_template("vide", "Mon Flux.yaml", "Démo")
+        self.assertTrue(res["ok"])
+        self.assertIn("category: Démo", res["yaml"])
+        self.assertFalse(self.app.portal_template("vide", "a.yaml", "x" * 99)["ok"])
 
     def _assistant(self, agent):
         import assist

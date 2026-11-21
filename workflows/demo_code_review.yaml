@@ -1,5 +1,6 @@
 # yaml-language-server: $schema=../csflow.schema.json
 name: code_review
+category: Démo
 description: Crée un mini-projet, l'inspecte, analyse les problèmes, demande validation humaine puis corrige ou s'arrête.
 
 # Le projet d'exemple est créé dans CSFlow/tmp/mon-projet (chemin RELATIF ; les « / »

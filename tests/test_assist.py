@@ -87,6 +87,17 @@ class PromptTests(unittest.TestCase):
         self.assertIn("ajoute une étape", p)
         self.assertNotIn("steps:", p)
 
+    def test_prompt_explains_category(self):
+        p = assist.build_prompt("f.yaml", "x")
+        self.assertIn("category", p)
+        self.assertIn("conserve celle qui existe", p)
+        self.assertNotIn("catégories déjà utilisées", p)
+
+    def test_prompt_lists_existing_categories(self):
+        p = assist.build_prompt("f.yaml", "x", ["Démo", "IA", ""])
+        self.assertIn("« Démo », « IA »", p)
+        self.assertNotIn("« », ", p)
+
     def test_fix_prompt_lists_only_errors(self):
         p = assist.build_fix_prompt("f.yaml", [{"level": "error", "line": 3, "message": "boum"},
                                                {"level": "warn", "line": 4, "message": "attention"}])
@@ -207,6 +218,72 @@ class RunTests(Base):
         self.assertIs(agent.calls[0]["_wait_approval"], wa)
 
 
+class CategoryTests(Base):
+
+    def put(self, name, text):
+        (self.root / "workflows" / name).write_text(text, encoding="utf-8")
+
+    def test_prompt_sent_to_agent_carries_existing_categories(self):
+        self.put("a.yaml", "category: Tchap\n" + BASE)
+        self.put("b.yaml", "category: démo\n" + BASE)
+        self.put("c.yaml", "category: Démo\n" + BASE)
+        self.put("d.yaml", BASE)
+        a, agent = self.assistant(EXTRA)
+        a.run(BASE, "ajoute une étape")
+        prompt = agent.calls[0]["prompt"]
+        self.assertIn("« Démo », « démo », « Tchap »", prompt)
+
+    def test_prompt_without_categories_still_runs(self):
+        a, agent = self.assistant(EXTRA)
+        res = a.run(BASE, "ajoute une étape")
+        self.assertTrue(res["ok"])
+        self.assertNotIn("catégories déjà utilisées", agent.calls[0]["prompt"])
+
+    def test_portal_failure_does_not_break_assistant(self):
+        class Broken:
+            def list_cards(self):
+                raise RuntimeError("boum")
+            check_yaml = self.portal.check_yaml
+        agent = FakeAgent(self.root, EXTRA)
+        self.assertTrue(Assistant(Broken(), self.root, agent).run(BASE, "x")["ok"])
+
+    def test_view_exposes_category(self):
+        wf = "name: d\ncategory:   Démo   IA\nsteps:\n  - id: a\n    type: log\n    message: x\n"
+        self.assertEqual(assist.describe_workflow(wf)["category"], "Démo IA")
+        self.assertEqual(assist.describe_workflow(BASE)["category"], "")
+
+    def test_category_set_by_agent_reaches_the_proposal(self):
+        a, _ = self.assistant("category: IA\n" + BASE)
+        res = a.run(BASE, "range-le dans IA")
+        self.assertTrue(res["ok"])
+        self.assertEqual(res["view"]["category"], "IA")
+        self.assertIn({"op": "add", "text": "category: IA"}, res["diff"])
+
+
+class CategoryChangeTests(Base):
+
+    def test_step_changes_reports_category(self):
+        with_cat = "category: IA\n" + BASE
+        self.assertIsNone(assist.step_changes(BASE, BASE)["category"])
+        self.assertEqual(assist.step_changes(BASE, with_cat)["category"], {"from": "", "to": "IA"})
+        self.assertEqual(assist.step_changes(with_cat, BASE)["category"], {"from": "IA", "to": ""})
+        self.assertEqual(assist.step_changes(with_cat, with_cat.replace("IA", "Démo"))["category"], {"from": "IA", "to": "Démo"})
+        self.assertIsNone(assist.step_changes(with_cat, with_cat.replace("IA", "  IA "))["category"])
+
+    def test_category_only_change_is_still_a_change(self):
+        a, _ = self.assistant("category: IA\n" + BASE)
+        res = a.run(BASE, "range-le dans IA")
+        self.assertEqual(res["changes"]["category"], {"from": "", "to": "IA"})
+        self.assertEqual(res["changes"]["added"], [])
+
+    def test_created_workflow_gets_category_from_template_start(self):
+        text = portal.Portal.template_text("vide", "neuf.yaml", "IA")
+        a, _ = self.assistant(text.replace("À compléter.", "Fait."))
+        res = a.run(text, "décris-le")
+        self.assertEqual(res["view"]["category"], "IA")
+        self.assertIsNone(res["changes"]["category"])
+
+
 class FriendlyTests(Base):
     def test_step_label_falls_back_to_kind_never_to_id(self):
         view = assist.describe_workflow("name: x-y_z\nsteps:\n  - id: fin\n    type: end\n  - id: a\n    type: agent\n    description: Rédiger\n")
@@ -253,7 +330,7 @@ class StructuredResultTests(Base):
     def test_added_step(self):
         a, _ = self.assistant(EXTRA)
         res = a.run(BASE, "ajoute une étape")
-        self.assertEqual(res["changes"], {"added": ["b"], "removed": [], "changed": [], "reordered": False, "created": False})
+        self.assertEqual(res["changes"], {"added": ["b"], "removed": [], "changed": [], "reordered": False, "category": None, "created": False})
         self.assertEqual([s["id"] for s in res["view"]["steps"]], ["a", "b", "fin"])
         self.assertEqual(res["view"]["name"], "demo")
 
@@ -269,7 +346,7 @@ class StructuredResultTests(Base):
         a, _ = self.assistant()                         # l'agent ne touche à rien
         res = a.run(BASE, "x")
         self.assertFalse(res["changed"])
-        self.assertEqual(res["changes"], {"added": [], "removed": [], "changed": [], "reordered": False, "created": False})
+        self.assertEqual(res["changes"], {"added": [], "removed": [], "changed": [], "reordered": False, "category": None, "created": False})
 
     def test_reordered_steps(self):
         two = "name: d\nsteps:\n  - id: a\n    type: log\n    message: 1\n  - id: b\n    type: log\n    message: 2\n"
@@ -362,6 +439,29 @@ class TemplateTests(unittest.TestCase):
             portal.Portal.template_text("nope", "a.yaml")
         with self.assertRaises(portal.PortalError):
             portal.Portal.template_text("vide", "../a.yaml")
+
+    def test_template_with_category(self):
+        for t in portal.Portal.templates():
+            text = portal.Portal.template_text(t["id"], "mon-flux.yaml", "  Démo   IA ")
+            self.assertEqual(portal.schema.check(text), [], t["id"])
+            self.assertEqual(text.splitlines()[0], "name: mon-flux")
+            self.assertEqual(text.splitlines()[1], "category: Démo IA")
+            self.assertEqual(portal.yaml.safe_load(text)["category"], "Démo IA")
+
+    def test_template_category_is_quoted_when_needed(self):
+        for cat in ("42", "oui", "a: b", "#x", "- y", "C++", "é\"q"):
+            text = portal.Portal.template_text("vide", "f.yaml", cat)
+            self.assertEqual(portal.yaml.safe_load(text)["category"], cat, cat)
+
+    def test_template_without_or_blank_category_is_unchanged(self):
+        base = portal.Portal.template_text("vide", "f.yaml")
+        self.assertNotIn("category", base)
+        self.assertEqual(portal.Portal.template_text("vide", "f.yaml", "   "), base)
+
+    def test_template_category_too_long(self):
+        with self.assertRaises(portal.PortalError):
+            portal.Portal.template_text("vide", "f.yaml", "x" * 41)
+        portal.Portal.template_text("vide", "f.yaml", "x" * 40)
 
     def test_templates_list_has_labels(self):
         self.assertEqual([t["id"] for t in portal.Portal.templates()], ["vide", "une-etape", "validation"])

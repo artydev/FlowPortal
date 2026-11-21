@@ -1,5 +1,6 @@
 # yaml-language-server: $schema=../csflow.schema.json
 name: dev-fix-tests
+category: Démo
 description: "Lance les tests, laisse CSAgent corriger le code, relance les tests, puis committe après votre validation."
 
 # Démo développeur : un petit projet Python avec des bugs volontaires, versionné dans

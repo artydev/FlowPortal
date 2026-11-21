@@ -93,16 +93,66 @@ function runTone(status) {
  *  - filter : "all" | "solo" (sans CSAgent) | clé de `workflow.tags` ("agent", "human", "mcp")
  *  - searchText : cherché (sans tenir compte de la casse) dans titre, description et nom de fichier
  */
-function filterWorkflows(workflows, { searchText = "", filter = "all" } = {}) {
+function filterWorkflows(
+  workflows,
+  { searchText = "", filter = "all", category = "all" } = {},
+) {
   const query = searchText.toLowerCase();
   return workflows.filter(
     (workflow) =>
       (filter == "all" ||
         (filter == "solo" ? !workflow.tags.agent : workflow.tags[filter])) &&
-      `${workflow.title} ${workflow.description} ${workflow.filename}`
+      (category == "all" ||
+        (workflow.category || NO_CATEGORY) == category) &&
+      `${workflow.title} ${workflow.description} ${workflow.category || ""} ${workflow.filename}`
         .toLowerCase()
         .includes(query),
   );
+}
+
+/* ── Catégories ────────────────────────────────────────────────────────── */
+
+/** Valeur interne du filtre et clé de groupe pour les workflows sans `category:`. */
+const NO_CATEGORY = "";
+/** Libellé affiché pour les workflows sans catégorie. */
+const NO_CATEGORY_LABEL = "Sans catégorie";
+
+/**
+ * Catégories présentes, triées sans tenir compte de la casse/des accents, avec
+ * leur effectif : [{ name, count }]. « Sans catégorie » (name "") passe en dernier.
+ * Deux écritures qui ne diffèrent que par la casse restent des catégories distinctes.
+ */
+function listCategories(workflows) {
+  const counts = new Map();
+  for (const workflow of workflows) {
+    const name = workflow.category || NO_CATEGORY;
+    counts.set(name, (counts.get(name) || 0) + 1);
+  }
+  return [...counts]
+    .map(([name, count]) => ({ name, count }))
+    .sort(
+      (a, b) =>
+        (a.name == NO_CATEGORY) - (b.name == NO_CATEGORY) ||
+        a.name.localeCompare(b.name, "fr", { sensitivity: "base" }) ||
+        (a.name < b.name ? -1 : a.name > b.name ? 1 : 0),
+    );
+}
+
+/** Groupe des workflows par catégorie, dans l'ordre de `listCategories` : [{ name, workflows }]. */
+function groupByCategory(workflows) {
+  return listCategories(workflows).map(({ name }) => ({
+    name,
+    workflows: workflows.filter(
+      (workflow) => (workflow.category || NO_CATEGORY) == name,
+    ),
+  }));
+}
+
+/** Teinte (0–359) stable d'une catégorie : même nom, même couleur à chaque affichage. */
+function categoryHue(name) {
+  let hash = 0;
+  for (const char of String(name)) hash = (hash * 31 + char.codePointAt(0)) >>> 0;
+  return hash % 360;
 }
 
 /* ── Noms de fichiers ──────────────────────────────────────────────────── */
@@ -592,6 +642,10 @@ if (typeof module !== "undefined" && module.exports)
     describeRun,
     runTone,
     filterWorkflows,
+    listCategories,
+    groupByCategory,
+    categoryHue,
+    NO_CATEGORY,
     stripYamlExtension,
     suggestCopyName,
     validateFilename,

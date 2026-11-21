@@ -88,6 +88,51 @@ test("filterWorkflows", () => {
   assert.deepEqual(names({ filter: "mcp" }), []);
 });
 
+test("filterWorkflows par catégorie", () => {
+  const workflows = deepFreeze([
+    { title: "A", description: "", filename: "a.yaml", tags: {}, category: "Démo" },
+    { title: "B", description: "", filename: "b.yaml", tags: {}, category: "IA" },
+    { title: "C", description: "", filename: "c.yaml", tags: {}, category: "" },
+    { title: "D", description: "", filename: "d.yaml", tags: {} },
+  ]);
+  const names = (options) =>
+    core.filterWorkflows(workflows, options).map((w) => w.title);
+  assert.deepEqual(names({ category: "Démo" }), ["A"]);
+  assert.deepEqual(names({ category: core.NO_CATEGORY }), ["C", "D"]);
+  assert.deepEqual(names({ category: "all" }), ["A", "B", "C", "D"]);
+  assert.deepEqual(names({ searchText: "ia" }), ["B"]);
+});
+
+test("listCategories et groupByCategory", () => {
+  const workflows = deepFreeze([
+    { title: "1", category: "Tchap" },
+    { title: "2", category: "" },
+    { title: "3", category: "démo" },
+    { title: "4", category: "Actuel" },
+    { title: "5", category: "démo" },
+    { title: "6" },
+  ]);
+  assert.deepEqual(core.listCategories(workflows), [
+    { name: "Actuel", count: 1 },
+    { name: "démo", count: 2 },
+    { name: "Tchap", count: 1 },
+    { name: "", count: 2 },
+  ]);
+  assert.deepEqual(
+    core.groupByCategory(workflows).map((g) => g.workflows.map((w) => w.title)),
+    [["4"], ["3", "5"], ["1"], ["2", "6"]],
+  );
+  assert.deepEqual(core.listCategories([]), []);
+});
+
+test("categoryHue est stable et dans [0, 360)", () => {
+  assert.equal(core.categoryHue("Démo"), core.categoryHue("Démo"));
+  for (const name of ["Démo", "IA", "Tchap", "Actuel", "🙂"]) {
+    const hue = core.categoryHue(name);
+    assert.ok(Number.isInteger(hue) && hue >= 0 && hue < 360);
+  }
+});
+
 test("suggestCopyName cherche le premier nom libre", () => {
   assert.equal(core.suggestCopyName("flux.yaml", []), "flux-copie");
   assert.equal(

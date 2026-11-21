@@ -444,9 +444,9 @@ def portal_templates() -> list:
 
 
 @eel.expose
-def portal_template(template_id: str, filename: str) -> dict:
+def portal_template(template_id: str, filename: str, category: str = "") -> dict:
     try:
-        return {"ok": True, "yaml": PORTAL.template_text(template_id, filename)}
+        return {"ok": True, "yaml": PORTAL.template_text(template_id, filename, category)}
     except _portal.PortalError as exc:
         return {"ok": False, "error": str(exc)}
 

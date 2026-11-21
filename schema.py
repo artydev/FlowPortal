@@ -26,6 +26,7 @@ from nodes import PARAMS, REGISTRY, SUMMARIES
 TOP_KEYS = {
     "name":        "nom du workflow (affiché dans l'interface)",
     "description": "description du workflow",
+    "category":    "catégorie du workflow (texte libre) : sert à filtrer et regrouper les cartes du portail",
     "inputs":      "variables d'entrée, utilisables dans tout le workflow avec {{nom}}",
     "steps":       "liste des étapes",
 }
@@ -148,6 +149,9 @@ def check(text: str) -> list:
             add("warn", pos["top"].get(key),
                 f"clé « {key} » inconnue au niveau du workflow{_suggest(key, TOP_KEYS)} "
                 f"(clés : {', '.join(TOP_KEYS)})")
+
+    if "category" in wf and not isinstance(wf["category"], (str, type(None))):
+        add("error", pos["top"].get("category"), "« category » doit être un texte (ex. category: Démo)")
 
     steps = wf.get("steps")
     if not isinstance(steps, list) or not steps:
@@ -295,6 +299,7 @@ def json_schema() -> dict:
         "properties": {
             "name":        {"type": "string", "description": TOP_KEYS["name"]},
             "description": {"type": "string", "description": TOP_KEYS["description"]},
+            "category":    {"type": "string", "description": TOP_KEYS["category"]},
             "inputs":      {"type": "object", "description": TOP_KEYS["inputs"]},
             "steps":       {"type": "array", "minItems": 1, "description": TOP_KEYS["steps"],
                             "items": {"oneOf": variants}},

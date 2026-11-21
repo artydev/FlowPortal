@@ -48,6 +48,11 @@ class CheckErrorDetectionTests(unittest.TestCase):
         issues = schema.check(text)
         self.assertTrue(any(lvl == "warn" for lvl, _, _ in issues))
 
+    def test_category_is_known_key_and_must_be_text(self):
+        step = "steps:\n  - id: a\n    type: log\n    message: x\n"
+        self.assertEqual(schema.check("name: t\ncategory: Démo\n" + step), [])
+        self.assertTrue(errors(schema.check("name: t\ncategory: [a, b]\n" + step)))
+
     def test_unknown_reference_is_detected(self):
         text = ("name: t\nsteps:\n"
                 "  - id: a\n    type: log\n    message: '{{ref_inconnue.output}}'\n")
@@ -68,6 +73,7 @@ class JsonSchemaTests(unittest.TestCase):
         props = s.get("properties", {})
         self.assertIn("steps", props)
         self.assertIn("name", props)
+        self.assertIn("category", props)
 
 
 if __name__ == "__main__":

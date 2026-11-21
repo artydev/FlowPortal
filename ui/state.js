@@ -63,6 +63,8 @@ const RUN_STATUS_ICONS = {
  *  - recentRuns: derniers lancements, tous workflows confondus
  *  - busy   : le moteur exécute un workflow (un seul à la fois, côté Python)
  *  - filter : "all" | "agent" | "human" | "mcp" | "solo" (« Sans IA »)
+ *  - category: "all" | nom d'une catégorie ("" = « Sans catégorie »)
+ *  - collapsedCategories: catégories repliées dans la vue liste (mémorisé dans localStorage)
  *  - searchText: recherche en minuscules
  *  - currentWorkflow: carte ouverte (panneau ou éditeur). Pour un nouveau workflow non
  *             encore créé, c'est un objet minimal avec `isNew: true`
@@ -83,6 +85,8 @@ const appState = {
   recentRuns: [],
   busy: false,
   filter: "all",
+  category: "all",
+  collapsedCategories: [],
   searchText: "",
   currentWorkflow: null,
   liveRun: null,

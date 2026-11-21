@@ -11,6 +11,10 @@
       "type": "string",
       "description": "description du workflow"
     },
+    "category": {
+      "type": "string",
+      "description": "catégorie du workflow (texte libre) : sert à filtrer et regrouper les cartes du portail"
+    },
     "inputs": {
       "type": "object",
       "description": "variables d'entrée, utilisables dans tout le workflow avec {{nom}}"

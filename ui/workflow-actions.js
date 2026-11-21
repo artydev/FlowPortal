@@ -205,6 +205,12 @@ async function openNewWorkflowDialog() {
     )}
   `;
   $("#new-workflow-name-input").value = "";
+  // Catégories déjà utilisées en suggestion ; celle que l'on filtre en ce moment est préremplie.
+  $("#new-workflow-category-list").innerHTML = html`${listCategories(appState.workflows)
+    .filter((category) => category.name != NO_CATEGORY)
+    .map((category) => html`<option value="${category.name}"></option>`)}`;
+  $("#new-workflow-category-input").value =
+    appState.category == "all" ? "" : appState.category;
   $("#new-workflow-error").hidden = true;
   $("#new-workflow-dialog").showModal();
   $("#new-workflow-name-input").focus();
@@ -235,6 +241,7 @@ async function submitNewWorkflow(event) {
       "portal_template",
       mode == "__assist" ? "vide" : mode,
       filename,
+      $("#new-workflow-category-input").value,
     );
   if (!result.ok) return showError(result.error || "Création impossible.");
   $("#new-workflow-dialog").close();

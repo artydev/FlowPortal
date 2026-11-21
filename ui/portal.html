@@ -8,6 +8,7 @@
 <div id="notice-banner"></div>
 <div class="toolbar"><input id="search-input" type="search" placeholder="Rechercher un workflow" aria-label="Rechercher">
 <button class="button-secondary" data-filter="all" aria-pressed="true">Tous</button><button class="button-secondary" data-filter="agent" aria-pressed="false">Avec CSAgent</button><button class="button-secondary" data-filter="human" aria-pressed="false">Validation humaine</button><button class="button-secondary" data-filter="mcp" aria-pressed="false">MCP</button><button class="button-secondary" data-filter="solo" aria-pressed="false">Sans IA</button><button class="button-secondary" id="view-mode-toggle-button" type="button">Vue liste</button><button class="button-primary" id="new-workflow-button" type="button">+ Nouveau workflow</button></div>
+<div class="category-bar" id="category-bar" role="group" aria-label="Catégories" hidden></div>
 <div class="recent-runs" id="recent-runs-bar"></div>
 <div class="workflow-grid" id="workflow-grid"></div>
 </div>
@@ -29,6 +30,7 @@
 
 <dialog id="new-workflow-dialog" class="modal"><form class="modal-panel" id="new-workflow-form"><h2>Nouveau workflow</h2>
 <div><label for="new-workflow-name-input">Nom du fichier</label><input type="text" id="new-workflow-name-input" placeholder="mon-workflow" autocomplete="off" spellcheck="false"><p class="hint-text" style="margin-top:4px">Enregistré dans le dossier workflows (extension .yaml ajoutée si besoin).</p></div>
+<div><label for="new-workflow-category-input">Catégorie <span class="hint-text">(facultatif)</span></label><input type="text" id="new-workflow-category-input" list="new-workflow-category-list" maxlength="40" autocomplete="off" placeholder="Démo, IA…"><datalist id="new-workflow-category-list"></datalist></div>
 <fieldset id="new-workflow-templates"><legend class="hint-text" style="padding:0 0 4px">Point de départ</legend></fieldset>
 <div class="message-box" id="new-workflow-error" role="alert" hidden></div>
 <div class="button-row"><button class="button-primary" id="new-workflow-submit-button" type="submit">Créer</button><button class="button-secondary" id="new-workflow-cancel-button" type="button">Annuler</button></div></form></dialog>

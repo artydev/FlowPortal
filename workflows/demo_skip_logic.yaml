@@ -1,0 +1,13 @@
+name: Démo skip_if_logic
+description: Même logique que skip_if, mais avec une règle JsonLogic lue sur les résultats d'étapes.
+steps:
+  - id: statut
+    type: transform
+    expression: "'VERT'"
+  - id: escalade
+    type: log
+    message: "Escalade déclenchée (statut ROUGE)"
+    skip_if_logic: {"!=": [{"var": "statut.output"}, "ROUGE"]}
+  - id: fin
+    type: end
+    message: "Terminé (statut = {{statut.output}})"

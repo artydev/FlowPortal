@@ -85,24 +85,31 @@ document.querySelectorAll(".toolbar .button-secondary[data-filter]").forEach(
       renderWorkflowList();
     }),
 );
-// Thème : bascule clair/sombre ; sans choix enregistré, on suit la préférence du système (CSS `prefers-color-scheme`).
+// Thème : clair → sombre → Dracula ; sans choix enregistré, on suit la préférence du système (CSS `prefers-color-scheme`).
+const THEMES = [
+    ["light", "Clair"],
+    ["dark", "Sombre"],
+    ["dracula", "Dracula"], ["yaru", "Yaru"], ["nocturne", "Nocturne"],
+  ],
+  currentTheme = () =>
+    document.documentElement.dataset.theme ||
+    (matchMedia("(prefers-color-scheme:dark)").matches ? "dark" : "light"),
+  applyTheme = (theme) => {
+    document.documentElement.dataset.theme = theme;
+    const label = (THEMES.find(([id]) => id == theme) || THEMES[0])[1];
+    $("#theme-toggle-button").textContent = "Thème : " + label;
+  };
 $("#theme-toggle-button").onclick = () => {
-  const root = document.documentElement,
-    nextTheme =
-      (root.dataset.theme ||
-        (matchMedia("(prefers-color-scheme:dark)").matches
-          ? "dark"
-          : "light")) == "dark"
-        ? "light"
-        : "dark";
-  root.dataset.theme = nextTheme;
+  const index = THEMES.findIndex(([id]) => id == currentTheme()),
+    nextTheme = THEMES[(index + 1) % THEMES.length][0];
+  applyTheme(nextTheme);
   try {
     localStorage.setItem("fp-theme", nextTheme);
   } catch (error) {}
 };
 try {
   const savedTheme = localStorage.getItem("fp-theme");
-  if (savedTheme) document.documentElement.dataset.theme = savedTheme;
+  if (THEMES.some(([id]) => id == savedTheme)) applyTheme(savedTheme);
 } catch (error) {}
 // Démarrage. Sans Eel, la page a été ouverte directement dans un navigateur :
 // on explique comment lancer l'application. Sinon, on charge la liste puis on la

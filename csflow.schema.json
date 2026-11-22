@@ -42,6 +42,12 @@
               "skip_if": {
                 "description": "expression Python ; si elle est vraie, l'étape est ignorée. Ex : \"'{{statut.output}}' != 'ROUGE'\""
               },
+              "skip_if_logic": {
+                "description": "règle JsonLogic (jsonlogic.com) ; si elle est vraie, l'étape est ignorée. Les données sont les résultats des étapes. Ex : {\"!=\": [{\"var\": \"statut.output\"}, \"ROUGE\"]}"
+              },
+              "next_if": {
+                "description": "routage JsonLogic : liste de branches {when: <règle>, goto: <id>}, la première vraie gagne ; une branche sans « when » est la branche par défaut ; aucune ne convient -> « next » ou l'étape suivante de la liste"
+              },
               "continue_on_error": {
                 "description": "true = le workflow continue même si l'étape échoue",
                 "type": [
@@ -106,6 +112,12 @@
               "skip_if": {
                 "description": "expression Python ; si elle est vraie, l'étape est ignorée. Ex : \"'{{statut.output}}' != 'ROUGE'\""
               },
+              "skip_if_logic": {
+                "description": "règle JsonLogic (jsonlogic.com) ; si elle est vraie, l'étape est ignorée. Les données sont les résultats des étapes. Ex : {\"!=\": [{\"var\": \"statut.output\"}, \"ROUGE\"]}"
+              },
+              "next_if": {
+                "description": "routage JsonLogic : liste de branches {when: <règle>, goto: <id>}, la première vraie gagne ; une branche sans « when » est la branche par défaut ; aucune ne convient -> « next » ou l'étape suivante de la liste"
+              },
               "continue_on_error": {
                 "description": "true = le workflow continue même si l'étape échoue",
                 "type": [
@@ -148,6 +160,12 @@
               },
               "skip_if": {
                 "description": "expression Python ; si elle est vraie, l'étape est ignorée. Ex : \"'{{statut.output}}' != 'ROUGE'\""
+              },
+              "skip_if_logic": {
+                "description": "règle JsonLogic (jsonlogic.com) ; si elle est vraie, l'étape est ignorée. Les données sont les résultats des étapes. Ex : {\"!=\": [{\"var\": \"statut.output\"}, \"ROUGE\"]}"
+              },
+              "next_if": {
+                "description": "routage JsonLogic : liste de branches {when: <règle>, goto: <id>}, la première vraie gagne ; une branche sans « when » est la branche par défaut ; aucune ne convient -> « next » ou l'étape suivante de la liste"
               },
               "continue_on_error": {
                 "description": "true = le workflow continue même si l'étape échoue",
@@ -192,6 +210,12 @@
               },
               "skip_if": {
                 "description": "expression Python ; si elle est vraie, l'étape est ignorée. Ex : \"'{{statut.output}}' != 'ROUGE'\""
+              },
+              "skip_if_logic": {
+                "description": "règle JsonLogic (jsonlogic.com) ; si elle est vraie, l'étape est ignorée. Les données sont les résultats des étapes. Ex : {\"!=\": [{\"var\": \"statut.output\"}, \"ROUGE\"]}"
+              },
+              "next_if": {
+                "description": "routage JsonLogic : liste de branches {when: <règle>, goto: <id>}, la première vraie gagne ; une branche sans « when » est la branche par défaut ; aucune ne convient -> « next » ou l'étape suivante de la liste"
               },
               "continue_on_error": {
                 "description": "true = le workflow continue même si l'étape échoue",
@@ -240,6 +264,12 @@
               },
               "skip_if": {
                 "description": "expression Python ; si elle est vraie, l'étape est ignorée. Ex : \"'{{statut.output}}' != 'ROUGE'\""
+              },
+              "skip_if_logic": {
+                "description": "règle JsonLogic (jsonlogic.com) ; si elle est vraie, l'étape est ignorée. Les données sont les résultats des étapes. Ex : {\"!=\": [{\"var\": \"statut.output\"}, \"ROUGE\"]}"
+              },
+              "next_if": {
+                "description": "routage JsonLogic : liste de branches {when: <règle>, goto: <id>}, la première vraie gagne ; une branche sans « when » est la branche par défaut ; aucune ne convient -> « next » ou l'étape suivante de la liste"
               },
               "continue_on_error": {
                 "description": "true = le workflow continue même si l'étape échoue",
@@ -295,6 +325,12 @@
               },
               "skip_if": {
                 "description": "expression Python ; si elle est vraie, l'étape est ignorée. Ex : \"'{{statut.output}}' != 'ROUGE'\""
+              },
+              "skip_if_logic": {
+                "description": "règle JsonLogic (jsonlogic.com) ; si elle est vraie, l'étape est ignorée. Les données sont les résultats des étapes. Ex : {\"!=\": [{\"var\": \"statut.output\"}, \"ROUGE\"]}"
+              },
+              "next_if": {
+                "description": "routage JsonLogic : liste de branches {when: <règle>, goto: <id>}, la première vraie gagne ; une branche sans « when » est la branche par défaut ; aucune ne convient -> « next » ou l'étape suivante de la liste"
               },
               "continue_on_error": {
                 "description": "true = le workflow continue même si l'étape échoue",
@@ -354,6 +390,12 @@
               "skip_if": {
                 "description": "expression Python ; si elle est vraie, l'étape est ignorée. Ex : \"'{{statut.output}}' != 'ROUGE'\""
               },
+              "skip_if_logic": {
+                "description": "règle JsonLogic (jsonlogic.com) ; si elle est vraie, l'étape est ignorée. Les données sont les résultats des étapes. Ex : {\"!=\": [{\"var\": \"statut.output\"}, \"ROUGE\"]}"
+              },
+              "next_if": {
+                "description": "routage JsonLogic : liste de branches {when: <règle>, goto: <id>}, la première vraie gagne ; une branche sans « when » est la branche par défaut ; aucune ne convient -> « next » ou l'étape suivante de la liste"
+              },
               "continue_on_error": {
                 "description": "true = le workflow continue même si l'étape échoue",
                 "type": [
@@ -396,6 +438,12 @@
               },
               "skip_if": {
                 "description": "expression Python ; si elle est vraie, l'étape est ignorée. Ex : \"'{{statut.output}}' != 'ROUGE'\""
+              },
+              "skip_if_logic": {
+                "description": "règle JsonLogic (jsonlogic.com) ; si elle est vraie, l'étape est ignorée. Les données sont les résultats des étapes. Ex : {\"!=\": [{\"var\": \"statut.output\"}, \"ROUGE\"]}"
+              },
+              "next_if": {
+                "description": "routage JsonLogic : liste de branches {when: <règle>, goto: <id>}, la première vraie gagne ; une branche sans « when » est la branche par défaut ; aucune ne convient -> « next » ou l'étape suivante de la liste"
               },
               "continue_on_error": {
                 "description": "true = le workflow continue même si l'étape échoue",
@@ -443,6 +491,12 @@
               },
               "skip_if": {
                 "description": "expression Python ; si elle est vraie, l'étape est ignorée. Ex : \"'{{statut.output}}' != 'ROUGE'\""
+              },
+              "skip_if_logic": {
+                "description": "règle JsonLogic (jsonlogic.com) ; si elle est vraie, l'étape est ignorée. Les données sont les résultats des étapes. Ex : {\"!=\": [{\"var\": \"statut.output\"}, \"ROUGE\"]}"
+              },
+              "next_if": {
+                "description": "routage JsonLogic : liste de branches {when: <règle>, goto: <id>}, la première vraie gagne ; une branche sans « when » est la branche par défaut ; aucune ne convient -> « next » ou l'étape suivante de la liste"
               },
               "continue_on_error": {
                 "description": "true = le workflow continue même si l'étape échoue",
@@ -519,6 +573,12 @@
               "skip_if": {
                 "description": "expression Python ; si elle est vraie, l'étape est ignorée. Ex : \"'{{statut.output}}' != 'ROUGE'\""
               },
+              "skip_if_logic": {
+                "description": "règle JsonLogic (jsonlogic.com) ; si elle est vraie, l'étape est ignorée. Les données sont les résultats des étapes. Ex : {\"!=\": [{\"var\": \"statut.output\"}, \"ROUGE\"]}"
+              },
+              "next_if": {
+                "description": "routage JsonLogic : liste de branches {when: <règle>, goto: <id>}, la première vraie gagne ; une branche sans « when » est la branche par défaut ; aucune ne convient -> « next » ou l'étape suivante de la liste"
+              },
               "continue_on_error": {
                 "description": "true = le workflow continue même si l'étape échoue",
                 "type": [
@@ -572,6 +632,12 @@
               },
               "skip_if": {
                 "description": "expression Python ; si elle est vraie, l'étape est ignorée. Ex : \"'{{statut.output}}' != 'ROUGE'\""
+              },
+              "skip_if_logic": {
+                "description": "règle JsonLogic (jsonlogic.com) ; si elle est vraie, l'étape est ignorée. Les données sont les résultats des étapes. Ex : {\"!=\": [{\"var\": \"statut.output\"}, \"ROUGE\"]}"
+              },
+              "next_if": {
+                "description": "routage JsonLogic : liste de branches {when: <règle>, goto: <id>}, la première vraie gagne ; une branche sans « when » est la branche par défaut ; aucune ne convient -> « next » ou l'étape suivante de la liste"
               },
               "continue_on_error": {
                 "description": "true = le workflow continue même si l'étape échoue",
@@ -632,6 +698,12 @@
               "skip_if": {
                 "description": "expression Python ; si elle est vraie, l'étape est ignorée. Ex : \"'{{statut.output}}' != 'ROUGE'\""
               },
+              "skip_if_logic": {
+                "description": "règle JsonLogic (jsonlogic.com) ; si elle est vraie, l'étape est ignorée. Les données sont les résultats des étapes. Ex : {\"!=\": [{\"var\": \"statut.output\"}, \"ROUGE\"]}"
+              },
+              "next_if": {
+                "description": "routage JsonLogic : liste de branches {when: <règle>, goto: <id>}, la première vraie gagne ; une branche sans « when » est la branche par défaut ; aucune ne convient -> « next » ou l'étape suivante de la liste"
+              },
               "continue_on_error": {
                 "description": "true = le workflow continue même si l'étape échoue",
                 "type": [
@@ -686,6 +758,12 @@
               "skip_if": {
                 "description": "expression Python ; si elle est vraie, l'étape est ignorée. Ex : \"'{{statut.output}}' != 'ROUGE'\""
               },
+              "skip_if_logic": {
+                "description": "règle JsonLogic (jsonlogic.com) ; si elle est vraie, l'étape est ignorée. Les données sont les résultats des étapes. Ex : {\"!=\": [{\"var\": \"statut.output\"}, \"ROUGE\"]}"
+              },
+              "next_if": {
+                "description": "routage JsonLogic : liste de branches {when: <règle>, goto: <id>}, la première vraie gagne ; une branche sans « when » est la branche par défaut ; aucune ne convient -> « next » ou l'étape suivante de la liste"
+              },
               "continue_on_error": {
                 "description": "true = le workflow continue même si l'étape échoue",
                 "type": [
@@ -729,6 +807,12 @@
               },
               "skip_if": {
                 "description": "expression Python ; si elle est vraie, l'étape est ignorée. Ex : \"'{{statut.output}}' != 'ROUGE'\""
+              },
+              "skip_if_logic": {
+                "description": "règle JsonLogic (jsonlogic.com) ; si elle est vraie, l'étape est ignorée. Les données sont les résultats des étapes. Ex : {\"!=\": [{\"var\": \"statut.output\"}, \"ROUGE\"]}"
+              },
+              "next_if": {
+                "description": "routage JsonLogic : liste de branches {when: <règle>, goto: <id>}, la première vraie gagne ; une branche sans « when » est la branche par défaut ; aucune ne convient -> « next » ou l'étape suivante de la liste"
               },
               "continue_on_error": {
                 "description": "true = le workflow continue même si l'étape échoue",

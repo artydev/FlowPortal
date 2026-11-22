@@ -467,8 +467,11 @@ function successors(steps, i) {
     if (s.on_reject && ids.has(s.on_reject))   out.push({ to: s.on_reject,  kind: 'reject' });
     return out;
   }
+  (Array.isArray(s.next_if) ? s.next_if : []).forEach(b => {
+    if (b && b.goto && ids.has(b.goto) && !out.some(e => e.to === b.goto)) out.push({ to: b.goto, kind: 'next' });
+  });
   const nx = s.next || (steps[i + 1] && steps[i + 1].id);
-  if (nx && ids.has(nx)) out.push({ to: nx, kind: 'next' });
+  if (nx && ids.has(nx) && !out.some(e => e.to === nx)) out.push({ to: nx, kind: 'next' });
   return out;
 }
 

@@ -38,6 +38,12 @@ COMMON_KEYS = {
     "description":       ("libellé affiché dans l'interface", False),
     "skip_if":           ("expression Python ; si elle est vraie, l'étape est ignorée. "
                           "Ex : \"'{{statut.output}}' != 'ROUGE'\"", False),
+    "skip_if_logic":     ("règle JsonLogic (jsonlogic.com) ; si elle est vraie, l'étape est ignorée. "
+                          "Les données sont les résultats des étapes. "
+                          "Ex : {\"!=\": [{\"var\": \"statut.output\"}, \"ROUGE\"]}", False),
+    "next_if":           ("routage JsonLogic : liste de branches {when: <règle>, goto: <id>}, la première "
+                          "vraie gagne ; une branche sans « when » est la branche par défaut ; "
+                          "aucune ne convient -> « next » ou l'étape suivante de la liste", False),
     "continue_on_error": ("true = le workflow continue même si l'étape échoue", False),
     "next":              ("id de l'étape suivante (défaut : l'étape suivante dans la liste)", False),
     "on_approve":        ("human_approval : id de l'étape suivante si approuvé", False),
@@ -203,6 +209,23 @@ def check(text: str) -> list:
             if key in step and step[key] not in ids:
                 add("error", sp.get(key, start),
                     f"{label} : « {key}: {step[key]} » ne désigne aucune étape{_suggest(step[key], ids)}")
+        nif = step.get("next_if")
+        if nif is not None:
+            if not isinstance(nif, list):
+                add("error", sp.get("next_if", start),
+                    f"{label} : « next_if » doit être une liste de branches {{when, goto}}")
+            else:
+                for n, br in enumerate(nif, 1):
+                    if not isinstance(br, dict) or "goto" not in br or set(br) - {"when", "goto"}:
+                        add("error", sp.get("next_if", start),
+                            f"{label} : next_if, branche {n} : attendu {{when: <règle>, goto: <id>}}")
+                    elif not isinstance(br["goto"], str) or br["goto"] not in ids:
+                        add("error", sp.get("next_if", start),
+                            f"{label} : next_if, branche {n} : « goto: {br['goto']} » ne désigne aucune étape"
+                            f"{_suggest(br['goto'], ids)}")
+                    elif "when" not in br and n != len(nif):
+                        add("warn", sp.get("next_if", start),
+                            f"{label} : next_if, branche {n} sans « when » : les suivantes ne seront jamais atteintes")
         if stype == "human_approval":
             for key in ("on_approve", "on_reject"):
                 if key not in step:

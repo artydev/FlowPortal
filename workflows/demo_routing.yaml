@@ -1,0 +1,24 @@
+name: Démo next_if (routage JsonLogic)
+description: Aiguille le workflow selon le statut d'une étape ; une branche sans « when » est le choix par défaut.
+steps:
+  - id: statut
+    type: transform
+    expression: "'ROUGE'"
+    next_if:
+      - when: {"==": [{"var": "statut.output"}, "ROUGE"]}
+        goto: escalade
+      - when: {"==": [{"var": "statut.output"}, "ORANGE"]}
+        goto: surveiller
+      - goto: fin
+  - id: surveiller
+    type: log
+    message: "Statut ORANGE : à surveiller"
+    next: fin
+  - id: escalade
+    type: log
+    level: warn
+    message: "Statut ROUGE : escalade"
+    next: fin
+  - id: fin
+    type: end
+    message: "Terminé (statut = {{statut.output}})"

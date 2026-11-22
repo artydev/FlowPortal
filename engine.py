@@ -29,6 +29,7 @@ except ImportError:
 
 from nodes import REGISTRY
 import schema
+import jsonlogic
 
 # ── Windows : sortie UTF-8 + séquences ANSI (couleurs) dans la console ────────
 for _stream in (sys.stdout, sys.stderr):
@@ -83,6 +84,17 @@ def resolve_all(obj, ctx: dict):
     return obj
 
 
+def eval_logic(rule, ctx: dict, on_error=None) -> bool:
+    """Règle JsonLogic évaluée sur le contexte ({"var": "etape.output"}). Erreur = faux
+    (signalée à on_error(exc) si fourni)."""
+    try:
+        return bool(jsonlogic.apply(rule, ctx))
+    except Exception as exc:
+        if on_error:
+            on_error(exc)
+        return False
+
+
 def eval_expr(expr: str, ctx: dict) -> bool:
     resolved = resolve(expr, ctx)
     try:
@@ -95,9 +107,12 @@ def eval_expr(expr: str, ctx: dict) -> bool:
 # ── engine ────────────────────────────────────────────────────────────────────
 # Keys stripped from step dict before passing params to a node handler.
 _RESERVED = {
-    "id", "type", "skip_if", "continue_on_error", "description",
+    "id", "type", "skip_if", "skip_if_logic", "next_if", "continue_on_error", "description",
     "next", "on_approve", "on_reject",
 }
+
+
+MAX_STEP_RUNS = 500     # garde-fou contre les boucles créées par next_if / next
 
 
 class WorkflowEngine:
@@ -175,6 +190,16 @@ class WorkflowEngine:
             return step.get("on_approve") if answer == "approved" \
                    else step.get("on_reject")
 
+        # Conditional routing (JsonLogic) : première branche vraie ; sans « when » = branche par défaut.
+        # Aucune branche ne convient -> on retombe sur next / l'ordre de la liste.
+        for i, branch in enumerate(step.get("next_if") or []):
+            if not isinstance(branch, dict):
+                continue
+            if "when" not in branch or eval_logic(
+                    branch["when"], self.ctx,
+                    on_error=lambda e, i=i: print(c(YLW, f"  ⚠  next_if[{i}] : {e}"))):
+                return branch.get("goto")
+
         # Explicit next
         if "next" in step:
             return step["next"]
@@ -250,6 +275,11 @@ class WorkflowEngine:
                 return
 
             step_num += 1
+            if step_num > MAX_STEP_RUNS:
+                msg = f"Plus de {MAX_STEP_RUNS} étapes exécutées : boucle probable (next_if / next)"
+                print(c(RED, f"  ✗  {msg}"))
+                self._emit({"type": "workflow_error", "message": msg})
+                return
             sid   = step.get("id",   current_id)
             stype = step.get("type", "unknown")
 
@@ -258,11 +288,13 @@ class WorkflowEngine:
 
             # ── skip_if ────────────────────────────────────────────────────
             skip_expr = step.get("skip_if")
-            if skip_expr and eval_expr(str(skip_expr), self.ctx):
+            skip_rule = step.get("skip_if_logic")
+            if (skip_expr and eval_expr(str(skip_expr), self.ctx)) or \
+               (skip_rule is not None and eval_logic(skip_rule, self.ctx)):
                 print(c(YLW, "  ⏭  skipped"))
                 self.ctx[sid] = {"output": "", "status": "skipped"}
                 self._emit({"type": "step_skip", "step_id": sid, "index": step_num,
-                            "total": total, "reason": str(skip_expr)})
+                            "total": total, "reason": str(skip_expr if skip_expr else skip_rule)})
                 current_id = self._next_id(step, {"answer": "rejected"})
                 continue
 

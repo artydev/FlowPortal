@@ -15,6 +15,8 @@ _Générée par `python engine.py --nodes --md` à partir des `@register` de `no
 - `type` *(obligatoire)* : type d'étape (liste : python engine.py --nodes)
 - `description` : libellé affiché dans l'interface
 - `skip_if` : expression Python ; si elle est vraie, l'étape est ignorée. Ex : "'{{statut.output}}' != 'ROUGE'"
+- `skip_if_logic` : règle JsonLogic (jsonlogic.com) ; si elle est vraie, l'étape est ignorée. Les données sont les résultats des étapes. Ex : {"!=": [{"var": "statut.output"}, "ROUGE"]}
+- `next_if` : routage JsonLogic : liste de branches {when: <règle>, goto: <id>}, la première vraie gagne ; une branche sans « when » est la branche par défaut ; aucune ne convient -> « next » ou l'étape suivante de la liste
 - `continue_on_error` : true = le workflow continue même si l'étape échoue
 - `next` : id de l'étape suivante (défaut : l'étape suivante dans la liste)
 - `on_approve` : human_approval : id de l'étape suivante si approuvé

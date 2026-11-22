@@ -38,6 +38,33 @@
   --shadow:0 1px 2px #0006,0 8px 24px -12px #000a;
 }
 
+/* Thème Dracula : « mute » éclairci (#6272a4 officiel = 3:1 sur le fond) pour rester au contraste AA. */
+:root[data-theme="dracula"] {
+  color-scheme:dark;
+  --bg:#21222c; --surface:#282a36; --ink:#f8f8f2; --mute:#a3adcf;
+  --line:#44475a; --accent:#bd93f9; --accent-h:#a57ff0; --accent-ink:#282a36;
+  --human:#ffb86c; --mcp:#8be9fd; --bad:#ff7b7b; --ok:#50fa7b;
+  --shadow:0 1px 2px #0006,0 8px 24px -12px #000a;
+}
+
+/* Theme Yaru (Ubuntu): same values as portal.css; lightened accent and #181818 button text for AA contrast. */
+:root[data-theme="yaru"] {
+  color-scheme:dark;
+  --bg:#2c2c2c; --surface:#272727; --ink:#f7f7f7; --mute:#aea79f;
+  --line:#3d3d3d; --accent:#ee784e; --accent-h:#e95420; --accent-ink:#181818;
+  --human:#f99b11; --mcp:#19b6ee; --bad:#ef6e7d; --ok:#15c931;
+  --shadow:0 1px 2px #0006,0 8px 24px -12px #000a;
+}
+
+/* Theme Nocturne (original): same values as portal.css. */
+:root[data-theme="nocturne"] {
+  color-scheme:dark;
+  --bg:#090a10; --surface:#11131c; --ink:#eceef7; --mute:#9a9fb8;
+  --line:#2b3148; --accent:#6c9cff; --accent-h:#5887f0; --accent-ink:#070a14;
+  --human:#ffb454; --mcp:#c39bff; --bad:#ff7088; --ok:#4fe08a;
+  --shadow:0 1px 2px #0008,0 8px 24px -12px #000c;
+}
+
 /* ══ Reset & base (portal.css) ════════════════════════════════════════════ */
 *,*::before,*::after { box-sizing:border-box; }
 * { scrollbar-width:thin; scrollbar-color:var(--line) transparent; }

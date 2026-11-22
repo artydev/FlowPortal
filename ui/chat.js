@@ -1102,10 +1102,24 @@ document.getElementById("yaml-panel-backdrop").onclick = event => {
   if (event.target === document.getElementById("yaml-panel-backdrop")) closeYamlPanel();
 };
 
+// Thèmes : mêmes identifiants et même clé de stockage que le portail (ui/main.js).
+const CHAT_THEMES = [["light", "Clair"], ["dark", "Sombre"], ["dracula", "Dracula"], ["yaru", "Yaru"], ["nocturne", "Nocturne"]];
+function applyChatTheme(theme) {
+  document.documentElement.dataset.theme = theme;
+  const label = (CHAT_THEMES.find(([id]) => id === theme) || CHAT_THEMES[0])[1];
+  document.getElementById("theme-toggle-button").textContent = "Thème : " + label;
+}
 document.getElementById("theme-toggle-button").onclick = () => {
-  document.documentElement.dataset.theme =
-    document.documentElement.dataset.theme === "dark" ? "light" : "dark";
+  const current = document.documentElement.dataset.theme ||
+    (matchMedia("(prefers-color-scheme:dark)").matches ? "dark" : "light");
+  const next = CHAT_THEMES[(CHAT_THEMES.findIndex(([id]) => id === current) + 1) % CHAT_THEMES.length][0];
+  applyChatTheme(next);
+  try { localStorage.setItem("fp-theme", next); } catch (error) {}
 };
+try {
+  const savedTheme = localStorage.getItem("fp-theme");
+  if (CHAT_THEMES.some(([id]) => id === savedTheme)) applyChatTheme(savedTheme);
+} catch (error) {}
 
 /* ── Lancement ──────────────────────────────────────────────────────────── */
 bootChatApp();

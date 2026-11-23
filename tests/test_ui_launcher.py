@@ -6,6 +6,11 @@ sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
 import ui_launcher
 
 
+# Les faux navigateurs sont des scripts sh : ils ne s'exécutent pas sous Windows, où ui_launcher n'est de toute façon
+# pas utilisé (app.py y laisse Eel choisir Edge ou Chrome). Ces tests ne valent donc que sous Linux / macOS / WSL.
+POSIX_ONLY = unittest.skipIf(sys.platform == "win32", "faux navigateurs en scripts sh : Linux / macOS / WSL uniquement")
+
+
 def fake_bin(directory: Path, name: str, log: Path):
     p = directory / name
     p.write_text(f'#!/bin/sh\necho "{name} $@" >> "{log}"\n', encoding="utf-8")
@@ -28,6 +33,7 @@ class OpenUi(unittest.TestCase):
             time.sleep(0.1)
         return self.log.read_text().splitlines() if self.log.exists() else []
 
+    @POSIX_ONLY
     def test_chromium_en_fenetre_application(self):
         fake_bin(self.tmp, "chromium", self.log)
         how = ui_launcher.open_ui("http://localhost:1234/index.html")
@@ -36,22 +42,26 @@ class OpenUi(unittest.TestCase):
         self.assertIn("--app=http://localhost:1234/index.html", line)
         self.assertIn("--window-size=1440,820", line)
 
+    @POSIX_ONLY
     def test_chromium_prefere_a_firefox(self):
         fake_bin(self.tmp, "google-chrome", self.log); fake_bin(self.tmp, "firefox", self.log)
         self.assertTrue(ui_launcher.open_ui("http://x/").startswith("chromium:"))
         self.assertTrue(self.calls()[0].startswith("google-chrome"))
 
+    @POSIX_ONLY
     def test_firefox_sans_chromium(self):
         fake_bin(self.tmp, "firefox", self.log)
         self.assertEqual(ui_launcher.open_ui("http://x/"), "firefox")
         self.assertEqual(self.calls(), ["firefox http://x/"])
 
+    @POSIX_ONLY
     def test_wsl_ouvre_le_navigateur_de_windows(self):
         ui_launcher.is_wsl = lambda: True
         fake_bin(self.tmp, "explorer.exe", self.log); fake_bin(self.tmp, "firefox", self.log)
         self.assertEqual(ui_launcher.open_ui("http://x/"), "windows")
         self.assertEqual(self.calls(), ["explorer.exe http://x/"])
 
+    @POSIX_ONLY
     def test_wsl_utilise_wslview_en_priorite(self):
         ui_launcher.is_wsl = lambda: True
         fake_bin(self.tmp, "wslview", self.log); fake_bin(self.tmp, "explorer.exe", self.log)
@@ -81,6 +91,7 @@ class OpenUi(unittest.TestCase):
         finally:
             ui_launcher.webbrowser.get, ui_launcher.webbrowser.open = orig_get, orig_open
 
+    @POSIX_ONLY
     def test_root_ajoute_no_sandbox(self):
         fake_bin(self.tmp, "chromium", self.log)
         ui_launcher.open_ui("http://x/")

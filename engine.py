@@ -30,6 +30,7 @@ except ImportError:
 from nodes import REGISTRY
 import schema
 import jsonlogic
+import sandbox
 
 # ── Windows : sortie UTF-8 + séquences ANSI (couleurs) dans la console ────────
 for _stream in (sys.stdout, sys.stderr):
@@ -122,7 +123,8 @@ class WorkflowEngine:
                  approval_wait=None,
                  input_wait=None,
                  inputs: dict | None = None,
-                 cancel=None):
+                 cancel=None,
+                 sandbox_roots=None):
         """
         event_callback : callable(event: dict) — UI event bus (optional)
         approval_wait  : callable() -> str — blocks until human approves/rejects;
@@ -132,6 +134,8 @@ class WorkflowEngine:
                          the text of a user_input step ({"text": ...} or {"cancelled": True})
         inputs         : dict — valeurs qui remplacent celles du bloc `inputs:` du workflow
                          (seules les clés déclarées dans le workflow sont prises en compte)
+        sandbox_roots  : liste de dossiers (voir sandbox.py) : si elle est donnée, les étapes file_read / file_write
+                         ne peuvent lire ou écrire que dedans
         cancel         : threading.Event — s'il est levé, le workflow s'arrête (avant l'étape suivante, ou tout
                          de suite pour une étape shell / python / agent en cours)
         """
@@ -148,6 +152,7 @@ class WorkflowEngine:
         self._approval_wait = approval_wait
         self._input_wait    = input_wait
         self._cancel        = cancel
+        self._sandbox_roots = sandbox_roots
 
         # Built-in run identifier — stable for the whole execution, path-safe
         _wf_name = re.sub(r"[^\w\-]", "_", (self.wf.get("name") or "run")).strip("_") or "run"
@@ -343,7 +348,9 @@ class WorkflowEngine:
                 continue
 
             t0     = time.time()
-            result = handler(params)
+            blocked = (sandbox.violation(params.get("path", ""), self._sandbox_roots)
+                       if self._sandbox_roots and stype in sandbox.FILE_STEP_TYPES else None)
+            result = {"output": blocked, "status": "error"} if blocked else handler(params)
             dur    = round(time.time() - t0, 1)
             self.ctx[sid] = result
 

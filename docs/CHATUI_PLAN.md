@@ -176,11 +176,14 @@ comme un suivi de progression amical, pas un schéma de pipeline.
 9. Écran d'accueil avec suggestions cliquables. ✅
 10. Étape en erreur : « Relancer » et « Demander à l'assistant de corriger ». ✅
 
-**Phase 2 — confiance et sécurité**
-11. Bouton « Tester » avec résultat dans le chat.
-12. Mode Brouillon : un workflow créé depuis le chat attend la validation d'un technicien.
-13. Composants approuvés : restreindre les types d'étapes pour les non-techniciens.
-14. Bac à sable : limiter chemins et API.
+**Phase 2 — confiance et sécurité** (décisions du 14/11 : validation par n'importe quel utilisateur après un test réussi ; tous les types d'étapes autorisés ; fichiers limités à `output/` et `documents/`)
+11. « Tester » : un lancement réussi d'un brouillon compte comme test. ✅ (`Portal.record_test`)
+12. Mode Brouillon : tout workflow écrit ou modifié depuis le chat est un **brouillon** (`drafts.json`) ; après un test réussi, l'utilisateur le **valide** (« Valider ce workflow »). Une modification après le test impose un nouveau test. ✅ (`Portal.status` : draft → tested → active)
+13. Composants approuvés : **abandonné**, tous les types d'étapes restent autorisés (décision).
+14. Bac à sable : `file_read` / `file_write` limités à `output/` et `documents/`, contrôle à l'écriture du YAML (erreurs que l'assistant corrige seul) et à l'exécution (`sandbox.py`, `WorkflowEngine(sandbox_roots=…)`). ✅ Il reste actif après validation.
+    - **Limite assumée :** seules les étapes `file_read` / `file_write` sont contrôlées. Un script `python` ou une commande `shell` accède toujours au disque : le bac à sable protège de l'erreur, pas de la malveillance.
+    - Le serveur MCP (`mcp_server.py`, CSAgent interactif) lance les workflows sans bac à sable.
+    - Les workflows écrits à la main (absents de `drafts.json`) sont actifs et sans restriction ; un technicien peut retirer un workflow de `drafts.json` pour lever le bac à sable.
 
 **Phase 3 — automatisation**
 15. Déclencheur planifié (« chaque lundi »).
@@ -201,5 +204,6 @@ comme un suivi de progression amical, pas un schéma de pipeline.
 - **Session 3 :** mockup adapté au design system réel, scénarios interactifs.
 - **Session 4 :** bascule **Vue simple ↔ Vue développeur**.
 - **Session 5 :** discussion non-techniciens (Pilote/Copilote, garde-fous) ; création de ce document.
+- **Session 6 (phase 2) :** brouillons (draft → tested → active), « Tester » / « Valider », bac à sable des fichiers.
 - **Session 6 (suite) :** phase 1 terminée (`friendly.py`, accueil, échec avec relance), essais avec le vrai eel et un faux CSAgent.
 - **Session 6 :** chat réel (`chat.html`), réponse structurée `view` / `changes`, carte de suivi, demandes d'accord de l'agent, option `--chat` ; état des jalons et backlog ordonné ; phase 0 terminée.

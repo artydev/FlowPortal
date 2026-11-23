@@ -214,6 +214,10 @@ def _start_run(path: str, inputs: dict | None = None) -> dict:
     _input_event, _input_result, _input_request = None, {}, {}
     cancel = threading.Event()
     _current_cancel = cancel
+    try:                                              # brouillon ou workflow écrit depuis le chat : fichiers limités à output/ et documents/
+        _sandbox_roots = PORTAL.sandbox_roots(Path(path).name)
+    except _portal.PortalError:
+        _sandbox_roots = None
 
     try:
         rec = PORTAL.recorder(Path(path).name, inputs)
@@ -236,7 +240,9 @@ def _start_run(path: str, inputs: dict | None = None) -> dict:
             return
         try:
             saved = rec.finish(status="error" if error else None, error=error)
-            eel.receiveEvent({"type": "portal_run_saved", "run_id": saved["id"], "status": saved["status"]})
+            workflow_status = PORTAL.record_test(Path(path).name, saved["id"], saved["status"] == "ok")   # un lancement réussi = test d'un brouillon
+            eel.receiveEvent({"type": "portal_run_saved", "run_id": saved["id"], "status": saved["status"],
+                              "workflow_status": workflow_status})
         except Exception as exc:
             print(f"[PORTAL] historique : {exc}", flush=True)
 
@@ -264,6 +270,7 @@ def _start_run(path: str, inputs: dict | None = None) -> dict:
         error = ""
         try:
             engine = WorkflowEngine(path,
+                                    sandbox_roots=_sandbox_roots,
                                     event_callback=on_event,
                                     approval_wait=wait_approval,
                                     input_wait=wait_input,
@@ -407,8 +414,9 @@ def portal_check(text: str) -> dict:
 
 
 @eel.expose
-def portal_save(filename: str, text: str) -> dict:
-    return PORTAL.save_yaml(filename, text)
+def portal_save(filename: str, text: str, draft: bool = False) -> dict:
+    """Enregistre un workflow. draft=True (chat) : il repasse en brouillon, sous bac à sable, jusqu'à un test réussi."""
+    return PORTAL.save_yaml(filename, text, draft=bool(draft))
 
 
 @eel.expose
@@ -452,9 +460,15 @@ def portal_template(template_id: str, filename: str, category: str = "") -> dict
 
 
 @eel.expose
-def portal_create(filename: str, text: str) -> dict:
-    """Crée un nouveau workflow (refuse d'écraser un fichier existant)."""
-    return PORTAL.save_yaml(filename, text, create=True)
+def portal_create(filename: str, text: str, draft: bool = False) -> dict:
+    """Crée un nouveau workflow (refuse d'écraser un fichier existant). draft=True : voir portal_save."""
+    return PORTAL.save_yaml(filename, text, create=True, draft=bool(draft))
+
+
+@eel.expose
+def portal_activate(filename: str) -> dict:
+    """Valide un brouillon dont le test s'est bien passé."""
+    return PORTAL.activate(filename)
 
 
 @eel.expose
@@ -468,7 +482,7 @@ def portal_assist_voice(enable: bool = True) -> dict:
 
 
 @eel.expose
-def portal_assist(text: str, instruction: str) -> dict:
+def portal_assist(text: str, instruction: str, sandbox: bool = False) -> dict:
     """Confie une demande à CSAgent (création ou modification) ; le résultat arrive par l'événement assist_done."""
     global _approval_event, _approval_result, _current_cancel
     if _run_busy.is_set():
@@ -493,7 +507,7 @@ def portal_assist(text: str, instruction: str) -> dict:
 
     def _work():
         try:
-            res = ASSIST.run(text, instruction, emit=say, cancel=cancel, wait_approval=wait_approval)
+            res = ASSIST.run(text, instruction, emit=say, cancel=cancel, wait_approval=wait_approval, sandbox=sandbox)
         except Exception as exc:                                   # noqa: BLE001
             res = {"ok": False, "error": str(exc)}
         finally:

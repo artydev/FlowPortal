@@ -18,6 +18,7 @@ Utilisation type (voir app.py) :
     rec.finish()
 """
 
+import hashlib
 import json
 import os
 import re
@@ -28,6 +29,7 @@ from pathlib import Path
 
 import yaml
 
+import sandbox
 import schema
 from friendly import friendly_title, step_kind
 
@@ -255,7 +257,7 @@ class RunRecorder:
             if kind == "workflow_start":
                 self._name = ev.get("name") or self._name
                 self._steps = [{"id": s.get("id"), "type": s.get("type"),
-                                "label": s.get("description") or s.get("id"),
+                                "label": s.get("description") or s.get("id"), **step_kind(str(s.get("type") or "")),
                                 "status": "pending", "duration": 0.0, "output": ""}
                                for s in ev.get("steps", [])]
                 self._by_id = {s["id"]: s for s in self._steps}
@@ -328,6 +330,117 @@ class Portal:
         self.base = Path(base_dir) if base_dir else self.dir.parent
         self.mcp_config = mcp_config
         self.history = History(history_path, max_runs)
+        self._state_path = Path(history_path).with_name("drafts.json")     # brouillons et bac à sable (voir §« Brouillons »)
+        self._state_lock = threading.Lock()
+
+    # -- brouillons et bac à sable ------------------------------------------
+    # Un workflow écrit depuis le chat est un BROUILLON : il doit se terminer sans erreur lors d'un test, puis
+    # l'utilisateur le valide. Il reste sous BAC À SABLE (fichiers limités à output/ et documents/, voir sandbox.py)
+    # même après validation. Un workflow absent de drafts.json (écrit à la main) est « actif » et sans restriction.
+    #   statut : « draft » (jamais testé, ou modifié depuis le test) → « tested » (test réussi) → « active » (validé).
+    def _load_state(self) -> dict:
+        try:
+            data = json.loads(self._state_path.read_text(encoding="utf-8"))
+            return data if isinstance(data, dict) else {}
+        except (OSError, ValueError):
+            return {}
+
+    def _save_state(self, state: dict) -> None:
+        self._state_path.parent.mkdir(parents=True, exist_ok=True)
+        tmp = self._state_path.with_name(self._state_path.name + ".tmp")
+        tmp.write_text(json.dumps(state, ensure_ascii=False, indent=1), encoding="utf-8")
+        os.replace(tmp, self._state_path)
+
+    def _digest(self, path: Path) -> str:
+        try:
+            return hashlib.sha1(path.read_bytes()).hexdigest()
+        except OSError:
+            return ""
+
+    def mark_draft(self, filename) -> None:
+        with self._state_lock:
+            state = self._load_state()
+            state[safe_name(filename)] = {"validated": False, "tested": None}
+            self._save_state(state)
+
+    def sandboxed(self, filename) -> bool:
+        return safe_name(filename) in self._load_state()
+
+    def status(self, filename) -> str:
+        """« draft », « tested » ou « active »."""
+        name = safe_name(filename)
+        entry = self._load_state().get(name)
+        if not entry or entry.get("validated"):
+            return "active"
+        tested = entry.get("tested") or {}
+        return "tested" if tested.get("hash") and tested["hash"] == self._digest(self.dir / name) else "draft"
+
+    def record_test(self, filename, run_id: str, ok: bool) -> str:
+        """Appelé à la fin d'un lancement : un lancement réussi d'un brouillon le fait passer à « tested »."""
+        name = safe_name(filename)
+        with self._state_lock:
+            state = self._load_state()
+            entry = state.get(name)
+            if entry and not entry.get("validated"):
+                entry["tested"] = {"run_id": run_id, "hash": self._digest(self.dir / name)} if ok else None
+                self._save_state(state)
+        return self.status(name)
+
+    def activate(self, filename) -> dict:
+        """Valide un brouillon testé avec succès (et inchangé depuis)."""
+        try:
+            name = safe_name(filename)
+            if name not in self._load_state():
+                return {"ok": True, "status": "active"}
+            if self.status(name) != "tested":
+                raise PortalError("Testez d'abord ce workflow : il doit se terminer sans erreur (et ne pas avoir été modifié depuis).")
+            with self._state_lock:
+                state = self._load_state()
+                state[name]["validated"] = True
+                self._save_state(state)
+            return {"ok": True, "status": "active"}
+        except PortalError as exc:
+            return {"ok": False, "error": str(exc)}
+
+    def _move_state(self, old: str, new: str, new_path: Path) -> None:
+        with self._state_lock:
+            state = self._load_state()
+            if old not in state:
+                return
+            entry = state.pop(old)
+            if entry.get("tested"):
+                entry["tested"]["hash"] = self._digest(new_path)    # le renommage a pu réécrire `name:` : le test reste valable
+            state[new] = entry
+            self._save_state(state)
+
+    def sandbox_roots(self, filename) -> list | None:
+        """Dossiers autorisés pour ce workflow, ou None s'il n'est pas sous bac à sable."""
+        return sandbox.roots(self.base) if self.sandboxed(filename) else None
+
+    def sandbox_issues(self, text: str) -> list:
+        """Erreurs (ligne, message) pour les chemins littéraux de file_read / file_write hors de output/ et documents/."""
+        try:
+            root = schema.yaml.compose(str(text))
+        except Exception:                                       # noqa: BLE001 : YAML invalide déjà signalé ailleurs
+            return []
+        if root is None or getattr(root, "id", "") != "mapping":
+            return []
+        out = []
+        for k, v in root.value:
+            if getattr(k, "value", None) != "steps" or getattr(v, "id", "") != "sequence":
+                continue
+            for st in v.value:
+                if getattr(st, "id", "") != "mapping":
+                    continue
+                kv = {getattr(a, "value", None): b for a, b in st.value}
+                t, pth, sid = kv.get("type"), kv.get("path"), kv.get("id")
+                if getattr(t, "value", None) not in sandbox.FILE_STEP_TYPES or getattr(pth, "id", "") != "scalar":
+                    continue
+                problem = sandbox.static_violation(pth.value)
+                if problem:
+                    out.append({"level": "error", "line": pth.start_mark.line + 1,
+                                "message": f"L'étape « {getattr(sid, 'value', '?')} » : {problem}. Les fichiers doivent être dans documents/ ou output/{{{{run_id}}}}/."})
+        return out
 
     # -- fichiers ----------------------------------------------------------
     def workflow_path(self, filename) -> Path:
@@ -348,8 +461,9 @@ class Portal:
         issues.sort(key=lambda i: (i.get("line") or 0))
         return {"ok": not any(i["level"] == "error" for i in issues), "issues": issues}
 
-    def save_yaml(self, filename, text: str, create: bool = False) -> dict:
-        """Valide puis écrit. Refuse s'il y a des erreurs ; garde l'ancienne version en `<nom>.bak`."""
+    def save_yaml(self, filename, text: str, create: bool = False, draft: bool = False) -> dict:
+        """Valide puis écrit. Refuse s'il y a des erreurs ; garde l'ancienne version en `<nom>.bak`.
+        draft=True (écriture depuis le chat) : le workflow passe en brouillon sous bac à sable, jusqu'à un test réussi."""
         try:
             name = safe_name(filename)
             path = self.dir / name
@@ -369,6 +483,8 @@ class Portal:
             tmp = self.dir / ("." + name + ".tmp")
             tmp.write_bytes(body.encode("utf-8"))
             os.replace(tmp, path)
+            if draft:
+                self.mark_draft(name)
             return {"ok": True, "filename": name, "issues": res["issues"]}
         except (PortalError, OSError) as exc:
             return {"ok": False, "error": str(exc), "issues": []}
@@ -404,6 +520,7 @@ class Portal:
             if bak.is_file():
                 os.replace(bak, self.dir / (n + ".bak"))
             self.history.rename_file(o, n)
+            self._move_state(o, n, dst)
             return {"ok": True, "filename": n}
         except (PortalError, OSError, UnicodeError) as exc:
             return {"ok": False, "error": str(exc)}
@@ -424,6 +541,8 @@ class Portal:
             tmp = self.dir / ("." + n + ".tmp")
             tmp.write_bytes(text.encode("utf-8"))
             os.replace(tmp, self.dir / n)
+            if self.sandboxed(o):                      # la copie d'un workflow sous bac à sable l'est aussi, et repasse en brouillon
+                self.mark_draft(n)
             return {"ok": True, "filename": n}
         except (PortalError, OSError, UnicodeError) as exc:
             return {"ok": False, "error": str(exc)}
@@ -450,6 +569,10 @@ class Portal:
             bak = self.dir / (name + ".bak")
             if bak.is_file():
                 os.replace(bak, trash / (dest.name + ".bak"))
+            with self._state_lock:
+                state = self._load_state()
+                if state.pop(name, None) is not None:
+                    self._save_state(state)
             return {"ok": True, "filename": name, "trash": f"{self.dir.name}/{self.TRASH}/{dest.name}"}
         except (PortalError, OSError) as exc:
             return {"ok": False, "error": str(exc)}
@@ -499,7 +622,8 @@ class Portal:
                 "summary": "", "description": "", "category": "", "inputs": {}, "steps": [],
                 "tags": {"agent": False, "human": False, "mcp": False},
                 "requirements": {"servers": [], "env": []}, "missing": [], "ready": False,
-                "last_run": self._brief(last), "runs": nruns, "error": ""}
+                "last_run": self._brief(last), "runs": nruns, "error": "",
+                "status": self.status(path.name), "sandboxed": self.sandboxed(path.name)}
         try:
             text = path.read_text(encoding="utf-8")
             wf = yaml.safe_load(text)

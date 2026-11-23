@@ -170,6 +170,10 @@ def step_changes(old: str, new: str):
 
 
 # Consigne de langue : quelques mots dans le prompt suffisent (aucun appel de traduction supplémentaire).
+# Bac à sable (voir sandbox.py) : demandé pour les workflows écrits depuis le chat.
+SANDBOX_RULE = ("Les fichiers que le workflow lit ou écrit doivent se trouver UNIQUEMENT dans « documents/ » (fichiers de l'utilisateur) "
+                "ou « output/{{run_id}}/ » (résultats) : aucun autre dossier, aucun chemin absolu, aucun « .. ». ")
+
 FRENCH = ("Réponds toujours en français, y compris tes commentaires de progression. "
           "Donne à chaque étape une « description » courte et claire, en français, qui dit ce qu'elle fait "
           "(par exemple « Rédaction du résumé »), et un « name » du workflow lisible. ")
@@ -189,7 +193,7 @@ def category_rule(categories=None) -> str:
     return rule
 
 
-def build_prompt(rel_path: str, instruction: str, categories=None) -> str:
+def build_prompt(rel_path: str, instruction: str, categories=None, sandbox: bool = False) -> str:
     return (f"Tu dois modifier le fichier de workflow CSFlow « {rel_path} » selon la demande ci-dessous.\n"
             "Règles : édite UNIQUEMENT ce fichier, sans créer ni modifier aucun autre fichier ; "
             "respecte la compétence « csflow » (types d'étapes, ids uniques, références {{id.output}}) ; "
@@ -201,7 +205,7 @@ def build_prompt(rel_path: str, instruction: str, categories=None) -> str:
             "pour écrire un fichier, utilise TOUJOURS « type: file_write » (pas python+pathlib) : file_write crée les dossiers manquants automatiquement et le fichier apparaît dans l'onglet Fichiers de l'interface ; "
             "pour ouvrir un fichier HTML, utilise un step « python » avec webbrowser.open(pathlib.Path('output/{{run_id}}/fichier.html').resolve().as_uri()), "
             "jamais « start \"\" \"fichier\" » (non portable, échoue en subprocess). "
-            + FRENCH + "Quand tu as terminé, réponds en une ou deux phrases : ce que tu as changé.\n"
+            + (SANDBOX_RULE if sandbox else "") + FRENCH + "Quand tu as terminé, réponds en une ou deux phrases : ce que tu as changé.\n"
             f"Demande : {instruction}")
 
 
@@ -233,7 +237,8 @@ class Assistant:
         """Supprime les brouillons laissés par une session précédente."""
         shutil.rmtree(self.root, ignore_errors=True)
 
-    def run(self, text: str, instruction: str, emit=None, cancel=None, wait_approval=None, timeout: int = 180) -> dict:
+    def run(self, text: str, instruction: str, emit=None, cancel=None, wait_approval=None, timeout: int = 180,
+            sandbox: bool = False) -> dict:
         instruction = str(instruction or "").strip()
         if not instruction:
             return {"ok": False, "error": "La demande est vide."}
@@ -247,7 +252,7 @@ class Assistant:
         try:
             folder.mkdir(parents=True, exist_ok=True)
             draft.write_text(original, encoding="utf-8")
-            prompt, answers = build_prompt(rel, instruction, self._categories()), []
+            prompt, answers = build_prompt(rel, instruction, self._categories(), sandbox), []
             issues, attempts = [], 0
             for attempt in range(self.max_fixes + 1):
                 attempts = attempt + 1
@@ -270,6 +275,8 @@ class Assistant:
                 if not new.strip():
                     return {"ok": False, "error": "CSAgent a vidé le brouillon : aucune modification retenue."}
                 issues = self.portal.check_yaml(new)["issues"]
+                if sandbox:                      # workflow écrit depuis le chat : les chemins hors du bac à sable sont des erreurs à corriger
+                    issues = sorted(issues + self.portal.sandbox_issues(new), key=lambda i: (i.get("line") or 0))
                 if not any(i["level"] == "error" for i in issues):
                     break
                 prompt = build_fix_prompt(rel, issues)

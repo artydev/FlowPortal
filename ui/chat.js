@@ -111,14 +111,6 @@ function updateEngineStatusChip() {
     : `<span class="status-dot"></span>Moteur actif`;
 }
 
-/* ── Barre latérale : onglets ───────────────────────────────────────────── */
-function switchSidebarTab(tabKey) {
-  document.getElementById("sidebar-tab-conversations").classList.toggle("active", tabKey === "conversations");
-  document.getElementById("sidebar-tab-workflows").classList.toggle("active",     tabKey === "workflows");
-  document.getElementById("sidebar-panel-conversations").classList.toggle("active", tabKey === "conversations");
-  document.getElementById("sidebar-panel-workflows").classList.toggle("active",     tabKey === "workflows");
-}
-
 /* ── Barre latérale : liste de workflows ───────────────────────────────── */
 function renderWorkflowList() {
   const listElement = document.getElementById("chat-workflow-list");
@@ -127,15 +119,50 @@ function renderWorkflowList() {
     listElement.innerHTML = html`<p class="hint-text" style="padding:12px 16px">Aucun workflow.</p>`;
     return;
   }
-  listElement.innerHTML = appState.workflows.map(workflow => html`
-    <div class="wf-list-item" data-filename="${workflow.filename}"
+  const collapsed = new Set(appState.collapsedCategories);
+  const itemHtml = workflow => html`
+    <div class="wf-list-item" data-filename="${workflow.filename}" data-category="${workflow.category || ""}"
          onclick="openWorkflowCard('${workflow.filename}')">
-      <span class="wf-list-name">${friendlyWorkflowTitle(workflow)}</span>
-      <div class="wf-type-dot ${dominantStepType(workflow)}"
-           title="${dominantStepType(workflow)}"></div>
-    </div>
-  `).join("");
+      <div class="wf-list-title"><span class="wf-list-ico">${workflowIcon(workflow)}</span><span class="wf-list-name">${friendlyWorkflowTitle(workflow)}</span>${workflow.status && workflow.status !== "active" ? html`<span class="status-badge is-${workflow.status}">${workflow.status === "draft" ? "Brouillon" : "À valider"}</span>` : ""}</div>
+      ${workflow.summary ? html`<div class="wf-list-desc">${workflow.summary}</div>` : ""}
+    </div>`;
+  // Aucune catégorie : liste à plat. Sinon, regroupée comme dans le portail (en-tête teinté + effectif).
+  if (!appState.workflows.some(workflow => workflow.category)) {
+    listElement.innerHTML = appState.workflows.map(itemHtml).join("");
+    return;
+  }
+  listElement.innerHTML = groupByCategory(appState.workflows).map(group => html`
+    <div class="wf-list-group ${collapsed.has(group.name) ? "is-collapsed" : ""}" style="--cat-hue:${categoryHue(group.name)}">
+      <button type="button" class="wf-list-group-head" data-toggle-category="${group.name}" aria-expanded="${!collapsed.has(group.name)}">
+        <span class="wf-list-group-caret" aria-hidden="true">▾</span><i class="wf-list-group-dot"></i>${group.name || NO_CATEGORY_LABEL}<span class="wf-list-group-count">${group.workflows.length}</span>
+      </button>
+      ${group.workflows.map(itemHtml)}
+    </div>`).join("");
+  const searchInput = document.querySelector(".workflow-search-wrap input");
+  if (searchInput && searchInput.value) filterWorkflowList(searchInput.value);
 }
+
+/* Catégories repliables : même état (et même mémoire locale) que le portail. */
+function loadCollapsedCategories() {
+  try {
+    const saved = JSON.parse(localStorage.getItem("fp-collapsed-categories") || "[]");
+    if (Array.isArray(saved)) appState.collapsedCategories = saved.map(String);
+  } catch (error) { /* mémoire locale indisponible : tout reste déplié */ }
+}
+
+function toggleCategoryFromChat(name) {
+  const collapsed = new Set(appState.collapsedCategories);
+  collapsed.has(name) ? collapsed.delete(name) : collapsed.add(name);
+  appState.collapsedCategories = [...collapsed];
+  try { localStorage.setItem("fp-collapsed-categories", JSON.stringify(appState.collapsedCategories)); } catch (error) { /* ignoré */ }
+  renderWorkflowList();
+}
+
+document.addEventListener("click", event => {
+  const head = event.target.closest("#chat-workflow-list [data-toggle-category]");
+  if (head) toggleCategoryFromChat(head.dataset.toggleCategory);
+});
+loadCollapsedCategories();
 
 /** Recharge la liste depuis le backend et la re-dessine. */
 async function reloadWorkflowList() {
@@ -148,20 +175,27 @@ async function reloadWorkflowList() {
   renderWorkflowList();
 }
 
-/** Type d'étape dominant d'un workflow (détermine la couleur du point). */
-function dominantStepType(workflow) {
+/** Icône d'un workflow : celle de son étape la plus parlante (l'IA d'abord, sinon la première étape utile). */
+function workflowIcon(workflow) {
   const steps = workflow.steps || [];
-  if (steps.some(s => s.type === "agent"))      return "agent";
-  if (steps.some(s => s.type === "shell"))      return "shell";
-  if (steps.some(s => s.type === "python"))     return "python";
-  return "file_write";
+  const pick = steps.find(step => step.type === "agent")
+            || steps.find(step => !["log", "end", "transform"].includes(step.type))
+            || steps[0];
+  return friendlyStepIcon(pick);
 }
 
 /** Filtre les items de la liste par texte de recherche. */
 function filterWorkflowList(query) {
   const lowerQuery = query.toLowerCase();
+  // Pendant une recherche, les catégories repliées s'ouvrent pour montrer les résultats.
+  document.getElementById("chat-workflow-list").classList.toggle("is-searching", !!query);
   document.querySelectorAll("#chat-workflow-list .wf-list-item").forEach(item => {
-    item.style.display = item.textContent.toLowerCase().includes(lowerQuery) ? "" : "none";
+    const text = `${item.textContent} ${item.dataset.category || ""}`.toLowerCase();
+    item.style.display = text.includes(lowerQuery) ? "" : "none";
+  });
+  // Un groupe dont tous les workflows sont masqués disparaît aussi.
+  document.querySelectorAll("#chat-workflow-list .wf-list-group").forEach(group => {
+    group.style.display = [...group.querySelectorAll(".wf-list-item")].some(item => item.style.display !== "none") ? "" : "none";
   });
 }
 
@@ -228,7 +262,6 @@ function removeElementById(id) {
 function openWorkflowCard(filename) {
   const workflow = findCard(filename);
   if (!workflow) return;
-  switchSidebarTab("conversations");
   const typingMessageId = showTypingIndicator();
   setTimeout(() => {
     removeElementById(typingMessageId);
@@ -240,6 +273,13 @@ function openWorkflowCard(filename) {
 }
 
 /** Ajoute une carte de workflow dans la conversation. */
+/** Pastille de catégorie (rangement du portail) ; vide si le workflow n'en a pas. Teinte stable calculée depuis le nom. */
+function cardCategoryHtml(workflow) {
+  return workflow.category
+    ? html`<span class="wf-cat" style="--cat-hue:${categoryHue(workflow.category)}">${workflow.category}</span>`
+    : "";
+}
+
 function appendWorkflowCardMessage(workflow) {
   const steps = workflow.steps || [];
   const stepTimelineHtml = steps.map((step, index) => html`
@@ -264,22 +304,13 @@ function appendWorkflowCardMessage(workflow) {
     <div class="chat-avatar assistant-avatar">⚡</div>
     <div class="wf-card" data-filename="${workflow.filename}">
       <div class="wf-header">
-        <div class="wf-name"><span class="simple-only">${friendlyWorkflowTitle(workflow)}</span><span class="dev-only">${workflow.title}</span></div>
+        <div class="wf-name"><span class="simple-only">${friendlyWorkflowTitle(workflow)}</span><span class="dev-only">${workflow.title}</span> <span class="wf-status">${cardStatusBadgeHtml(workflow)}</span> <span class="wf-cat-slot">${cardCategoryHtml(workflow)}</span></div>
         <div class="wf-desc">${workflow.summary || ""}</div>
       </div>
       <div class="tag-list dev-only" style="padding:0 16px 10px">${tagsHtml}</div>
       <div class="wf-step-tl dev-only">${stepTimelineHtml}</div>
       <ol class="sc-steps simple-only">${simpleStepsHtml}</ol>
-      <div class="card-footer" style="padding:10px 16px;border-top:1px solid var(--line);display:flex;gap:7px">
-        <button class="button-primary" data-filename="${workflow.filename}"
-                onclick="launchWorkflowFromChat(this.dataset.filename, this)">▶ Lancer</button>
-        <button class="button-primary is-ghost simple-only"
-                onclick="askModificationFromChat(this)">✏ Modifier</button>
-        <button class="button-primary is-ghost dev-only" data-filename="${workflow.filename}"
-                onclick="openYamlPanel(this.dataset.filename, true)">✏ Modifier</button>
-        <button class="button-primary is-ghost dev-only" data-filename="${workflow.filename}"
-                onclick="openYamlPanel(this.dataset.filename, false)">⌄ YAML</button>
-      </div>
+      <div class="card-footer" style="padding:10px 16px;border-top:1px solid var(--line);display:flex;gap:7px;flex-wrap:wrap">${cardFooterHtml(workflow)}</div>
     </div>
   `;
   messagesContainer.insertBefore(messageElement, scrollAnchorElement);
@@ -297,6 +328,61 @@ function askModificationFromChat(button) {
 function stepTypeToTagClass(stepType) {
   const tagClasses = { file_write: "fw", python: "py", shell: "sh", agent: "ai" };
   return tagClasses[stepType] || "";
+}
+
+/* ── Statut d'un workflow écrit depuis le chat : brouillon → testé → validé ──────────────────────────────── */
+/** Pastille de statut ; rien pour un workflow actif. */
+function cardStatusBadgeHtml(workflow) {
+  if (workflow.status === "draft")  return html`<span class="status-badge is-draft" title="À tester avant utilisation">Brouillon</span>`;
+  if (workflow.status === "tested") return html`<span class="status-badge is-tested" title="Test réussi : il reste à le valider">Testé, à valider</span>`;
+  return "";
+}
+
+/** Boutons de la carte selon le statut : Tester (brouillon), Valider (testé), Lancer (actif). */
+function cardFooterHtml(workflow) {
+  const filename = workflow.filename;
+  const run = (label, primary = true) => html`<button class="button-primary ${primary ? "" : "is-ghost"}" data-filename="${filename}"
+        onclick="launchWorkflowFromChat(this.dataset.filename, this)">${label}</button>`;
+  const lead = workflow.status === "draft" ? run("▶ Tester")
+    : workflow.status === "tested" ? html`<button class="button-primary" data-filename="${filename}" onclick="validateWorkflowFromChat(this)">✓ Valider ce workflow</button>${run("↻ Tester à nouveau", false)}`
+    : run("▶ Lancer");
+  return html`${lead}
+        <button class="button-primary is-ghost simple-only" onclick="askModificationFromChat(this)">✏ Modifier</button>
+        <button class="button-primary is-ghost dev-only" data-filename="${filename}" onclick="openYamlPanel(this.dataset.filename, true)">✏ Modifier</button>
+        <button class="button-primary is-ghost dev-only" data-filename="${filename}" onclick="openYamlPanel(this.dataset.filename, false)">⌄ YAML</button>`;
+}
+
+/** Remet à jour badge et boutons de toutes les cartes affichées pour ce workflow (le statut vient de changer). */
+function refreshWorkflowCards(filename) {
+  const workflow = findCard(filename);
+  if (!workflow) return;
+  document.querySelectorAll(".wf-card").forEach(card => {
+    if (card.dataset.filename !== filename) return;
+    card.querySelector(".wf-status").innerHTML = cardStatusBadgeHtml(workflow);
+    card.querySelector(".wf-cat-slot").innerHTML = cardCategoryHtml(workflow);
+    card.querySelector(".card-footer").innerHTML = cardFooterHtml(workflow);
+  });
+  renderWorkflowList();
+}
+
+/** L'utilisateur valide un brouillon dont le test s'est bien passé. */
+async function validateWorkflowFromChat(button) {
+  const filename = button.dataset.filename;
+  button.disabled = true;
+  const result = await callBackend("portal_activate", filename);
+  if (!result || !result.ok) {
+    button.disabled = false;
+    appendAssistantMessage(html`<span style="color:var(--bad)">${(result && result.error) || "Validation impossible."}</span>`);
+    scrollMessagesToBottom();
+    return;
+  }
+  await reloadWorkflowList();
+  refreshWorkflowCards(filename);
+  document.querySelectorAll(".validation-banner").forEach(banner => {
+    if (banner.dataset.filename === filename) banner.innerHTML = html`<span style="color:var(--ok)">✓ Workflow validé. Vous pouvez le lancer quand vous voulez.</span>`;
+  });
+  appendAssistantMessage(html`<span style="color:var(--ok)">✓ Workflow validé : vous pouvez maintenant le lancer.</span>`);
+  scrollMessagesToBottom();
 }
 
 /* ── Lancement d'un workflow ────────────────────────────────────────────── */
@@ -319,7 +405,7 @@ async function launchWorkflowFromChat(filename, launchButton) {
   const result = await callBackend("portal_run", filename, {});
   if (!result.ok) {
     launchButton.disabled = false;
-    launchButton.innerHTML = "▶ Lancer";
+    refreshWorkflowCards(filename);
     appState.busy = false;
     appState.liveRun = null;
     removeElementById("chat-live-run");
@@ -516,16 +602,8 @@ async function finishLiveRun(savedEvent) {
   updateEngineStatusChip();
   renderChatInputControls();
 
-  // Réactive le bouton Lancer de la carte active
-  if (activeWorkflowCardElement) {
-    const launchButton = activeWorkflowCardElement.querySelector(".button-primary");
-    if (launchButton) {
-      launchButton.disabled = false;
-      launchButton.innerHTML = "▶ Relancer";
-    }
-  }
-
   await reloadWorkflowList();
+  if (liveRunFilename) refreshWorkflowCards(liveRunFilename);       // remet les boutons de la carte (le statut a pu changer)
 
   const runDetailResult = await callBackend("portal_run_detail", savedEvent.run_id);
   if (!runDetailResult.ok) {
@@ -542,15 +620,17 @@ function appendRunSummaryMessage(run, filename) {
   const isSuccess  = run.status === "ok";
   const statusLabel = RUN_STATUS_LABELS[run.status] || run.status;
   const toneClass   = isSuccess ? "" : "is-error";
-  const failedStep  = (run.steps || []).find(step => step.status !== "ok" && step.status !== "notrun" && step.status !== "skip");
+  const failedStep  = (run.steps || []).find(step => ["error", "rejected", "cancelled"].includes(step.status));
+  const workflowStatus = filename && findCard(filename) ? findCard(filename).status : "active";
+  const reason = failedStep && String(failedStep.output || "").startsWith("Accès refusé") ? failedStep.output : "";
 
   const stepsHtml = (run.steps || [])
     .filter(step => step.status !== "notrun")
     .map(step => html`
       <li class="${step.status === "ok" ? "ok" : ""}">
-        <span class="step-icon">${step.status === "ok" ? "✓" : "✕"}</span>
+        <span class="step-icon">${step.status === "ok" ? "✓" : step.status === "skipped" ? "↷" : "✕"}</span>
         <div>
-          <span>${step.label || step.id}</span>
+          <span class="simple-only">${friendlyStepTitle(step)}</span><span class="dev-only">${step.label || step.id}</span>
           <small class="dev-only">${step.id} · ${formatDuration(step.duration)}</small>
         </div>
       </li>
@@ -570,18 +650,23 @@ function appendRunSummaryMessage(run, filename) {
       <div class="run-summary-header">
         ${isSuccess ? "✓" : "✕"} ${statusLabel}
         ${isSuccess ? "" : html`
-          <span class="simple-only" style="font-weight:400;font-size:13px">${failedStep ? html` · L'étape « ${failedStep.label || failedStep.id} » n'a pas abouti.` : ""}</span>
+          <span class="simple-only" style="font-weight:400;font-size:13px">${failedStep ? html` · L'étape « ${failedStep.label || failedStep.id} » n'a pas abouti.${reason ? html` ${reason}` : ""}` : ""}</span>
           <span class="dev-only" style="font-weight:400;font-size:13px">${run.error ? html` · ${run.error}` : ""}</span>`}
         <span class="run-id-badge dev-only">${run.id}</span>
       </div>
       <ol class="step-list">${stepsHtml}</ol>
+      ${isSuccess && workflowStatus === "tested" ? html`
+        <div class="validation-banner" data-filename="${filename}" style="margin-top:10px">
+          <span>✓ Le test s'est bien passé. Si le résultat vous convient, validez ce workflow pour l'utiliser.</span>
+          <div class="button-row" style="margin-top:8px"><button class="button-primary" data-filename="${filename}" onclick="validateWorkflowFromChat(this)">✓ Valider ce workflow</button></div>
+        </div>` : ""}
       ${filesHtml.length ? html`<div class="run-files" style="margin-top:8px">${filesHtml}</div>` : ""}
       <div class="button-row" style="margin-top:10px">
         <button class="button-primary is-ghost" style="font-size:12px"
                 onclick="openRunResultFromChat('${run.id}')">Voir le résultat complet</button>
         ${!isSuccess && filename ? html`
           <button class="button-primary" style="font-size:12px" data-filename="${filename}"
-                  onclick="launchWorkflowFromChat(this.dataset.filename, this)">↻ Relancer</button>
+                  onclick="launchWorkflowFromChat(this.dataset.filename, this)">${workflowStatus === "active" ? "↻ Relancer" : "↻ Tester à nouveau"}</button>
           <button class="button-primary is-ghost" style="font-size:12px" data-filename="${filename}"
                   data-step="${failedStep ? (failedStep.label || failedStep.id) : ""}" data-error="${run.error || ""}"
                   onclick="askFixAfterFailure(this)">🛠 Demander à l'assistant de corriger</button>` : ""}
@@ -875,12 +960,14 @@ function appendYamlProposalMessage(event) {
     rejectButton.disabled = true;
 
     const saveResult = isCreation
-      ? await callBackend("portal_create", targetName, event.draft)
-      : await callBackend("portal_save", filename, event.draft);
+      ? await callBackend("portal_create", targetName, event.draft, true)     // true : brouillon, à tester puis valider
+      : await callBackend("portal_save", filename, event.draft, true);
     if (saveResult.ok) {
       // Remplace la bulle de proposition par un accusé de réception.
       proposalElement.querySelector(".chat-bubble").innerHTML = html`
-        <span style="color:var(--ok)">✓ ${isCreation ? "Workflow créé" : "Modifications appliquées"} : <b>${targetName}</b></span>
+        <span style="color:var(--ok)">✓ ${isCreation ? "Workflow créé en brouillon" : "Modifications enregistrées"} :&nbsp;
+          <b class="simple-only">${event.view?.title || targetName}</b><b class="dev-only">${targetName}</b></span><br>
+        <span style="color:var(--mute);font-size:13px">Testez-le avant de l'utiliser : cliquez sur « Tester » sur la carte ci-dessous.</span>
       `;
       await reloadWorkflowList();
       // Recharge la carte active si elle correspond au fichier modifié.
@@ -932,7 +1019,7 @@ async function sendChatMessage() {
     }
   }
 
-  const result = await callBackend("portal_assist", baseYaml, text);
+  const result = await callBackend("portal_assist", baseYaml, text, true);   // true : bac à sable (output/ et documents/)
   removeElementById(typingMessageId);
 
   if (!result.ok) {

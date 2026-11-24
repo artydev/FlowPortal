@@ -1003,6 +1003,7 @@ function appendYamlProposalMessage(event) {
         <span style="color:var(--mute);font-size:13px">Testez-le avant de l'utiliser : cliquez sur « Tester » sur la carte ci-dessous.</span>
       `;
       await reloadWorkflowList();
+      if (!isCreation) syncYamlPanelAfterAssistant(targetName);
       // Recharge la carte active si elle correspond au fichier modifié.
       if (isCreation || activeWorkflowCardElement?.dataset.filename === targetName) {
         const updatedWorkflow = findCard(targetName);
@@ -1118,14 +1119,20 @@ function openYamlPanel(filename, editMode = false) {
   textarea.value       = "# Chargement…";
   statusSpan.textContent = "";
 
+  delete textarea.dataset.dirty;                       // modifié à la main, pas encore enregistré
+  delete textarea.dataset.stale;                       // l'assistant a changé le fichier entre-temps
+  statusSpan.style.color = "var(--mute)";
   textarea.readOnly    = !editMode;
   saveButton.hidden    = !editMode;
   subtitle.textContent = editMode
     ? "Modifiez puis cliquez Enregistrer"
-    : "Lecture seule · utilisez ✏ Modifier pour éditer";
+    : document.body.dataset.view === "dev"
+      ? "Lecture seule · utilisez ✏ Modifier pour éditer"
+      : "Lecture seule · demandez la modification à l'assistant, ou passez en Vue développeur pour éditer";
 
   document.getElementById("yaml-panel-backdrop").classList.add("open");
   document.getElementById("yaml-panel-backdrop").dataset.filename = filename;
+  document.body.classList.add("yaml-open");            // fenêtre étroite : la barre latérale se masque (voir chat.html)
 
   callBackend("portal_read", filename).then(result => {
     if (result.ok) {
@@ -1137,6 +1144,7 @@ function openYamlPanel(filename, editMode = false) {
 
 function closeYamlPanel() {
   document.getElementById("yaml-panel-backdrop").classList.remove("open");
+  document.body.classList.remove("yaml-open");
   document.getElementById("yaml-panel-status").textContent = "";
 }
 
@@ -1148,6 +1156,11 @@ async function saveYamlFromPanel() {
   const statusSpan = document.getElementById("yaml-panel-status");
 
   if (!filename) return;
+  if (document.getElementById("yaml-panel-textarea").dataset.stale === "1") {
+    statusSpan.textContent = "✕ Le workflow a changé depuis l'ouverture du panneau : fermez-le et rouvrez-le avant d'enregistrer.";
+    statusSpan.style.color = "var(--bad)";
+    return;
+  }
   saveButton.disabled = true;
   saveButton.textContent = "⟳ Enregistrement…";
   statusSpan.textContent = "";
@@ -1158,6 +1171,7 @@ async function saveYamlFromPanel() {
   saveButton.textContent = "💾 Enregistrer";
 
   if (result.ok) {
+    delete document.getElementById("yaml-panel-textarea").dataset.dirty;
     statusSpan.textContent = "✓ Enregistré";
     statusSpan.style.color = "var(--ok)";
     await reloadWorkflowList();
@@ -1212,15 +1226,44 @@ document.getElementById("chat-context-clear").onclick = () => {
   inputTextarea.focus();
 };
 
+// « Voir le YAML » : ouvre le fichier du workflow actif en lecture seule, sans quitter la saisie (le panneau est fixé à droite).
+document.getElementById("chat-context-yaml").onclick = () => {
+  const filename = activeWorkflowCardElement?.dataset.filename;
+  if (filename) openYamlPanel(filename, false);
+};
+
 inputTextarea.oninput = () => {
   autoResizeTextarea(inputTextarea);
   renderChatInputControls();
 };
 inputTextarea.onkeydown = handleInputKeydown;
 
-document.getElementById("yaml-panel-backdrop").onclick = event => {
-  if (event.target === document.getElementById("yaml-panel-backdrop")) closeYamlPanel();
-};
+// Le panneau YAML ne se ferme que par « Fermer » : on peut cliquer dans le chat (saisie, envoi) sans le perdre.
+document.getElementById("yaml-panel-textarea").addEventListener("input", event => { event.target.dataset.dirty = "1"; });
+
+/**
+ * Après une modification du fichier par l'assistant : recharge le panneau s'il montre ce fichier.
+ * Si l'utilisateur a des changements non enregistrés, on ne les écrase pas : le panneau est marqué « périmé »
+ * et l'enregistrement est refusé tant qu'il n'est pas rouvert (sinon il écraserait le travail de l'assistant).
+ */
+async function syncYamlPanelAfterAssistant(filename) {
+  const panel = document.getElementById("yaml-panel-backdrop");
+  if (!panel.classList.contains("open") || panel.dataset.filename !== filename) return;
+  const textarea = document.getElementById("yaml-panel-textarea");
+  const status = document.getElementById("yaml-panel-status");
+  if (textarea.dataset.dirty === "1") {
+    textarea.dataset.stale = "1";
+    status.textContent = "⚠ L'assistant a modifié ce workflow : fermez et rouvrez le panneau avant d'enregistrer.";
+    status.style.color = "var(--human)";
+    return;
+  }
+  const result = await callBackend("portal_read", filename);
+  if (result.ok) {
+    textarea.value = result.yaml;
+    status.textContent = "↻ Mis à jour par l'assistant";
+    status.style.color = "var(--mute)";
+  }
+}
 
 // Thèmes : mêmes identifiants et même clé de stockage que le portail (ui/main.js).
 const CHAT_THEMES = [["light", "Clair"], ["dark", "Sombre"], ["dracula", "Dracula"], ["yaru", "Yaru"], ["nocturne", "Nocturne"]];

@@ -398,3 +398,41 @@ class AgentIndicatorPagesTests(unittest.TestCase):
         self.assertNotIn("oteur", text)
         for label in ("CSAgent actif", "CSAgent : démarrage…", "CSAgent indisponible", "CSAgent arrêté"):
             self.assertIn(label, text)
+
+
+class YamlPanelPageTests(unittest.TestCase):
+    """Panneau YAML du chat : fixé à droite (il ne recouvre pas le chat), il ne se ferme pas au clic à côté."""
+
+    def _page(self, name):
+        return (Path(__file__).resolve().parent.parent / "ui" / name).read_text(encoding="utf-8")
+
+    def test_le_panneau_ne_recouvre_pas_la_fenetre(self):
+        css = self._page("chat.html")
+        rule = css[css.index(".yaml-panel-backdrop {"):].split("}")[0]
+        self.assertNotIn("position:fixed", rule)
+        self.assertNotIn("inset:0", rule)
+        self.assertNotIn("rgba(", rule)                      # pas de voile sombre sur le chat
+        self.assertIn("body.yaml-open .chat-sidebar", css)   # fenêtre étroite : la barre latérale cède la place
+
+    def test_un_clic_a_cote_ne_ferme_pas_le_panneau(self):
+        js = self._page("chat.js")
+        self.assertNotIn('getElementById("yaml-panel-backdrop").onclick', js)
+        self.assertNotIn("event.target === document.getElementById(\"yaml-panel-backdrop\")", js)
+
+    def test_le_panneau_suit_l_ouverture_et_la_fermeture(self):
+        js = self._page("chat.js")
+        self.assertIn('document.body.classList.add("yaml-open")', js)
+        self.assertIn('document.body.classList.remove("yaml-open")', js)
+
+    def test_une_modification_de_l_assistant_ne_peut_pas_etre_ecrasee(self):
+        js = self._page("chat.js")
+        self.assertIn("syncYamlPanelAfterAssistant(targetName)", js)    # appelée après « Appliquer »
+        self.assertIn('dataset.stale === "1"', js)                      # l'enregistrement d'un panneau périmé est refusé
+
+    def test_voir_le_yaml_depuis_la_barre_de_contexte(self):
+        """En vue simple, « Modifier » ne montre pas le YAML : le lien de la barre de contexte l'ouvre en lecture seule."""
+        page, js = self._page("chat.html"), self._page("chat.js")
+        self.assertIn('id="chat-context-yaml"', page)
+        self.assertNotIn("dev-only", page[page.index('id="chat-context-yaml"') - 80:page.index('id="chat-context-yaml"') + 200])
+        self.assertIn('getElementById("chat-context-yaml").onclick', js)
+        self.assertIn("openYamlPanel(filename, false)", js)

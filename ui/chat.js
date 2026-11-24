@@ -672,7 +672,8 @@ function appendRunSummaryMessage(run, filename) {
   const workflowStatus = filename && findCard(filename) ? findCard(filename).status : "active";
   const known = failedStep && failedStep.reason;                       // explication enregistrée par le serveur (voir friendly.explain_failure)
   const reason = known ? known.message : (failedStep && String(failedStep.output || "").startsWith("Accès refusé") ? failedStep.output : "");
-  const fixable = !known || known.fixable !== false;                   // « corriger le workflow » n'a de sens que si le workflow est en cause
+  const stoppedByUser = run.status === "cancelled";                    // arrêt voulu : ce n'est pas un échec du workflow
+  const fixable = !stoppedByUser && (!known || known.fixable !== false); // « corriger le workflow » n'a de sens que si le workflow est en cause
   if (known && known.kind === "agent_down") { appState.agentUp = false; updateEngineStatusChip(); }
 
   const stepsHtml = (run.steps || [])
@@ -701,7 +702,7 @@ function appendRunSummaryMessage(run, filename) {
       <div class="run-summary-header">
         ${isSuccess ? "✓" : "✕"} ${statusLabel}
         ${isSuccess ? "" : html`
-          <span class="simple-only" style="font-weight:400;font-size:13px">${failedStep ? html` · L'étape « ${failedStep.label || failedStep.id} » n'a pas abouti.${reason ? html` ${reason}` : ""}` : ""}</span>
+          <span class="simple-only" style="font-weight:400;font-size:13px">${stoppedByUser ? html` · Vous avez arrêté le lancement.` : failedStep ? html` · L'étape « ${failedStep.label || failedStep.id} » n'a pas abouti.${reason ? html` ${reason}` : ""}` : ""}</span>
           <span class="dev-only" style="font-weight:400;font-size:13px">${run.error ? html` · ${run.error}` : ""}</span>`}
         <span class="run-id-badge dev-only">${run.id}</span>
       </div>

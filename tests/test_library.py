@@ -1,4 +1,4 @@
-"""Bibliothèque de workflows prêts à l'emploi (library/)."""
+"""Bibliothèque de workflows prêts à l'emploi (library/) : le contenu appartient à l'utilisateur, les tests vérifient le mécanisme."""
 import sys
 import tempfile
 import unittest
@@ -10,33 +10,34 @@ sys.path.insert(0, str(ROOT))
 import portal
 import sandbox
 import schema
+import yaml
+
+MODELE = (
+    "name: Résumer un document\n"
+    "category: Documents\n"
+    "description: Résume un fichier choisi.\n"
+    "steps:\n"
+    "  - id: lire\n    type: file_read\n    path: documents/note.txt\n"
+    "  - id: fin\n    type: end\n"
+)
 
 
 def library_files():
-    return sorted((ROOT / "library").glob("*.yaml"))
+    return sorted((ROOT / "library").glob("*.y*ml"))
 
 
 class LibraryFilesTests(unittest.TestCase):
-    def test_il_y_a_des_modeles(self):
-        self.assertGreaterEqual(len(library_files()), 6)
+    """Les fichiers réellement présents dans library/ (quels qu'ils soient) doivent être des workflows valides."""
 
-    def test_chaque_modele_est_valide(self):
+    def test_chaque_fichier_est_un_workflow_valide(self):
         for path in library_files():
             with self.subTest(path.name):
                 issues = schema.check(path.read_text(encoding="utf-8"))
                 self.assertEqual([i for i in issues if i[0] == "error"], [])
 
-    def test_chaque_modele_a_une_categorie_et_une_description(self):
-        import yaml
-        for path in library_files():
-            with self.subTest(path.name):
-                data = yaml.safe_load(path.read_text(encoding="utf-8"))
-                self.assertTrue(str(data.get("category", "")).strip())
-                self.assertTrue(str(data.get("description", "")).strip())
 
-    def test_chaque_modele_respecte_le_bac_a_sable(self):
-        """Aucun chemin littéral de lecture/écriture hors de output/ et documents/ (les copies sont sous bac à sable)."""
-        import yaml
+    def test_chaque_fichier_respecte_le_bac_a_sable(self):
+        """Les copies sont des brouillons sous bac à sable : file_read/file_write doivent viser output/ ou documents/."""
         for path in library_files():
             with self.subTest(path.name):
                 data = yaml.safe_load(path.read_text(encoding="utf-8"))
@@ -44,76 +45,35 @@ class LibraryFilesTests(unittest.TestCase):
                     if step.get("type") in sandbox.FILE_STEP_TYPES:
                         self.assertIsNone(sandbox.static_violation(step.get("path")), step.get("id"))
 
-    def test_les_etapes_utilisateur_ecrivent_dans_output(self):
-        """user_input sans save_as écrirait dans tmp/saisie/ : interdit sous bac à sable."""
-        import yaml
-        for path in library_files():
-            data = yaml.safe_load(path.read_text(encoding="utf-8"))
-            for step in data["steps"]:
-                if step.get("type") == "user_input":
-                    with self.subTest(f"{path.name}:{step['id']}"):
-                        self.assertTrue(str(step.get("save_as", "")).startswith("output/"))
-
-    def test_les_agents_ne_creent_pas_de_fichier(self):
-        import yaml
-        for path in library_files():
-            data = yaml.safe_load(path.read_text(encoding="utf-8"))
-            for step in data["steps"]:
-                if step.get("type") == "agent":
-                    with self.subTest(f"{path.name}:{step['id']}"):
-                        self.assertIn("Ne crée aucun fichier", step["prompt"])
-
-
-class WebTemplatesTests(unittest.TestCase):
-    """Les modèles web n'exigent aucune installation : pas d'outil MCP, simple téléchargement."""
-
-    def test_les_modeles_web_n_utilisent_pas_de_serveur_mcp(self):
-        import yaml
-        for name in ("lire-une-page-web", "surveiller-une-page-web"):
-            data = yaml.safe_load((ROOT / "library" / f"{name}.yaml").read_text(encoding="utf-8"))
-            types = {s.get("type") for s in data["steps"]}
-            with self.subTest(name):
-                self.assertIn("http_get", types)
-                self.assertNotIn("mcp_call", types)
-
-    def test_page_sans_texte_est_signalee_et_la_memoire_est_preservee(self):
-        """Le script d'extraction : texte lu hors scripts/styles ; page trop courte -> PAGE_VIDE sans écrire la mémoire."""
-        import yaml
-        data = yaml.safe_load((ROOT / "library" / "surveiller-une-page-web.yaml").read_text(encoding="utf-8"))
-        code = next(s["code"] for s in data["steps"] if s["id"] == "extraire")
-        for page, attendu in (("<html><script>var a=1</script><body><div id=r></div></body></html>", "PAGE_VIDE"),
-                              ("<html><head><title>Tarifs</title><style>x{}</style></head><body><p>" + "Abonnement à douze euros. " * 12 + "</p></body></html>", "Abonnement")):
-            with self.subTest(attendu), tempfile.TemporaryDirectory() as tmp:
-                work = Path(tmp)
-                (work / "output" / "r1").mkdir(parents=True)
-                (work / "output" / "r1" / "page.html").write_text(page, encoding="utf-8")
-                script = code.replace("{{run_id}}", "r1").replace("{{cle.output}}", "cle")
-                import subprocess
-                out = subprocess.run([sys.executable, "-c", script], cwd=work, capture_output=True, text=True, timeout=30)
-                self.assertEqual(out.returncode, 0, out.stderr)
-                self.assertIn(attendu, out.stdout)
-                self.assertNotIn("var a", out.stdout)
-                self.assertEqual((work / "output" / "surveillance" / "cle.txt").exists(), attendu != "PAGE_VIDE")
-
 
 class PortalLibraryTests(unittest.TestCase):
     def setUp(self):
         self.tmp = Path(tempfile.mkdtemp())
         (self.tmp / "workflows").mkdir()
         (self.tmp / "library").mkdir()
-        for path in library_files():
-            (self.tmp / "library" / path.name).write_bytes(path.read_bytes())
+        (self.tmp / "library" / "resumer-un-document.yaml").write_text(MODELE, encoding="utf-8")
         (self.tmp / "mcp.json").write_text('{"mcpServers": {}}', encoding="utf-8")
         self.portal = portal.Portal(self.tmp / "workflows", self.tmp / "runs.jsonl", mcp_config="mcp.json", base_dir=self.tmp)
 
     def test_liste_de_la_bibliotheque(self):
         items = {i["id"]: i for i in self.portal.library()}
-        self.assertEqual(len(items), len(library_files()))
+        self.assertEqual(list(items), ["resumer-un-document"])
         item = items["resumer-un-document"]
         self.assertEqual(item["title"], "Résumer un document")
         self.assertEqual(item["category"], "Documents")
         self.assertEqual(item["icon"], "📄")
         self.assertEqual(item["needs_setup"], [])
+
+    def test_un_modele_sans_categorie_est_accepte(self):
+        (self.tmp / "library" / "libre.yaml").write_text(
+            "name: Sans catégorie\nsteps:\n  - id: a\n    type: log\n    message: x\n  - id: f\n    type: end\n", encoding="utf-8")
+        items = {i["id"]: i for i in self.portal.library()}
+        self.assertIn("libre", items)
+        self.assertEqual(items["libre"]["title"], "Sans catégorie")
+
+    def test_un_fichier_invalide_est_ignore(self):
+        (self.tmp / "library" / "casse.yaml").write_text("name: [pas un workflow\n", encoding="utf-8")
+        self.assertEqual([i["id"] for i in self.portal.library()], ["resumer-un-document"])
 
     def test_un_modele_avec_outil_mcp_absent_est_signale(self):
         (self.tmp / "library" / "outil.yaml").write_text(
@@ -125,13 +85,14 @@ class PortalLibraryTests(unittest.TestCase):
         (self.tmp / "mcp.json").write_text('{"mcpServers": {"demo": {"command": "x"}}}', encoding="utf-8")
         self.assertEqual({i["id"]: i for i in self.portal.library()}["outil"]["needs_setup"], [])
 
-    def test_aucun_modele_ne_demande_d_installation(self):
-        self.assertTrue(all(i["needs_setup"] == [] for i in self.portal.library()))
-
     def test_dossier_absent(self):
         for p in (self.tmp / "library").glob("*"):
             p.unlink()
         (self.tmp / "library").rmdir()
+        self.assertEqual(self.portal.library(), [])
+
+    def test_dossier_vide(self):
+        (self.tmp / "library" / "resumer-un-document.yaml").unlink()
         self.assertEqual(self.portal.library(), [])
 
     def test_utiliser_un_modele_cree_un_brouillon_sous_bac_a_sable(self):

@@ -22,8 +22,10 @@ Default connection settings can be overridden per-step:
     auto_confirm: true
 """
 
+import http.client
 import json
 import os
+import queue
 import socket
 import threading
 import time
@@ -43,6 +45,81 @@ IDLE_NOTICE_EVERY = 15     # seconds of silence before a "still waiting" notice
 # ── ANSI colours (re-declared locally so this module is self-contained) ───────
 _RST = "\033[0m"; _DIM = "\033[2m"; _CYN = "\033[96m"
 _BLU = "\033[94m"; _GRN = "\033[92m"; _RED = "\033[91m"; _YLW = "\033[93m"
+
+
+def _drop_connection(resp) -> None:
+    """Coupe la connexion d'une réponse HTTP en cours de lecture, depuis un autre thread : la lecture bloquée se réveille
+    (fin de flux) au lieu d'attendre la prochaine ligne. Le bloc `with` du lecteur ferme ensuite la réponse proprement."""
+    if resp is None:
+        return
+    try:
+        resp.fp.raw._sock.shutdown(socket.SHUT_RDWR)      # réveille un recv() bloqué, sous Windows comme sous Linux
+    except Exception:
+        try:
+            resp.close()                                    # repli si l'accès à la prise n'est pas possible
+        except Exception:
+            pass
+
+
+class _Stream:
+    """Flux SSE lu dans un thread à part : le thread appelant n'est jamais bloqué sur le réseau.
+
+    Il peut donc réagir à l'arrêt (`cancel`) en moins d'une seconde, quelle que soit la plate-forme
+    (couper un socket depuis un autre thread ne débloque pas toujours la lecture, notamment sous Windows).
+    Les erreurs réseau (délai dépassé, connexion refusée…) sont relancées dans le thread appelant.
+    """
+
+    POLL = 0.2
+
+    def __init__(self, req, timeout, cancel):
+        self._req, self._timeout, self._cancel = req, timeout, cancel
+        self._q: queue.Queue = queue.Queue()
+        self._resp = None
+        self._abandoned = threading.Event()
+        threading.Thread(target=self._read, daemon=True).start()
+
+    def _read(self):
+        try:
+            resp = urlopen(self._req, timeout=self._timeout)
+            self._resp = resp
+            try:
+                if self._abandoned.is_set():
+                    return
+                for raw in resp:
+                    self._q.put(("line", raw))
+                    if self._abandoned.is_set():
+                        return
+                self._q.put(("end", None))
+            finally:
+                try:
+                    resp.close()
+                except Exception:
+                    pass
+        except BaseException as exc:                 # relancée côté appelant
+            self._q.put(("exc", exc))
+
+    def __enter__(self):
+        return self
+
+    def __exit__(self, *exc):
+        self._abandoned.set()
+        _drop_connection(self._resp)                 # au mieux : libère le thread de lecture s'il est bloqué
+        return False
+
+    def __iter__(self):
+        while True:
+            try:
+                kind, value = self._q.get(timeout=self.POLL)
+            except queue.Empty:
+                if self._cancel is not None and self._cancel.is_set():
+                    return                           # arrêt demandé : l'appelant le constate et s'en va
+                continue
+            if kind == "line":
+                yield value
+            elif kind == "end":
+                return
+            else:
+                raise value
 
 
 def _truthy(v) -> bool:
@@ -198,11 +275,14 @@ def agent(params: dict) -> dict:
 
     threading.Thread(target=_idle_watch, daemon=True).start()
 
+    stopped = {"output": "Arrêté par l'utilisateur", "status": "error"}
     try:
-        with urlopen(req, timeout=timeout) as resp:
+        with _Stream(req, timeout, cancel) as resp:
+            if cancel is not None and cancel.is_set():           # arrêt demandé pendant la connexion
+                return stopped
             for raw_line in resp:
                 if cancel is not None and cancel.is_set():
-                    return {"output": "Arrêté par l'utilisateur", "status": "error"}
+                    return stopped
                 line = raw_line.decode("utf-8").rstrip("\r\n")
                 if not line.startswith("data:"):
                     continue
@@ -266,11 +346,15 @@ def agent(params: dict) -> dict:
                     _print_or_emit({"type": "agent_warning",
                                     "data": f"événement CSAgent « {etype} » : {str(data)[:120]}"})
 
+        if cancel is not None and cancel.is_set():               # flux coupé par l'arrêt, pas par CSAgent
+            return stopped
         # Stream closed without a "done" event
         final = thoughts[-1] if thoughts else ""
         return {"output": final, "thoughts": "\n".join(thoughts), "status": "ok"}
 
     except (TimeoutError, socket.timeout):
+        if cancel is not None and cancel.is_set():
+            return stopped
         msg = (f"Aucune donnée de CSAgent depuis {timeout}s — abandon.\n"
                f"  → CSAgent attend peut-être une confirmation, ou le modèle ne répond plus.")
         _print_or_emit({"type": "agent_warning", "data": msg})
@@ -289,6 +373,11 @@ def agent(params: dict) -> dict:
         )
         print(f"\n  {_RED}{msg}{_RST}\n")
         return {"output": str(exc), "status": "error"}
+
+    except (OSError, ValueError, AttributeError, http.client.HTTPException):
+        if cancel is not None and cancel.is_set():               # lecture interrompue par notre propre coupure
+            return stopped
+        raise
 
     finally:
         stop_idle.set()

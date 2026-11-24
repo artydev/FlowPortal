@@ -470,3 +470,10 @@ class ChatRunResultPageTests(unittest.TestCase):
         self.assertIn("launchWorkflowFromChat(run.file", js)
         self.assertIn("showModal()", js)
         self.assertNotIn("run-result.js est chargé", js)     # plus d'emplacement vide
+
+
+class ChatSidebarWidthTests(unittest.TestCase):
+    def test_la_barre_laterale_peut_atteindre_360px(self):
+        page = (Path(__file__).resolve().parent.parent / "ui" / "chat.html").read_text(encoding="utf-8")
+        self.assertIn("width:clamp(240px, 28vw, 360px)", page)
+        self.assertIn("body.yaml-open .chat-sidebar { width:240px; }", page)

@@ -208,8 +208,8 @@ comme un suivi de progression amical, pas un schéma de pipeline.
     **Non testé :** les étapes `agent` des six modèles (pas de CSAgent dans l'environnement d'essai ; remplacées par un bouchon).
 
 **Phase 4 — distribution**
-18. Lancement unique : FlowPortal démarre CSAgent (port libre, clé générée), ouvre le chat, arrête le worker à la fermeture.
-19. Réglage de la clé du modèle dans l'interface.
+18. ✅ Lancement unique : FlowPortal démarre CSAgent (port libre, clé générée), ouvre le chat, arrête le worker à la fermeture (`csagent_worker.py`). Mode externe conservé (`CSAGENT_URL`, `CSFLOW_NO_AGENT=1`). Voyant « démarrage… / actif / indisponible », relance d'un clic, les étapes IA attendent la fin du démarrage, fichier `csagent.pid` pour nettoyer un worker resté après un plantage.
+19. ~~Réglage de la clé du modèle dans l'interface~~ — abandonné : `ALBERT_API_KEY` est lue dans l'environnement. Reste éventuellement le réglage de l'adresse de CSAgent en mode externe.
 20. Paquet unique (Nuitka) avec CSAgent livré à côté.
 
 ---
@@ -226,3 +226,4 @@ comme un suivi de progression amical, pas un schéma de pipeline.
 - **Session 6 :** chat réel (`chat.html`), réponse structurée `view` / `changes`, carte de suivi, demandes d'accord de l'agent, option `--chat` ; état des jalons et backlog ordonné ; phase 0 terminée.
 - **Session 7 (phase 3) :** phase 2 fusionnée dans `main` ; catégories dans le chat (pastille, liste regroupée et repliable), liste de workflows en cartes, onglet « Chat » retiré (pas d'historique de conversations), 5 tests du lanceur ignorés sous Windows ; bibliothèque `library/` (point 16) ; points 15 (planificateur) et 17 (Playwright) mis de côté.
 - **Moteur d'IA injoignable (constaté chez l'utilisateur, WinError 10061) :** CSAgent tournait sur un autre port que `8080`, codé en dur. Adresse et clé réglables par `CSAGENT_URL` / `CSAGENT_KEY` (les scripts de démarrage les renseignent depuis `PORT` / `API_KEY`) ; voyant « Moteur d'IA arrêté » (test de port toutes les 15 s) ; échecs expliqués en clair (`friendly.explain_failure` : moteur arrêté, saisie annulée ou vide), sans bouton « corriger » quand le workflow n'y est pour rien. À reprendre au point 19 : réglage de l'adresse et de la clé dans l'interface.
+- **Session 8 (phase 4, point 18) :** `csagent_worker.py` (port libre, clé hexadécimale générée, lancement dans le dossier de FlowPortal, attente de disponibilité, arrêt de l'arbre de processus, `csagent.pid`) ; `agent_node.configure/current_url/current_key` remplacent les constantes lues à l'import ; voyant du chat à 4 états ; faux CSAgent de test `tests/fake_csagent.py`. Découvertes : une clé commençant par « - » est prise pour une option par la ligne de commande (clé en hexadécimal) ; ne jamais envoyer un signal à un groupe de processus dont le processus visé n'est pas le chef (on tuerait FlowPortal).

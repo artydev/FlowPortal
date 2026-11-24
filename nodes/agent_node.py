@@ -40,6 +40,23 @@ from . import register
 DEFAULT_URL = os.environ.get("CSAGENT_URL", "").strip().rstrip("/") or "http://localhost:8080"
 DEFAULT_KEY = os.environ.get("CSAGENT_KEY", "").strip() or "demo-secret"
 
+# Réglage courant : FlowPortal le change quand il démarre lui-même CSAgent (port libre, clé générée).
+_settings = {"url": DEFAULT_URL, "key": DEFAULT_KEY}
+# Rappel posé par csagent_worker : attend que le worker démarre (rend (prêt, raison)). None = rien à attendre.
+READY_WAIT = None
+
+
+def configure(url: str, key: str) -> None:
+    _settings["url"], _settings["key"] = url.rstrip("/"), key
+
+
+def current_url() -> str:
+    return _settings["url"]
+
+
+def current_key() -> str:
+    return _settings["key"]
+
 IDLE_NOTICE_EVERY = 15     # seconds of silence before a "still waiting" notice
 
 # ── ANSI colours (re-declared locally so this module is self-contained) ───────
@@ -169,7 +186,7 @@ def _post_confirm(url: str, key: str, approved: bool):
 
 @register("agent", summary="Envoie une instruction à CSAgent et suit son raisonnement en direct ; sortie : sa dernière réponse.", params={
     "prompt":       ("instruction en langage naturel envoyée à CSAgent", True),
-    "csagent_url":  ("URL de CSAgent (défaut : variable CSAGENT_URL, sinon http://localhost:8080)", False),
+    "csagent_url":  ("URL de CSAgent (défaut : le moteur lancé par FlowPortal, sinon CSAGENT_URL, sinon http://localhost:8080)", False),
     "csagent_key":  ("clé d'API (défaut demo-secret)", False),
     "timeout":      ("secondes sans donnée avant abandon (défaut 180)", False),
     "auto_confirm": ("true = approuver automatiquement les demandes de confirmation de CSAgent", False),
@@ -192,14 +209,19 @@ def agent(params: dict) -> dict:
         thoughts: all thoughts joined with newlines
     """
     prompt   = params.get("prompt", "").strip()
-    url      = params.get("csagent_url", DEFAULT_URL)
-    key      = params.get("csagent_key", DEFAULT_KEY)
+    url      = str(params.get("csagent_url") or current_url())
+    key      = str(params.get("csagent_key") or current_key())
     timeout  = int(params.get("timeout", 180))
     auto     = _truthy(params.get("auto_confirm", os.environ.get("CSFLOW_AUTO_CONFIRM", "0")))
     # Injected by the engine when a UI is attached.
     emit     = params.get("_callback")        # callback({"type": "agent_*", ...})
     cancel   = params.get("_cancel")           # threading.Event : arrêt demandé depuis le portail
     wait_fn  = params.get("_wait_approval")   # blocks until the UI answers
+
+    if READY_WAIT is not None and not params.get("csagent_url"):
+        ready, why = READY_WAIT(cancel)
+        if not ready:
+            return {"output": why or "Le moteur d'IA n'est pas disponible.", "status": "error"}
 
     endpoint = f"{url}/api/chat?prompt={quote(prompt, safe='')}"
     req      = Request(endpoint, headers={"Authorization": f"Bearer {key}"})

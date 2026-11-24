@@ -85,3 +85,8 @@ workflows/.corbeille/
 
 
 output/
+
+# Worker CSAgent géré par FlowPortal
+csagent.log
+csagent.pid
+drafts.json

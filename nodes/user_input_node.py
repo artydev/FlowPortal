@@ -19,7 +19,7 @@ Step YAML:
 import os
 
 from . import register
-from .agent_node import DEFAULT_KEY, DEFAULT_URL
+from .agent_node import current_key, current_url
 
 _YLW = "\033[93m"; _RST = "\033[0m"
 
@@ -57,8 +57,8 @@ def user_input(params: dict) -> dict:
     request  = {"prompt": prompt, "default": default, "required": required, "voice": voice,
                 "language": str(params.get("language") or "fr").strip().lower(),
                 "keep_audio": _truthy(params.get("keep_audio", False)),
-                "csagent_url": str(params.get("csagent_url") or DEFAULT_URL),
-                "csagent_key": str(params.get("csagent_key") or DEFAULT_KEY)}
+                "csagent_url": str(params.get("csagent_url") or current_url()),
+                "csagent_key": str(params.get("csagent_key") or current_key())}
     if emit:
         # la clé d'API ne part jamais vers l'interface
         emit({"type": "user_input_required", **{k: request[k] for k in ("prompt", "default", "required", "voice", "language")}})

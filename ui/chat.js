@@ -1126,7 +1126,9 @@ function openYamlPanel(filename, editMode = false) {
   saveButton.hidden    = !editMode;
   subtitle.textContent = editMode
     ? "Modifiez puis cliquez Enregistrer"
-    : "Lecture seule · utilisez ✏ Modifier pour éditer";
+    : document.body.dataset.view === "dev"
+      ? "Lecture seule · utilisez ✏ Modifier pour éditer"
+      : "Lecture seule · demandez la modification à l'assistant, ou passez en Vue développeur pour éditer";
 
   document.getElementById("yaml-panel-backdrop").classList.add("open");
   document.getElementById("yaml-panel-backdrop").dataset.filename = filename;
@@ -1222,6 +1224,12 @@ document.getElementById("chat-context-clear").onclick = () => {
   pendingAssistFilename     = null;
   renderChatInputControls();
   inputTextarea.focus();
+};
+
+// « Voir le YAML » : ouvre le fichier du workflow actif en lecture seule, sans quitter la saisie (le panneau est fixé à droite).
+document.getElementById("chat-context-yaml").onclick = () => {
+  const filename = activeWorkflowCardElement?.dataset.filename;
+  if (filename) openYamlPanel(filename, false);
 };
 
 inputTextarea.oninput = () => {

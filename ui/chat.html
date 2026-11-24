@@ -202,6 +202,8 @@ ol.step-list small { display:block; color:var(--mute); font:12px var(--font-mono
   font-size:14px; line-height:1; padding:0 1px; border-radius:3px;
 }
 .context-chip-clear:hover { color:var(--bad); }
+.context-link { background:none; border:none; padding:0; cursor:pointer; color:var(--accent); font:inherit; font-size:12px; text-decoration:underline; text-underline-offset:2px; }
+.context-link:hover { color:var(--accent-h); }
 
 /* focus-visible global */
 button:focus-visible,input:focus-visible,textarea:focus-visible {
@@ -467,6 +469,8 @@ body[data-view="dev"]    .simple-only { display:none !important; }
         <button class="context-chip-clear" id="chat-context-clear"
                 aria-label="Désactiver le workflow actif" title="Désactiver">×</button>
       </span>
+      <button type="button" class="context-link" id="chat-context-yaml"
+              title="Afficher le fichier YAML de ce workflow (lecture seule)">⌄ Voir le YAML</button>
     </div>
     <div class="chat-input-wrap">
       <textarea class="chat-input-textarea" id="chat-input-textarea"

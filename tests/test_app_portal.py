@@ -428,3 +428,11 @@ class YamlPanelPageTests(unittest.TestCase):
         js = self._page("chat.js")
         self.assertIn("syncYamlPanelAfterAssistant(targetName)", js)    # appelée après « Appliquer »
         self.assertIn('dataset.stale === "1"', js)                      # l'enregistrement d'un panneau périmé est refusé
+
+    def test_voir_le_yaml_depuis_la_barre_de_contexte(self):
+        """En vue simple, « Modifier » ne montre pas le YAML : le lien de la barre de contexte l'ouvre en lecture seule."""
+        page, js = self._page("chat.html"), self._page("chat.js")
+        self.assertIn('id="chat-context-yaml"', page)
+        self.assertNotIn("dev-only", page[page.index('id="chat-context-yaml"') - 80:page.index('id="chat-context-yaml"') + 200])
+        self.assertIn('getElementById("chat-context-yaml").onclick', js)
+        self.assertIn("openYamlPanel(filename, false)", js)

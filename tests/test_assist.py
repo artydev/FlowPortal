@@ -505,7 +505,7 @@ if __name__ == "__main__":
 
 
 class ExplainFailureTests(unittest.TestCase):
-    """Messages d'échec clairs à la place des erreurs techniques (moteur d'IA arrêté, saisie annulée…)."""
+    """Messages d'échec clairs à la place des erreurs techniques (CSAgent arrêté, saisie annulée…)."""
 
     def test_moteur_d_ia_arrete(self):
         for raw in ("<urlopen error [WinError 10061] Aucune connexion n’a pu être établie car l’ordinateur cible l’a expressément refusée>",

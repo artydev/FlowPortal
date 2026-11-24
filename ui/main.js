@@ -120,6 +120,7 @@ if (typeof eel === "undefined" || !eel.portal_list) {
     html`<div class="message-box" style="margin-bottom:16px">Le portail doit être ouvert par FlowPortal : lancez <b>FlowPortal</b> (ou <b>python app.py</b>).</div>`;
 } else {
   bootApp();
+  startAgentStatus();
   setInterval(() => {
     if (
       !(appState.liveRun && appState.liveRun.running) &&

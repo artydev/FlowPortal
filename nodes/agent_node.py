@@ -221,7 +221,7 @@ def agent(params: dict) -> dict:
     if READY_WAIT is not None and not params.get("csagent_url"):
         ready, why = READY_WAIT(cancel)
         if not ready:
-            return {"output": why or "Le moteur d'IA n'est pas disponible.", "status": "error"}
+            return {"output": why or "CSAgent n'est pas disponible.", "status": "error"}
 
     endpoint = f"{url}/api/chat?prompt={quote(prompt, safe='')}"
     req      = Request(endpoint, headers={"Authorization": f"Bearer {key}"})

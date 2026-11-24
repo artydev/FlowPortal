@@ -134,67 +134,6 @@ async function bootChatApp() {
   }
 }
 
-/* ── Puce de statut du moteur ───────────────────────────────────────────── */
-function updateEngineStatusChip() {
-  const chip = document.getElementById("chat-engine-status-chip");
-  if (!chip) return;
-  chip.title = "";
-  chip.style.cursor = "";
-  chip.onclick = null;
-  const state = appState.agentState;
-  if (state === "starting") {
-    chip.title = appState.agentMessage || "Le moteur d'IA démarre.";
-    chip.innerHTML = `<span class="status-dot" style="background:var(--human)"></span>Moteur d'IA : démarrage…`;
-    return;
-  }
-  const managedProblem = appState.agentManaged && (state === "failed" || state === "stopped");
-  if (state === "missing" || managedProblem) {
-    chip.title = `${appState.agentMessage || "Le moteur d'IA n'est pas disponible."}${managedProblem ? "\n\nCliquez ici pour le relancer." : ""}`;
-    chip.innerHTML = `<span class="status-dot" style="background:var(--bad)"></span>Moteur d'IA indisponible`;
-    if (managedProblem) { chip.style.cursor = "pointer"; chip.onclick = restartAgentFromChip; }
-    return;
-  }
-  if (appState.agentUp === false && appState.agentManaged) {
-    chip.title = "Le moteur d'IA lancé par FlowPortal ne répond plus.\n\nCliquez ici pour le relancer.";
-    chip.innerHTML = `<span class="status-dot" style="background:var(--bad)"></span>Moteur d'IA arrêté`;
-    chip.style.cursor = "pointer";
-    chip.onclick = restartAgentFromChip;
-    return;
-  }
-  if (appState.agentUp === false) {
-    chip.title = `Le moteur d'IA (CSAgent) ne répond pas à l'adresse ${appState.agentUrl || "http://localhost:8080"} : démarrez-le (start_agent) ou indiquez sa vraie adresse avec la variable CSAGENT_URL. Les workflows avec une étape IA échouent tant qu'il est arrêté.`;
-    chip.innerHTML = `<span class="status-dot" style="background:var(--bad)"></span>Moteur d'IA arrêté`;
-    return;
-  }
-  chip.innerHTML = appState.busy
-    ? `<span class="status-dot" style="background:var(--human)"></span>Moteur occupé`
-    : `<span class="status-dot"></span>Moteur actif`;
-}
-
-/** Interroge le moteur d'IA (CSAgent) et met le voyant à jour ; rappelé toutes les 15 s (toutes les 1,5 s pendant son démarrage) et après chaque échec. */
-async function refreshAgentStatus() {
-  try {
-    const status = await callBackend("portal_agent_status");
-    appState.agentUp = !!(status && status.reachable);
-    appState.agentUrl = (status && status.url) || appState.agentUrl;
-    appState.agentState = (status && status.state) || "external";
-    appState.agentMessage = (status && status.message) || "";
-    appState.agentManaged = !!(status && status.managed);
-  } catch (error) { /* backend indisponible : on garde l'état précédent */ }
-  updateEngineStatusChip();
-  clearTimeout(refreshAgentStatus.timer);
-  if (appState.agentState === "starting") refreshAgentStatus.timer = setTimeout(refreshAgentStatus, 1500);
-}
-
-/** Clic sur le voyant quand le moteur lancé par FlowPortal s'est arrêté : le relance. */
-async function restartAgentFromChip() {
-  appState.agentState = "starting";
-  appState.agentMessage = "Démarrage du moteur d'IA…";
-  updateEngineStatusChip();
-  try { await callBackend("portal_agent_restart"); } catch (error) { /* le prochain statut dira ce qui s'est passé */ }
-  refreshAgentStatus();
-}
-
 /* ── Barre latérale : liste de workflows ───────────────────────────────── */
 function renderWorkflowList() {
   const listElement = document.getElementById("chat-workflow-list");
@@ -1304,5 +1243,4 @@ try {
 
 /* ── Lancement ──────────────────────────────────────────────────────────── */
 bootChatApp();
-refreshAgentStatus();
-setInterval(refreshAgentStatus, 15000);
+startAgentStatus();

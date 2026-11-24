@@ -181,7 +181,7 @@ class AgentWorker:
             if not self._registered:
                 atexit.register(self.stop)
                 self._registered = True
-            self._set("starting", "Démarrage du moteur d'IA…")
+            self._set("starting", "Démarrage de CSAgent…")
             agent_node.READY_WAIT = self.wait_ready
             threading.Thread(target=self._watch_start, args=(self._proc, port), daemon=True).start()
             return self.state
@@ -194,7 +194,7 @@ class AgentWorker:
                 self._set("failed", f"CSAgent s'est arrêté au démarrage (code {proc.returncode}).{self._log_tail()}")
                 return
             if port_open(f"http://localhost:{port}", 0.3):
-                self._set("ready", "Moteur d'IA actif.")
+                self._set("ready", "CSAgent actif.")
                 return
             time.sleep(0.2)
         self.stop()
@@ -224,7 +224,7 @@ class AgentWorker:
         if self.state in ("ready", "external"):
             return True, ""
         if self.state == "starting":
-            return False, "Le moteur d'IA démarre encore : réessayez dans un instant."
+            return False, "CSAgent démarre encore : réessayez dans un instant."
         return False, self.message
 
     # ── état ───────────────────────────────────────────────────────────────────
@@ -258,7 +258,7 @@ class AgentWorker:
         except OSError:
             pass
         if self.state in ("starting", "ready"):
-            self._set("stopped", "Moteur d'IA arrêté.")
+            self._set("stopped", "CSAgent arrêté.")
 
     def restart(self) -> str:
         self.stop()

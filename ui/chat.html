@@ -317,10 +317,18 @@ body { display:flex; height:100vh; overflow:hidden; }
 .chat-send-button:disabled { background:var(--line); color:var(--mute); cursor:default; }
 .chat-input-hint { margin-top:5px; text-align:center; font-size:11px; color:var(--mute); }
 
-/* Panneau YAML */
-.yaml-panel-backdrop { display:none; position:fixed; inset:0; background:rgba(10,20,17,.4); z-index:100; }
-.yaml-panel-backdrop.open { display:flex; align-items:stretch; justify-content:flex-end; }
-.yaml-panel-wrap { background:var(--surface); color:var(--ink); width:min(clamp(460px,44vw,780px),100vw); display:flex; flex-direction:column; border-left:1px solid var(--line); animation:yaml-slide-in .2s cubic-bezier(.25,.46,.45,.94); }
+/* Panneau YAML : fixé à droite, il réduit la zone de chat au lieu de la recouvrir. Le chat reste utilisable
+   (on peut demander une modification à l'assistant en regardant le YAML) et son bouton d'envoi reste visible. */
+.yaml-panel-backdrop { display:none; flex:none; }
+.yaml-panel-backdrop.open { display:flex; align-items:stretch; }
+.yaml-panel-wrap { background:var(--surface); color:var(--ink); width:clamp(420px,38vw,720px); display:flex; flex-direction:column; border-left:1px solid var(--line); animation:yaml-slide-in .2s cubic-bezier(.25,.46,.45,.94); }
+/* Fenêtre étroite : la barre latérale se masque tant que le panneau est ouvert, pour laisser la place au chat.
+   Sous 640 px il n'y a plus de place pour deux colonnes : le panneau passe par-dessus (« Fermer » pour revenir). */
+@media (max-width:1100px) { body.yaml-open .chat-sidebar { display:none; } }
+@media (max-width:640px) {
+  .yaml-panel-backdrop.open { position:fixed; inset:0; z-index:100; }
+  .yaml-panel-wrap { width:100vw; }
+}
 @keyframes yaml-slide-in { from{transform:translateX(100%);} to{transform:translateX(0);} }
 .yaml-panel-header { display:flex; align-items:center; gap:10px; padding:13px 16px; border-bottom:1px solid var(--line); }
 .yaml-panel-header h3 { font-size:15px; font-weight:700; }

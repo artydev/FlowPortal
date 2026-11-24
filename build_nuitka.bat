@@ -15,6 +15,7 @@ python -m nuitka ^
     --output-filename=FlowPortal.exe ^
     --include-data-dir=ui=ui ^
     --include-data-dir=workflows=workflows ^
+    --include-data-dir=library=library ^
     --include-data-files=csflow.schema.json=csflow.schema.json ^
     --include-data-files=CSFLOW_LLM_GUIDE.md=CSFLOW_LLM_GUIDE.md ^
     --include-data-files=REFERENCE.md=REFERENCE.md ^

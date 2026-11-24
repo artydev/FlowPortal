@@ -19,6 +19,7 @@ Step YAML:
 import os
 
 from . import register
+from .agent_node import DEFAULT_KEY, DEFAULT_URL
 
 _YLW = "\033[93m"; _RST = "\033[0m"
 
@@ -35,7 +36,7 @@ def _truthy(v) -> bool:
     "voice":    ("true = bouton micro : dictée transcrite par CSAgent (interface graphique ; défaut false)", False),
     "language": ("langue parlée : fr, en… ou auto (défaut fr)", False),
     "keep_audio": ("true = garde l'enregistrement et sa transcription dans recordings/ et transcripts/ (défaut false : supprimés)", False),
-    "csagent_url": ("URL de CSAgent pour la dictée (défaut http://localhost:8080)", False),
+    "csagent_url": ("URL de CSAgent pour la dictée (défaut : variable CSAGENT_URL, sinon http://localhost:8080)", False),
     "csagent_key": ("clé d'API de CSAgent (défaut demo-secret)", False),
 })
 def user_input(params: dict) -> dict:
@@ -56,8 +57,8 @@ def user_input(params: dict) -> dict:
     request  = {"prompt": prompt, "default": default, "required": required, "voice": voice,
                 "language": str(params.get("language") or "fr").strip().lower(),
                 "keep_audio": _truthy(params.get("keep_audio", False)),
-                "csagent_url": str(params.get("csagent_url") or "http://localhost:8080"),
-                "csagent_key": str(params.get("csagent_key") or "demo-secret")}
+                "csagent_url": str(params.get("csagent_url") or DEFAULT_URL),
+                "csagent_key": str(params.get("csagent_key") or DEFAULT_KEY)}
     if emit:
         # la clé d'API ne part jamais vers l'interface
         emit({"type": "user_input_required", **{k: request[k] for k in ("prompt", "default", "required", "voice", "language")}})

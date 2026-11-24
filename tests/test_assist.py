@@ -16,6 +16,7 @@ if str(ROOT) not in sys.path:
     sys.path.insert(0, str(ROOT))
 
 import assist  # noqa: E402
+import friendly  # noqa: E402
 import portal  # noqa: E402
 from assist import Assistant, line_diff  # noqa: E402
 
@@ -501,3 +502,71 @@ class OutputPathWarningTests(Base):
 
 if __name__ == "__main__":
     unittest.main()
+
+
+class ExplainFailureTests(unittest.TestCase):
+    """Messages d'échec clairs à la place des erreurs techniques (moteur d'IA arrêté, saisie annulée…)."""
+
+    def test_moteur_d_ia_arrete(self):
+        for raw in ("<urlopen error [WinError 10061] Aucune connexion n’a pu être établie car l’ordinateur cible l’a expressément refusée>",
+                    "<urlopen error [Errno 111] Connection refused>",
+                    "Cannot reach CSAgent at http://localhost:8080"):
+            with self.subTest(raw):
+                found = friendly.explain_failure(raw)
+                self.assertEqual(found["kind"], "agent_down")
+                self.assertFalse(found["fixable"])
+                self.assertIn("CSAgent", found["message"])
+
+    def test_saisie_annulee_ou_vide(self):
+        self.assertEqual(friendly.explain_failure("Saisie annulée.")["kind"], "input_cancelled")
+        self.assertEqual(friendly.explain_failure("Saisie vide : un texte est obligatoire (required: false pour l'autoriser).")["kind"], "input_empty")
+
+    def test_erreur_inconnue_ou_vide(self):
+        for raw in ("KeyError: 'x'", "", None):
+            self.assertIsNone(friendly.explain_failure(raw))
+
+    def test_la_raison_est_enregistree_avec_l_etape(self):
+        import tempfile
+        from pathlib import Path
+        tmp = Path(tempfile.mkdtemp())
+        (tmp / "workflows").mkdir()
+        p = portal.Portal(tmp / "workflows", tmp / "runs.jsonl", base_dir=tmp)
+        rec = portal.RunRecorder(p, "a.yaml")
+        rec.on_event({"type": "workflow_start", "name": "A", "steps": [{"id": "x", "type": "agent"}, {"id": "y", "type": "end"}]})
+        rec.on_event({"type": "step_start", "step_id": "x"})
+        rec.on_event({"type": "step_error", "step_id": "x", "output": "<urlopen error [Errno 111] Connection refused>"})
+        run = rec.finish(error="Workflow aborted")
+        self.assertEqual(run["steps"][0]["reason"]["kind"], "agent_down")
+        self.assertNotIn("reason", run["steps"][1])
+
+
+class CsagentAddressTests(unittest.TestCase):
+    """L'adresse et la clé de CSAgent se règlent par CSAGENT_URL / CSAGENT_KEY (les scripts de démarrage les renseignent)."""
+
+    def _defaults(self, **env):
+        import os
+        import subprocess
+        root = Path(__file__).resolve().parent.parent
+        full = {k: v for k, v in os.environ.items() if k not in ("CSAGENT_URL", "CSAGENT_KEY")}
+        full.update(env)
+        code = "from nodes.agent_node import DEFAULT_URL as u, DEFAULT_KEY as k; from nodes.user_input_node import DEFAULT_URL as v; print(u, k, v)"
+        out = subprocess.run([sys.executable, "-c", code], cwd=root, env=full, capture_output=True, text=True, timeout=30)
+        self.assertEqual(out.returncode, 0, out.stderr)
+        return out.stdout.split()
+
+    def test_valeurs_par_defaut(self):
+        self.assertEqual(self._defaults(), ["http://localhost:8080", "demo-secret", "http://localhost:8080"])
+
+    def test_adresse_et_cle_personnalisees(self):
+        self.assertEqual(self._defaults(CSAGENT_URL="http://localhost:9090/", CSAGENT_KEY="abc"),
+                         ["http://localhost:9090", "abc", "http://localhost:9090"])
+
+    def test_valeurs_vides_ignorees(self):
+        self.assertEqual(self._defaults(CSAGENT_URL="  ", CSAGENT_KEY=""), ["http://localhost:8080", "demo-secret", "http://localhost:8080"])
+
+    def test_les_scripts_de_demarrage_renseignent_l_adresse(self):
+        root = Path(__file__).resolve().parent.parent
+        for name, needle in (("start_agent.bat", "CSAGENT_URL=http://localhost:%PORT%"), ("start_csagent.bat", "CSAGENT_URL=http://localhost:%PORT%"),
+                             ("start_agent.sh", 'CSAGENT_URL="http://localhost:$PORT"'), ("start_csagent.sh", 'CSAGENT_URL="http://localhost:$PORT"')):
+            with self.subTest(name):
+                self.assertIn(needle, (root / name).read_text(encoding="utf-8"))

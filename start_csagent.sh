@@ -10,6 +10,8 @@ cd "$(dirname "$0")"
 CSAGENT_BIN="${CSAGENT_BIN:-csagent}"
 PORT="${PORT:-8080}"
 API_KEY="${API_KEY:-demo-secret}"
+# FlowPortal vise le CSAgent lance ici (meme adresse, meme cle) : change PORT / API_KEY, rien d'autre.
+export CSAGENT_URL="http://localhost:$PORT" CSAGENT_KEY="$API_KEY"
 MODEL="${MODEL:-}"          # ex : MODEL=mon-modele (vide = deepseek par defaut avec --no-route)
 
 if [ -z "$ALBERT_API_KEY" ]; then

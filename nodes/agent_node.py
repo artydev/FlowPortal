@@ -33,8 +33,10 @@ from urllib.parse   import quote
 from . import register
 
 # ── defaults (match start_agent scripts) ──────────────────────────────────────
-DEFAULT_URL = "http://localhost:8080"
-DEFAULT_KEY = "demo-secret"
+# Adresse et clé de CSAgent : variables d'environnement CSAGENT_URL / CSAGENT_KEY, sinon localhost:8080 / demo-secret.
+# (start_agent et start_csagent les renseignent d'après leurs réglages PORT et API_KEY.)
+DEFAULT_URL = os.environ.get("CSAGENT_URL", "").strip().rstrip("/") or "http://localhost:8080"
+DEFAULT_KEY = os.environ.get("CSAGENT_KEY", "").strip() or "demo-secret"
 
 IDLE_NOTICE_EVERY = 15     # seconds of silence before a "still waiting" notice
 
@@ -90,7 +92,7 @@ def _post_confirm(url: str, key: str, approved: bool):
 
 @register("agent", summary="Envoie une instruction à CSAgent et suit son raisonnement en direct ; sortie : sa dernière réponse.", params={
     "prompt":       ("instruction en langage naturel envoyée à CSAgent", True),
-    "csagent_url":  ("URL de CSAgent (défaut http://localhost:8080)", False),
+    "csagent_url":  ("URL de CSAgent (défaut : variable CSAGENT_URL, sinon http://localhost:8080)", False),
     "csagent_key":  ("clé d'API (défaut demo-secret)", False),
     "timeout":      ("secondes sans donnée avant abandon (défaut 180)", False),
     "auto_confirm": ("true = approuver automatiquement les demandes de confirmation de CSAgent", False),

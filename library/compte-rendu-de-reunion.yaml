@@ -1,0 +1,59 @@
+# yaml-language-server: $schema=../csflow.schema.json
+name: Compte rendu de réunion
+category: Réunions
+description: >-
+  À partir du texte d'une réunion (transcription ou notes déposées dans le dossier « documents »),
+  rédige un compte rendu clair (décisions, actions, responsables) et un tableau des actions qui
+  s'ouvre dans Excel.
+
+steps:
+  - id: choix
+    type: user_input
+    description: Choisir les notes de la réunion
+    prompt: "Quel fichier contient les notes ou la transcription de la réunion ? Indiquez son nom dans le dossier « documents » (exemple : reunion.txt)."
+    required: true
+    save_as: output/{{run_id}}/choix.txt
+
+  - id: lire
+    type: file_read
+    description: Lire les notes
+    path: documents/{{choix.output}}
+
+  - id: compte_rendu
+    type: agent
+    description: Rédiger le compte rendu
+    prompt: |
+      Voici les notes d'une réunion. Rédige un compte rendu en français, en Markdown, avec ces sections :
+      Résumé (trois phrases au plus), Décisions prises, Actions à mener (qui, quoi, pour quand).
+      Si une information manque (responsable, date), écris « à préciser ». N'invente rien.
+      Ne crée aucun fichier : réponds uniquement avec le compte rendu.
+
+      ---
+      {{lire.output}}
+
+  - id: actions
+    type: agent
+    description: Préparer le tableau des actions
+    prompt: |
+      À partir de ce compte rendu, produis le tableau des actions au format CSV avec le point-virgule comme séparateur
+      et cette première ligne : Action;Responsable;Échéance
+      Une ligne par action. Ne crée aucun fichier : réponds uniquement avec le CSV, sans balise de code ni commentaire.
+
+      ---
+      {{compte_rendu.output}}
+
+  - id: ecrire_compte_rendu
+    type: file_write
+    description: Enregistrer le compte rendu
+    path: output/{{run_id}}/compte-rendu.md
+    content: "{{compte_rendu.output}}"
+
+  - id: ecrire_actions
+    type: file_write
+    description: Enregistrer le tableau des actions
+    path: output/{{run_id}}/actions.csv
+    content: "{{actions.output}}"
+
+  - id: fin
+    type: end
+    message: "Compte rendu : output/{{run_id}}/compte-rendu.md — actions (Excel) : output/{{run_id}}/actions.csv"

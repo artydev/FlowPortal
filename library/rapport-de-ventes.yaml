@@ -1,0 +1,43 @@
+# yaml-language-server: $schema=../csflow.schema.json
+name: Rapport de ventes
+category: Chiffres
+description: >-
+  Analyse un fichier de ventes (CSV déposé dans le dossier « documents ») et rédige un rapport en
+  français : chiffres clés, tendances, points d'attention.
+
+steps:
+  - id: choix
+    type: user_input
+    description: Choisir le fichier de ventes
+    prompt: "Quel fichier de ventes voulez-vous analyser ? Indiquez son nom dans le dossier « documents » (exemple : ventes.csv)."
+    default: ventes.csv
+    required: true
+    save_as: output/{{run_id}}/choix.txt
+
+  - id: lire
+    type: file_read
+    description: Lire le fichier de ventes
+    path: documents/{{choix.output}}
+
+  - id: analyser
+    type: agent
+    description: Analyser les ventes et rédiger le rapport
+    prompt: |
+      Voici un fichier de ventes (texte, colonnes séparées par des virgules ou des points-virgules).
+      Rédige en français, en Markdown, un rapport pour un responsable non spécialiste :
+      les chiffres clés, les produits ou périodes qui se détachent, les tendances et deux points d'attention.
+      Base-toi uniquement sur les données ci-dessous et signale ce qui est incertain.
+      Ne crée aucun fichier : réponds uniquement avec le rapport.
+
+      ---
+      {{lire.output}}
+
+  - id: ecrire
+    type: file_write
+    description: Enregistrer le rapport
+    path: output/{{run_id}}/rapport-ventes.md
+    content: "{{analyser.output}}"
+
+  - id: fin
+    type: end
+    message: "Rapport enregistré : output/{{run_id}}/rapport-ventes.md"

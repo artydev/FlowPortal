@@ -63,13 +63,24 @@ function renderWelcomeSuggestions() {
   container.id = "chat-suggestions";
   container.className = "chat-suggestions";
   const existing = (appState.workflows || []).slice(0, 3);
+  const library = appState.library || [];
   container.innerHTML = html`
-    <div class="suggestions-title">Essayez par exemple</div>
+    ${library.length ? html`
+      <div class="suggestions-title">Modèles prêts à l'emploi</div>
+      <div class="model-grid">${library.map(item => html`
+        <button type="button" class="model-card" data-model="${item.id}">
+          <span class="model-title"><span class="model-ico">${item.icon}</span>${item.title}</span>
+          <span class="model-desc">${item.summary}</span>
+          ${item.needs_setup && item.needs_setup.length ? html`<span class="model-setup">À configurer</span>` : ""}
+        </button>`)}</div>` : ""}
+    <div class="suggestions-title">Ou décrivez ce que vous voulez</div>
     <div class="suggestions-row">${STARTER_SUGGESTIONS.map(text => html`<button class="suggestion-chip" data-text="${text}">${text}</button>`)}</div>
     ${existing.length ? html`
       <div class="suggestions-title">Ou lancez un de vos workflows</div>
       <div class="suggestions-row">${existing.map(workflow => html`<button class="suggestion-chip" data-open="${workflow.filename}">▶ ${friendlyWorkflowTitle(workflow)}</button>`)}</div>` : ""}`;
   container.onclick = event => {
+    const model = event.target.closest(".model-card");
+    if (model) { useLibraryModel(model.dataset.model); return; }
     const chip = event.target.closest(".suggestion-chip");
     if (!chip) return;
     if (chip.dataset.open) { removeElementById("chat-suggestions"); openWorkflowCard(chip.dataset.open); return; }
@@ -79,6 +90,26 @@ function renderWelcomeSuggestions() {
   welcome.after(container);
 }
 
+/** Copie un modèle de la bibliothèque dans les workflows (brouillon) et en affiche la carte dans la conversation. */
+async function useLibraryModel(modelId) {
+  const item = (appState.library || []).find(candidate => candidate.id === modelId);
+  const result = await callBackend("portal_use_library", modelId);
+  if (!result || !result.ok) {
+    appendAssistantMessage(html`<p>Je n'ai pas pu préparer ce modèle : ${(result && result.error) || "erreur inconnue"}.</p>`);
+    scrollMessagesToBottom();
+    return;
+  }
+  removeElementById("chat-suggestions");
+  await reloadWorkflowList();
+  appendWorkflowCardMessage(findCard(result.filename) || result.card);
+  if (item && item.needs_setup && item.needs_setup.length) {
+    const tools = item.needs_setup.map(name => `« ${name} »`).join(", ");
+    appendAssistantMessage(html`<p>Ce modèle a besoin de l'outil ${tools}, qui n'est pas encore installé sur ce poste. Demandez à la personne qui gère votre installation de le configurer (fichier <code>mcp.json</code>, voir les exemples fournis).</p>`);
+  }
+  scrollMessagesToBottom();
+  renderChatInputControls();
+}
+
 async function bootChatApp() {
   for (let attempt = 0; attempt < 40; attempt++) {
     const result = await callBackend("portal_list");
@@ -86,6 +117,7 @@ async function bootChatApp() {
       appState.workflows   = result.cards;
       appState.recentRuns  = result.recent || [];
       appState.busy        = !!result.busy;
+      appState.library     = (await callBackend("portal_library")) || [];
       renderWorkflowList();
       renderWelcomeSuggestions();
       updateEngineStatusChip();
@@ -106,9 +138,25 @@ async function bootChatApp() {
 function updateEngineStatusChip() {
   const chip = document.getElementById("chat-engine-status-chip");
   if (!chip) return;
+  chip.title = "";
+  if (appState.agentUp === false) {
+    chip.title = `Le moteur d'IA (CSAgent) ne répond pas à l'adresse ${appState.agentUrl || "http://localhost:8080"} : démarrez-le (start_agent) ou indiquez sa vraie adresse avec la variable CSAGENT_URL. Les workflows avec une étape IA échouent tant qu'il est arrêté.`;
+    chip.innerHTML = `<span class="status-dot" style="background:var(--bad)"></span>Moteur d'IA arrêté`;
+    return;
+  }
   chip.innerHTML = appState.busy
     ? `<span class="status-dot" style="background:var(--human)"></span>Moteur occupé`
     : `<span class="status-dot"></span>Moteur actif`;
+}
+
+/** Interroge le moteur d'IA (CSAgent) et met le voyant à jour ; rappelé toutes les 15 s et après chaque échec. */
+async function refreshAgentStatus() {
+  try {
+    const status = await callBackend("portal_agent_status");
+    appState.agentUp = !!(status && status.reachable);
+    appState.agentUrl = (status && status.url) || appState.agentUrl;
+  } catch (error) { /* backend indisponible : on garde l'état précédent */ }
+  updateEngineStatusChip();
 }
 
 /* ── Barre latérale : liste de workflows ───────────────────────────────── */
@@ -272,7 +320,6 @@ function openWorkflowCard(filename) {
   }, 400);
 }
 
-/** Ajoute une carte de workflow dans la conversation. */
 /** Pastille de catégorie (rangement du portail) ; vide si le workflow n'en a pas. Teinte stable calculée depuis le nom. */
 function cardCategoryHtml(workflow) {
   return workflow.category
@@ -280,6 +327,7 @@ function cardCategoryHtml(workflow) {
     : "";
 }
 
+/** Ajoute une carte de workflow dans la conversation. */
 function appendWorkflowCardMessage(workflow) {
   const steps = workflow.steps || [];
   const stepTimelineHtml = steps.map((step, index) => html`
@@ -622,7 +670,10 @@ function appendRunSummaryMessage(run, filename) {
   const toneClass   = isSuccess ? "" : "is-error";
   const failedStep  = (run.steps || []).find(step => ["error", "rejected", "cancelled"].includes(step.status));
   const workflowStatus = filename && findCard(filename) ? findCard(filename).status : "active";
-  const reason = failedStep && String(failedStep.output || "").startsWith("Accès refusé") ? failedStep.output : "";
+  const known = failedStep && failedStep.reason;                       // explication enregistrée par le serveur (voir friendly.explain_failure)
+  const reason = known ? known.message : (failedStep && String(failedStep.output || "").startsWith("Accès refusé") ? failedStep.output : "");
+  const fixable = !known || known.fixable !== false;                   // « corriger le workflow » n'a de sens que si le workflow est en cause
+  if (known && known.kind === "agent_down") { appState.agentUp = false; updateEngineStatusChip(); }
 
   const stepsHtml = (run.steps || [])
     .filter(step => step.status !== "notrun")
@@ -667,9 +718,9 @@ function appendRunSummaryMessage(run, filename) {
         ${!isSuccess && filename ? html`
           <button class="button-primary" style="font-size:12px" data-filename="${filename}"
                   onclick="launchWorkflowFromChat(this.dataset.filename, this)">${workflowStatus === "active" ? "↻ Relancer" : "↻ Tester à nouveau"}</button>
-          <button class="button-primary is-ghost" style="font-size:12px" data-filename="${filename}"
+          ${fixable ? html`<button class="button-primary is-ghost" style="font-size:12px" data-filename="${filename}"
                   data-step="${failedStep ? (failedStep.label || failedStep.id) : ""}" data-error="${run.error || ""}"
-                  onclick="askFixAfterFailure(this)">🛠 Demander à l'assistant de corriger</button>` : ""}
+                  onclick="askFixAfterFailure(this)">🛠 Demander à l'assistant de corriger</button>` : ""}` : ""}
       </div>
     </div>
   `;
@@ -680,7 +731,8 @@ function appendRunSummaryMessage(run, filename) {
 function askFixAfterFailure(button) {
   const { filename, step, error } = button.dataset;
   openWorkflowCard(filename);
-  inputTextarea.value = `Le lancement a échoué${step ? ` à l'étape « ${step} »` : ""}${error ? ` (${error})` : ""}. Peux-tu corriger le workflow ?`;
+  const detail = error && !/^workflow aborted/i.test(error) ? ` (${error})` : "";    // le message générique du moteur n'apprend rien
+  inputTextarea.value = `Le lancement a échoué${step ? ` à l'étape « ${step} »` : ""}${detail}. Peux-tu corriger le workflow ?`;
   autoResizeTextarea(inputTextarea);
   renderChatInputControls();
   inputTextarea.focus();
@@ -779,8 +831,13 @@ function handleAssistantEvent(event) {
     renderChatInputControls();
 
     if (!event.ok) {
-      appendAssistantMessage(html`<span style="color:var(--bad)">CSAgent a rencontré une erreur : ${event.error || "échec inconnu"}</span>`);
-      scrollMessagesToBottom();
+      Promise.resolve(callBackend("portal_explain_failure", event.error || "")).catch(() => null).then(known => {
+        if (known && known.kind === "agent_down") { appState.agentUp = false; updateEngineStatusChip(); }
+        appendAssistantMessage(known
+          ? html`<span style="color:var(--bad)">${known.message}</span>`
+          : html`<span style="color:var(--bad)">CSAgent a rencontré une erreur : ${event.error || "échec inconnu"}</span>`);
+        scrollMessagesToBottom();
+      });
       return;
     }
 
@@ -1210,3 +1267,5 @@ try {
 
 /* ── Lancement ──────────────────────────────────────────────────────────── */
 bootChatApp();
+refreshAgentStatus();
+setInterval(refreshAgentStatus, 15000);

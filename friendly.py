@@ -19,6 +19,10 @@ STEP_KINDS = {
 }
 
 
+# Icône d'un workflow selon sa catégorie (cartes de la bibliothèque) ; à défaut, celle de son étape la plus parlante.
+CATEGORY_ICONS = {"documents": "📄", "réunions": "📝", "chiffres": "📊", "rédaction": "✉️", "web": "🌐"}
+
+
 def step_kind(step_type: str) -> dict:
     """{"icon", "kind"} d'un type d'étape ; un type inconnu reste lisible."""
     icon, kind = STEP_KINDS.get(step_type, ("▫️", "Étape"))
@@ -66,3 +70,21 @@ def friendly_problem(message: str, title: str = "") -> str | None:
     if "« steps »" in message:
         return "Le workflow n'a aucune étape."
     return prefix + "cette étape est à revoir. Demandez à l'assistant de la corriger."
+
+
+# ── échecs d'exécution : une phrase claire à la place du message technique ───────────────────────────────────────────
+_AGENT_DOWN = re.compile(r"10061|errno 111|connection refused|cannot reach csagent|expressément refusée|actively refused", re.I)
+
+
+def explain_failure(text) -> dict | None:
+    """Reconnaît les échecs courants et rend {kind, message, fixable} ; None si le message est inconnu.
+    `fixable` : False quand modifier le workflow ne changerait rien (moteur d'IA arrêté, saisie annulée…)."""
+    raw = str(text or "")
+    if _AGENT_DOWN.search(raw):
+        return {"kind": "agent_down", "fixable": False,
+                "message": "Le moteur d'IA (CSAgent) ne répond pas. Vérifiez qu'il est démarré (start_agent), puis réessayez."}
+    if raw.startswith("Saisie annulée"):
+        return {"kind": "input_cancelled", "fixable": False, "message": "La saisie a été annulée."}
+    if raw.startswith("Saisie vide"):
+        return {"kind": "input_empty", "fixable": False, "message": "Un texte était obligatoire, mais la saisie était vide."}
+    return None

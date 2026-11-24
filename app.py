@@ -447,28 +447,44 @@ def portal_run(filename: str, inputs: dict | None = None) -> dict:
     return {"ok": True}
 
 
+# Worker CSAgent géré par FlowPortal (démarré par `__main__` ; None quand app.py est seulement importé).
+WORKER = None
+
+
 @eel.expose
 def portal_agent_status() -> dict:
-    """Le moteur d'IA (CSAgent) accepte-t-il les connexions ? Simple test de port : rapide, sans jeton ni requête d'API."""
-    import socket
-    from urllib.parse import urlparse
-    from nodes.agent_node import DEFAULT_URL
-    target = urlparse(DEFAULT_URL)
-    try:
-        with socket.create_connection((target.hostname or "localhost", target.port or 80), timeout=1.5):
-            return {"reachable": True, "url": DEFAULT_URL}
-    except OSError:
-        return {"reachable": False, "url": DEFAULT_URL}
+    """État du moteur d'IA (CSAgent) : starting / ready / external / missing / failed / stopped, et s'il répond.
+    `reachable` est un simple test de port : rapide, sans jeton ni requête d'API."""
+    from nodes.agent_node import current_url
+    if WORKER is not None:
+        return WORKER.status()
+    import csagent_worker
+    url = current_url()
+    return {"state": "external", "message": "", "url": url, "managed": False, "reachable": csagent_worker.port_open(url, 1.5)}
+
+
+@eel.expose
+def portal_agent_restart() -> dict:
+    """Relance le moteur d'IA lancé par FlowPortal (après un échec de démarrage ou un arrêt inattendu)."""
+    if WORKER is None:
+        return {"ok": False, "error": "Le moteur d'IA n'est pas géré par FlowPortal."}
+    WORKER.restart()
+    return {"ok": True}
 
 
 @eel.expose
 def portal_explain_failure(text: str):
     """Message clair pour une erreur technique connue (voir friendly.explain_failure), sinon None."""
     from friendly import explain_failure
-    from nodes.agent_node import DEFAULT_URL
+    from nodes.agent_node import current_url
     found = explain_failure(text)
     if found and found["kind"] == "agent_down":
-        found["message"] += f" Adresse attendue : {DEFAULT_URL} (variable CSAGENT_URL pour la changer)."
+        if WORKER is not None and WORKER.managed:
+            found["message"] = WORKER.message or found["message"]
+            if WORKER.state == "starting":
+                found["message"] = "Le moteur d'IA est en train de démarrer : réessayez dans un instant."
+        else:
+            found["message"] += f" Adresse attendue : {current_url()} (variable CSAGENT_URL pour la changer)."
     return found
 
 
@@ -514,7 +530,7 @@ def portal_assist_voice(enable: bool = True) -> dict:
     """Prépare (ou retire) la dictée pour la zone de demande de l'assistant."""
     global _input_request
     import nodes.agent_node as _agent
-    _input_request = ({"voice": True, "csagent_url": _agent.DEFAULT_URL, "csagent_key": _agent.DEFAULT_KEY,
+    _input_request = ({"voice": True, "csagent_url": _agent.current_url(), "csagent_key": _agent.current_key(),
                        "language": "fr", "keep_audio": False} if enable else {})
     return {"ok": True}
 
@@ -660,6 +676,12 @@ if __name__ == "__main__":
     _windows = sys.platform.startswith("win")
     _mode = None if (_headless or not _windows) else _pick_browser()
     print(f"CSFlow : {_url}", flush=True)
+    import csagent_worker
+    WORKER = csagent_worker.AgentWorker(APP_DIR, RES_DIR)
+    csagent_worker.install_signal_handlers(WORKER)
+    WORKER.start_async()                       # en arrière-plan : la fenêtre s'ouvre sans attendre CSAgent
+    if WORKER.managed or WORKER.state in ("missing", "failed"):
+        print(f"CSAgent : {WORKER.message}", flush=True)
     # Windows : Eel ouvre Edge ou Chrome. Linux / WSL / macOS : ui_launcher choisit (Chromium, navigateur de
     # Windows sous WSL, Firefox…) et évite les navigateurs qui affichent mal la page (Epiphany).
     eel.start(_page, mode=_mode or False, port=_port, size=(1440, 820), block=False)

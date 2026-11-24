@@ -549,7 +549,7 @@ class CsagentAddressTests(unittest.TestCase):
         root = Path(__file__).resolve().parent.parent
         full = {k: v for k, v in os.environ.items() if k not in ("CSAGENT_URL", "CSAGENT_KEY")}
         full.update(env)
-        code = "from nodes.agent_node import DEFAULT_URL as u, DEFAULT_KEY as k; from nodes.user_input_node import DEFAULT_URL as v; print(u, k, v)"
+        code = "from nodes.agent_node import DEFAULT_URL as u, DEFAULT_KEY as k; from nodes.user_input_node import current_url; print(u, k, current_url())"
         out = subprocess.run([sys.executable, "-c", code], cwd=root, env=full, capture_output=True, text=True, timeout=30)
         self.assertEqual(out.returncode, 0, out.stderr)
         return out.stdout.split()

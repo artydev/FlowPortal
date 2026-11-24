@@ -31,6 +31,7 @@ python3 -m nuitka \
     --include-module=audio_client \
     --include-module=mcp_client \
     --include-module=portal \
+--include-module=csagent_worker \
     --include-module=assist \
     --include-module=runpy \
     --include-package=unittest \

@@ -692,9 +692,10 @@ function appendRunSummaryMessage(run, filename) {
       <div class="button-row" style="margin-top:10px">
         <button class="button-primary is-ghost" style="font-size:12px"
                 onclick="openRunResultFromChat('${run.id}')">Voir le résultat complet</button>
+        ${filename ? html`
+          <button class="button-primary ${isSuccess ? "is-ghost" : ""}" style="font-size:12px" data-filename="${filename}"
+                  onclick="launchWorkflowFromChat(this.dataset.filename, this)">${workflowStatus === "active" ? "↻ Relancer" : "↻ Tester à nouveau"}</button>` : ""}
         ${!isSuccess && filename ? html`
-          <button class="button-primary" style="font-size:12px" data-filename="${filename}"
-                  onclick="launchWorkflowFromChat(this.dataset.filename, this)">${workflowStatus === "active" ? "↻ Relancer" : "↻ Tester à nouveau"}</button>
           ${fixable ? html`<button class="button-primary is-ghost" style="font-size:12px" data-filename="${filename}"
                   data-step="${failedStep ? (failedStep.label || failedStep.id) : ""}" data-error="${run.error || ""}"
                   onclick="askFixAfterFailure(this)">🛠 Demander à l'assistant de corriger</button>` : ""}` : ""}
@@ -719,11 +720,104 @@ async function openRunFileFromChat(filePath) {
   await callBackend("portal_open_file", filePath);
 }
 
+/* ── Fenêtre « Voir le résultat complet » ──────────────────────────────── */
+let chatResultRun = null, chatResultTab = "steps", chatResultFileIndex = 0;
+
+/** Ouvre le détail d'un lancement : étapes (avec leurs sorties), fichiers produits et, en vue développeur, journal. */
 async function openRunResultFromChat(runId) {
-  // Ouvre le résultat complet si run-result.js est chargé (dans une prochaine version).
-  if (typeof openRunResult === "function") {
-    openRunResult(runId);
+  const result = await callBackend("portal_run_detail", runId);
+  if (!result || !result.ok) {
+    appendAssistantMessage(html`${(result && result.error) || "Résultat introuvable."}`);
+    scrollMessagesToBottom();
+    return;
   }
+  chatResultRun = result.run;
+  chatResultTab = "steps";
+  chatResultFileIndex = 0;
+  const run = chatResultRun, card = findCard(run.file);
+  document.getElementById("chat-result-title").innerHTML =
+    html`${(card && friendlyWorkflowTitle(card)) || run.name} <span style="font-weight:400;font-size:13px;color:var(--mute)">· ${RUN_STATUS_LABELS[run.status] || run.status}</span>`;
+  document.getElementById("chat-result-meta").textContent = describeRun(run);
+  // Relancer : ferme la fenêtre puis relance le même workflow (la suite s'affiche dans la conversation).
+  const relaunchButton = document.getElementById("chat-result-relaunch");
+  relaunchButton.disabled = !card || !card.ready || appState.busy;
+  relaunchButton.onclick = () => {
+    document.getElementById("chat-result-dialog").close();
+    launchWorkflowFromChat(run.file, relaunchButton);
+  };
+  document.getElementById("chat-result-close").onclick = () => document.getElementById("chat-result-dialog").close();
+  const dialog = document.getElementById("chat-result-dialog");
+  if (!dialog.open) dialog.showModal();
+  renderChatResult();
+}
+
+function renderChatResult() {
+  const run = chatResultRun;
+  const tabs = [["steps", "Étapes"], ["files", `Fichiers (${run.files.length})`]];
+  if (document.body.dataset.view === "dev") tabs.push(["log", "Journal"]);
+  if (!tabs.some(([key]) => key === chatResultTab)) chatResultTab = "steps";
+  const tabBar = document.getElementById("chat-result-tabs");
+  tabBar.innerHTML = html`${tabs.map(([key, label]) => html`<button role="tab" type="button" data-tab="${key}" aria-selected="${key === chatResultTab}">${label}</button>`)}`;
+  tabBar.onclick = event => {
+    const tabButton = event.target.closest("[data-tab]");
+    if (tabButton) { chatResultTab = tabButton.dataset.tab; renderChatResult(); }
+  };
+  renderChatResultBody();
+}
+
+async function renderChatResultBody() {
+  const run = chatResultRun, container = document.getElementById("chat-result-body");
+  const dev = document.body.dataset.view === "dev";
+  if (chatResultTab === "steps") {
+    const icons = { ok: "✓", error: "✕", skipped: "–", notrun: "–", rejected: "⏸", cancelled: "■" };
+    const failed = run.steps.find(step => step.status === "error");
+    const failure = failed
+      ? html`<div class="result-empty" style="color:var(--bad)"><b>L'étape « ${failed.label || failed.id} » n'a pas abouti.</b> ${(failed.output || "").split("\n")[0]}</div>`
+      : run.error ? html`<div class="result-empty" style="color:var(--bad)">${run.error}</div>` : "";
+    const steps = run.steps.filter(step => step.status !== "notrun").map(step => html`
+      <details class="${step.status}" ${step.status === "error" ? "open" : ""}>
+        <summary><span class="ri">${icons[step.status] || "·"}</span>
+          <span><span class="simple-only">${friendlyStepTitle(step)}</span><span class="dev-only">${step.label || step.id} <small style="color:var(--mute)">${step.id} · ${formatDuration(step.duration)}</small></span></span></summary>
+        ${step.output ? html`<pre>${step.output}</pre>` : html`<pre style="color:var(--mute)">Pas de sortie.</pre>`}
+      </details>`);
+    container.innerHTML = html`${failure}${steps}`;
+    return;
+  }
+  if (chatResultTab === "files") {
+    if (!run.files.length) { container.innerHTML = html`<div class="result-empty">Ce lancement n'a produit aucun fichier.</div>`; return; }
+    const file = run.files[chatResultFileIndex] || run.files[0];
+    container.innerHTML = html`
+      <div class="result-files">
+        <div class="flist">${run.files.map((f, i) => html`<button type="button" data-file-index="${i}" aria-pressed="${i === chatResultFileIndex}">${f.path.split("/").pop()}</button>`)}</div>
+        <div id="chat-result-preview"><div class="result-empty">Chargement…</div></div>
+      </div>`;
+    container.querySelector(".flist").onclick = event => {
+      const fileButton = event.target.closest("[data-file-index]");
+      if (fileButton) { chatResultFileIndex = +fileButton.dataset.fileIndex; renderChatResultBody(); }
+    };
+    const preview = await callBackend("portal_file_preview", file.path);
+    const target = document.getElementById("chat-result-preview");
+    if (!target || chatResultTab !== "files") return;
+    const body = !preview.ok ? html`<div class="result-empty">${preview.error}</div>`
+      : preview.binary ? html`<div class="result-empty">Fichier binaire (${Math.max(1, Math.round(preview.size / 1024))} Ko) : ouvrez-le avec son application.</div>`
+      : html`<pre style="border:1px solid var(--line);border-radius:8px">${preview.text}${preview.truncated ? "\n… (aperçu tronqué)" : ""}</pre>`;
+    target.innerHTML = html`${body}
+      <div class="button-row" style="margin-top:10px"><button class="button-primary" id="chat-result-open" type="button" ${preview.ok ? "" : "disabled"}>Ouvrir</button>
+      <span id="chat-result-open-msg" class="result-empty" style="align-self:center"></span></div>`;
+    const openButton = document.getElementById("chat-result-open");
+    if (openButton) openButton.onclick = async () => {
+      const opened = await callBackend("portal_open_file", file.path);
+      document.getElementById("chat-result-open-msg").textContent = opened.ok ? "Ouvert dans l'application par défaut." : opened.error;
+    };
+    return;
+  }
+  const lines = buildRunLog(run.steps).map(entry => {
+    if (entry.kind === "error") return html`            ${entry.message}`;
+    const time = formatOffset(entry.offset).padStart(9);
+    if (entry.kind === "start") return html`${time}  ▶ ${entry.stepId} (${entry.stepType})`;
+    return html`${time}  ${entry.status === "error" ? "✕ échec" : entry.status === "rejected" ? "⏸ refusé" : "✓ terminé"} ${entry.stepId} · ${formatDuration(entry.duration)}`;
+  });
+  container.innerHTML = html`<pre style="border:1px solid var(--line);border-radius:8px">${joinHtml(lines, "\n")}</pre>`;
 }
 
 /* ── Événements de l'assistant (surchargé depuis engine-events.js) ──────── */

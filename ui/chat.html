@@ -314,6 +314,28 @@ body { display:flex; height:100vh; overflow:hidden; }
 .chat-input-wrap:focus-within { border-color:var(--accent); }
 .chat-input-textarea { flex:1; background:none; border:none; outline:none; color:var(--ink); font:14px/1.5 var(--font-body); resize:none; min-height:24px; max-height:180px; }
 .chat-input-textarea::placeholder { color:var(--mute); }
+/* Fenêtre « Voir le résultat complet » */
+.result-dialog { width:min(860px,94vw); max-height:88vh; padding:0; border:1px solid var(--line); border-radius:12px; background:var(--surface); color:var(--ink); }
+.result-dialog::backdrop { background:rgba(0,0,0,.45); }
+.result-dialog[open] { display:flex; flex-direction:column; }
+.result-head { display:flex; align-items:flex-start; gap:12px; padding:14px 18px 10px; border-bottom:1px solid var(--line); }
+.result-head h2 { margin:0; font-size:16px; }
+.result-meta { color:var(--mute); font-size:12px; margin-top:3px; }
+.result-tabs { display:flex; gap:4px; padding:8px 14px 0; border-bottom:1px solid var(--line); }
+.result-tabs button { background:none; border:none; border-bottom:2px solid transparent; padding:6px 10px; color:var(--mute); cursor:pointer; font:inherit; font-size:13px; }
+.result-tabs button[aria-selected="true"] { color:var(--ink); border-bottom-color:var(--accent); }
+.result-body { padding:14px 18px 18px; overflow:auto; min-height:120px; }
+.result-body details { border:1px solid var(--line); border-radius:8px; margin-bottom:8px; background:var(--bg); }
+.result-body summary { cursor:pointer; padding:8px 10px; display:flex; gap:8px; font-size:13px; }
+.result-body details.ok > summary .ri { color:var(--ok); }
+.result-body details.error > summary .ri { color:var(--bad); }
+.result-body pre { margin:0; padding:10px 12px; overflow:auto; max-height:320px; font:12px/1.5 ui-monospace,Consolas,monospace; white-space:pre-wrap; border-top:1px solid var(--line); }
+.result-files { display:grid; grid-template-columns:minmax(160px,240px) 1fr; gap:12px; }
+.result-files .flist { display:flex; flex-direction:column; gap:4px; }
+.result-files .flist button { text-align:left; background:var(--bg); border:1px solid var(--line); border-radius:7px; padding:6px 8px; color:var(--ink); cursor:pointer; font:inherit; font-size:12px; word-break:break-all; }
+.result-files .flist button[aria-pressed="true"] { border-color:var(--accent); }
+.result-empty { color:var(--mute); font-size:13px; padding:10px 0; }
+@media (max-width:640px) { .result-files { grid-template-columns:1fr; } }
 .chat-mic-button { height:30px; min-width:30px; padding:0 8px; border-radius:7px; background:none; border:1px solid var(--line); cursor:pointer; color:var(--ink); font-size:14px; flex-shrink:0; }
 .chat-mic-button:hover:not(:disabled) { border-color:var(--accent); }
 .chat-mic-button.recording { background:#b42318; border-color:#b42318; color:#fff; font-size:12px; }
@@ -497,6 +519,20 @@ body[data-view="dev"]    .simple-only { display:none !important; }
   </div>
 
 </main>
+
+<!-- ══ RÉSULTAT D'UN LANCEMENT ══ -->
+<dialog class="result-dialog" id="chat-result-dialog" aria-labelledby="chat-result-title">
+  <div class="result-head">
+    <div style="flex:1">
+      <h2 id="chat-result-title"></h2>
+      <div class="result-meta" id="chat-result-meta"></div>
+    </div>
+    <button class="button-primary" id="chat-result-relaunch" type="button">↻ Relancer</button>
+    <button class="button-primary is-ghost" id="chat-result-close" type="button">Fermer</button>
+  </div>
+  <div class="result-tabs" role="tablist" id="chat-result-tabs"></div>
+  <div class="result-body" id="chat-result-body"></div>
+</dialog>
 
 <!-- ══ PANNEAU YAML ══ -->
 <div class="yaml-panel-backdrop" id="yaml-panel-backdrop">

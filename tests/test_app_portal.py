@@ -454,3 +454,19 @@ class ChatVoicePageTests(unittest.TestCase):
         js = self._page("chat.js")
         self.assertIn('callBackend("portal_assist_voice", true)', js)
         self.assertIn('target: "chat"', js)
+
+
+class ChatRunResultPageTests(unittest.TestCase):
+    """« Voir le résultat complet » : le chat a sa propre fenêtre de résultat (il ne charge pas run-result.js)."""
+
+    def _page(self, name):
+        return (Path(__file__).resolve().parent.parent / "ui" / name).read_text(encoding="utf-8")
+
+    def test_la_fenetre_de_resultat_existe_et_le_bouton_l_ouvre(self):
+        page, js = self._page("chat.html"), self._page("chat.js")
+        for ident in ("chat-result-dialog", "chat-result-tabs", "chat-result-body", "chat-result-close"):
+            self.assertIn('id="%s"' % ident, page)
+        self.assertIn('id="chat-result-relaunch"', page)
+        self.assertIn("launchWorkflowFromChat(run.file", js)
+        self.assertIn("showModal()", js)
+        self.assertNotIn("run-result.js est chargé", js)     # plus d'emplacement vide

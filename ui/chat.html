@@ -314,6 +314,14 @@ body { display:flex; height:100vh; overflow:hidden; }
 .chat-input-wrap:focus-within { border-color:var(--accent); }
 .chat-input-textarea { flex:1; background:none; border:none; outline:none; color:var(--ink); font:14px/1.5 var(--font-body); resize:none; min-height:24px; max-height:180px; }
 .chat-input-textarea::placeholder { color:var(--mute); }
+.chat-mic-button { height:30px; min-width:30px; padding:0 8px; border-radius:7px; background:none; border:1px solid var(--line); cursor:pointer; color:var(--ink); font-size:14px; flex-shrink:0; }
+.chat-mic-button:hover:not(:disabled) { border-color:var(--accent); }
+.chat-mic-button.recording { background:#b42318; border-color:#b42318; color:#fff; font-size:12px; }
+.chat-mic-button:disabled { color:var(--mute); cursor:default; }
+.chat-voice-line { min-height:0; font-size:12px; margin-top:4px; }
+.chat-voice-line:empty { display:none; }
+#chat-voice-status { color:var(--mute); }
+#chat-voice-error { color:#b42318; }
 .chat-send-button { width:30px; height:30px; border-radius:7px; background:var(--accent); border:none; cursor:pointer; color:var(--accent-ink); font-size:14px; display:flex; align-items:center; justify-content:center; flex-shrink:0; transition:background .15s; }
 .chat-send-button:hover    { background:var(--accent-h); }
 .chat-send-button:disabled { background:var(--line); color:var(--mute); cursor:default; }
@@ -476,8 +484,14 @@ body[data-view="dev"]    .simple-only { display:none !important; }
       <textarea class="chat-input-textarea" id="chat-input-textarea"
                 placeholder="Décrivez votre workflow, ou demandez à lancer un existant…"
                 rows="1" aria-label="Saisie du message"></textarea>
+      <button class="chat-mic-button" id="chat-mic-button" type="button"
+              aria-label="Dicter le message" aria-pressed="false" title="Dicter le message">🎙</button>
       <button class="chat-send-button" id="chat-send-button"
               aria-label="Envoyer" disabled>↑</button>
+    </div>
+    <div class="chat-voice-line">
+      <span id="chat-voice-status" role="status" aria-live="polite"></span>
+      <span id="chat-voice-error" role="alert" hidden></span>
     </div>
     <p class="chat-input-hint">FlowPortal génère et exécute des workflows YAML · vos fichiers restent locaux</p>
   </div>
@@ -512,5 +526,6 @@ body[data-view="dev"]    .simple-only { display:none !important; }
 <script src="/state.js"></script>
 <script src="/engine-events.js"></script>
 <script src="/agent-status.js"></script>
+<script src="/voice.js"></script>
 <script src="/chat.js"></script>
 </body></html>

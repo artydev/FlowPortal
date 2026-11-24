@@ -436,3 +436,21 @@ class YamlPanelPageTests(unittest.TestCase):
         self.assertNotIn("dev-only", page[page.index('id="chat-context-yaml"') - 80:page.index('id="chat-context-yaml"') + 200])
         self.assertIn('getElementById("chat-context-yaml").onclick', js)
         self.assertIn("openYamlPanel(filename, false)", js)
+
+
+class ChatVoicePageTests(unittest.TestCase):
+    """Dictée vocale dans la saisie du chat."""
+
+    def _page(self, name):
+        return (Path(__file__).resolve().parent.parent / "ui" / name).read_text(encoding="utf-8")
+
+    def test_le_chat_a_un_bouton_micro_et_charge_voice_js_avant_chat_js(self):
+        page = self._page("chat.html")
+        for ident in ("chat-mic-button", "chat-voice-status", "chat-voice-error"):
+            self.assertIn('id="%s"' % ident, page)
+        self.assertLess(page.index('src="/voice.js"'), page.index('src="/chat.js"'))
+
+    def test_le_chat_reprend_la_dictee_du_portail(self):
+        js = self._page("chat.js")
+        self.assertIn('callBackend("portal_assist_voice", true)', js)
+        self.assertIn('target: "chat"', js)

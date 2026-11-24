@@ -14,6 +14,7 @@ const messagesContainer     = document.getElementById("chat-messages");
 const scrollAnchorElement   = document.getElementById("chat-scroll-anchor");
 const inputTextarea         = document.getElementById("chat-input-textarea");
 const sendButton            = document.getElementById("chat-send-button");
+const micButton             = document.getElementById("chat-mic-button");
 
 /* ── État spécifique au chat ────────────────────────────────────────────── */
 // Élément DOM .wf-card actuellement affiché dans la conversation (dernier en date).
@@ -1072,7 +1073,7 @@ async function sendChatMessage() {
  * Le placeholder s'adapte au contexte courant.
  */
 function renderChatInputControls() {
-  sendButton.disabled = appState.busy || !inputTextarea.value.trim();
+  renderVoiceControls();   // gère aussi l'état du bouton Envoyer (désactivé pendant la dictée)
 
   const contextBar      = document.getElementById("chat-context-bar");
   const contextFilename = document.getElementById("chat-context-filename");
@@ -1237,6 +1238,58 @@ inputTextarea.oninput = () => {
   renderChatInputControls();
 };
 inputTextarea.onkeydown = handleInputKeydown;
+
+/* ── Dictée vocale dans la saisie du chat ───────────────────────────────── */
+// Surcharge `renderVoiceControls` (voice.js) et `handleVoiceEvent` (engine-events.js) pour la zone de saisie du chat.
+
+function renderVoiceControls() {
+  const voice = appState.voice && appState.voice.target == "chat" ? appState.voice : null;
+  const isRecording = !!voice && voice.state == "recording";
+  const isTranscribing = !!voice && voice.state == "transcribing";
+  micButton.hidden = !VoiceRecorder.isSupported();
+  micButton.disabled = isTranscribing || appState.busy;
+  micButton.classList.toggle("recording", isRecording);
+  micButton.setAttribute("aria-pressed", isRecording);
+  micButton.textContent = isRecording ? `⏹ ${formatClock(voice.elapsedSeconds)}` : isTranscribing ? "…" : "🎙";
+  micButton.title = isRecording ? "Arrêter la dictée" : "Dicter le message";
+  document.getElementById("chat-voice-status").textContent = isRecording
+    ? "Enregistrement en cours… parlez, puis cliquez sur ⏹."
+    : voice ? voice.message : "";
+  const errorBadge = document.getElementById("chat-voice-error");
+  errorBadge.hidden = !(voice && voice.errorMessage);
+  errorBadge.textContent = (voice && voice.errorMessage) || "";
+  sendButton.disabled = appState.busy || isRecording || isTranscribing || !inputTextarea.value.trim();
+}
+
+/** Le texte reconnu est ajouté (nouvelle ligne) à la saisie, jamais écrasé. */
+function handleVoiceEvent(event) {
+  const { voice, transcript } = reduceVoiceEvent(appState.voice, event, { hasTarget: true });
+  appState.voice = voice;
+  if (transcript) {
+    inputTextarea.value = appendTranscript(inputTextarea.value, transcript);
+    autoResizeTextarea(inputTextarea);
+  }
+  if (event.type == "user_input_transcribed") inputTextarea.focus();
+  renderChatInputControls();
+}
+
+micButton.onclick = async () => {
+  const voice = appState.voice;
+  if (voice && voice.target == "chat" && voice.state == "recording") {
+    VoiceRecorder.stop();
+    return;
+  }
+  appState.voice = { state: "idle", message: "", errorMessage: "", elapsedSeconds: 0, target: "chat" };
+  const result = await callBackend("portal_assist_voice", true);
+  if (!result || !result.ok) {
+    appState.voice.errorMessage = (result && result.error) || "Dictée indisponible.";
+    renderVoiceControls();
+    return;
+  }
+  VoiceRecorder.start();
+};
+renderVoiceControls();
+
 
 // Le panneau YAML ne se ferme que par « Fermer » : on peut cliquer dans le chat (saisie, envoi) sans le perdre.
 document.getElementById("yaml-panel-textarea").addEventListener("input", event => { event.target.dataset.dirty = "1"; });

@@ -524,7 +524,7 @@ function reduceVoiceEvent(voice, event, { hasTarget }) {
           ...voice,
           state: "idle",
           message:
-            voice.target == "asst"
+            voice.target == "asst" || voice.target == "chat"
               ? "Transcription terminée : relisez, corrigez si besoin, puis envoyez."
               : "Transcription terminée : relisez et corrigez le texte avant de valider.",
         },

@@ -379,6 +379,12 @@ test("dictée : progression, texte reconnu, erreur", () => {
     { hasTarget: true },
   );
   assert.match(forAssistant.voice.message, /puis envoyez/);
+  const forChat = core.reduceVoiceEvent(
+    { ...voice, target: "chat" },
+    { type: "user_input_transcribed", text: "x" },
+    { hasTarget: true },
+  );
+  assert.match(forChat.voice.message, /puis envoyez/);
 
   const silence = core.reduceVoiceEvent(
     voice,

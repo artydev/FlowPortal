@@ -31,7 +31,7 @@ import yaml
 
 import sandbox
 import schema
-from friendly import friendly_title, step_kind
+from friendly import CATEGORY_ICONS, explain_failure, friendly_title, step_kind
 
 _VAR = re.compile(r"\$\{([A-Za-z_][A-Za-z0-9_]*)\}")
 _SECRET_NAME = re.compile(r"KEY|TOKEN|SECRET|PASSWORD|PASSWD|PWD", re.I)
@@ -284,6 +284,9 @@ class RunRecorder:
                     out = str(ev.get("output", ""))
                     st["status"] = "ok" if ok else "error"
                     st["output"] = clip(out)
+                    reason = None if ok else explain_failure(out)
+                    if reason:
+                        st["reason"] = reason
                     dur = ev.get("duration")
                     st["duration"] = float(dur) if isinstance(dur, (int, float)) \
                         else round(self._clock() - self._start.get(sid, self._clock()), 1)
@@ -598,6 +601,51 @@ class Portal:
                     text = first + "\n" + _category_line(category) + rest
                 return text
         raise PortalError(f"Modèle inconnu : « {template_id} ».")
+
+    # -- bibliothèque de workflows prêts à l'emploi ---------------------------
+    # Dossier `library/` (à côté de `workflows/`) : des workflows écrits pour le grand public. L'utilisateur en choisit un ;
+    # `use_library` en fait une COPIE dans `workflows/`, en brouillon sous bac à sable (comme un workflow écrit depuis le chat).
+    LIBRARY = "library"
+
+    def library(self) -> list:
+        """Modèles de la bibliothèque : id, titre, résumé, catégorie, icône et ce qu'il manque pour les lancer."""
+        folder = self.base / self.LIBRARY
+        items = []
+        for path in sorted(folder.glob("*.y*ml")) if folder.is_dir() else []:
+            card = self._card(path, None, 0)
+            if card["error"]:
+                continue
+            steps = card["steps"]
+            main = next((s for s in steps if s["type"] == "agent"), None) \
+                or next((s for s in steps if s["type"] not in ("log", "end", "transform")), None) \
+                or (steps[0] if steps else None)
+            items.append({"id": path.stem, "title": card["friendly_title"], "summary": card["summary"],
+                          "category": card["category"],
+                          "icon": CATEGORY_ICONS.get(card["category"].lower()) or (main["icon"] if main else "▫️"),
+                          "needs_setup": [r["name"] for r in card["requirements"]["servers"] if not r["declared"]]})
+        return items
+
+    def use_library(self, item_id) -> dict:
+        """Copie un modèle de la bibliothèque dans `workflows/` (brouillon, bac à sable) ; rend la carte du nouveau workflow."""
+        try:
+            stem = re.sub(r"\.ya?ml$", "", safe_name(str(item_id) + ".yaml"), flags=re.I)
+            src = next((p for p in (self.base / self.LIBRARY).glob("*.y*ml") if p.stem == stem), None)
+            if not src:
+                raise PortalError(f"Modèle inconnu : « {item_id} ».")
+            text = src.read_text(encoding="utf-8")
+            title = _top_name(text)[0] or stem
+            n, filename = 1, f"{stem}.yaml"
+            while self._clash(filename):                       # déjà utilisé : « Titre 2 », « Titre 3 »…
+                n += 1
+                filename = f"{stem}-{n}.yaml"
+            if n > 1:
+                text = _set_top_name(text, f"{title} {n}")
+            res = self.save_yaml(filename, text, create=True, draft=True)
+            if not res.get("ok"):
+                raise PortalError(res.get("error", "Écriture impossible."))
+            return {"ok": True, "filename": filename, "card": self.card(filename)}
+        except (PortalError, OSError, UnicodeError) as exc:
+            return {"ok": False, "error": str(exc)}
 
     # -- cartes -------------------------------------------------------------
     def list_cards(self) -> list:

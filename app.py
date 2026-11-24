@@ -57,9 +57,10 @@ def _seed(name: str) -> None:
         shutil.copy2(src, dst)
 
 
-for _name in ("workflows", "csflow.schema.json", "CSFLOW_LLM_GUIDE.md", "REFERENCE.md"):
+for _name in ("workflows", "library", "csflow.schema.json", "CSFLOW_LLM_GUIDE.md", "REFERENCE.md"):
     _seed(_name)
 (APP_DIR / "tmp").mkdir(exist_ok=True)
+(APP_DIR / "documents").mkdir(exist_ok=True)      # où l'utilisateur dépose ses fichiers (bac à sable : output/ et documents/)
 
 # Les chemins relatifs des workflows (tmp\...) sont résolus depuis ce dossier,
 # quel que soit l'endroit d'où app.py est lancé. CSAgent doit tourner depuis ici aussi.
@@ -444,6 +445,43 @@ def portal_run(filename: str, inputs: dict | None = None) -> dict:
         return {"ok": False, "error": "Prérequis manquants : " + " ".join(card["missing"])}
     _start_run(str(path), values)
     return {"ok": True}
+
+
+@eel.expose
+def portal_agent_status() -> dict:
+    """Le moteur d'IA (CSAgent) accepte-t-il les connexions ? Simple test de port : rapide, sans jeton ni requête d'API."""
+    import socket
+    from urllib.parse import urlparse
+    from nodes.agent_node import DEFAULT_URL
+    target = urlparse(DEFAULT_URL)
+    try:
+        with socket.create_connection((target.hostname or "localhost", target.port or 80), timeout=1.5):
+            return {"reachable": True, "url": DEFAULT_URL}
+    except OSError:
+        return {"reachable": False, "url": DEFAULT_URL}
+
+
+@eel.expose
+def portal_explain_failure(text: str):
+    """Message clair pour une erreur technique connue (voir friendly.explain_failure), sinon None."""
+    from friendly import explain_failure
+    from nodes.agent_node import DEFAULT_URL
+    found = explain_failure(text)
+    if found and found["kind"] == "agent_down":
+        found["message"] += f" Adresse attendue : {DEFAULT_URL} (variable CSAGENT_URL pour la changer)."
+    return found
+
+
+@eel.expose
+def portal_library() -> list:
+    """Workflows prêts à l'emploi (dossier library/), pour l'accueil du chat."""
+    return PORTAL.library()
+
+
+@eel.expose
+def portal_use_library(item_id: str) -> dict:
+    """Copie un modèle de la bibliothèque dans les workflows, en brouillon sous bac à sable."""
+    return PORTAL.use_library(item_id)
 
 
 @eel.expose

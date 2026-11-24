@@ -186,9 +186,26 @@ comme un suivi de progression amical, pas un schéma de pipeline.
     - Les workflows écrits à la main (absents de `drafts.json`) sont actifs et sans restriction ; un technicien peut retirer un workflow de `drafts.json` pour lever le bac à sable.
 
 **Phase 3 — automatisation**
-15. Déclencheur planifié (« chaque lundi »).
-16. Workflows modèles pour le public visé.
-17. Exemple `mcp.playwright.example` et workflow « Lire une page web ».
+15. ⏸️ Déclencheur planifié (« chaque lundi ») — **mis de côté** par décision. Piste retenue pour plus tard : FlowPortal garde le
+    « quand » et le « quoi » (carte lisible dans le chat, fichier de planifications) et délègue l'exécution au **planificateur du
+    système** (Planificateur de tâches Windows via `schtasks`, cron sous Linux, launchd sous macOS), qui lance un point d'entrée
+    sans interface (`run_scheduled.py`) : bac à sable appliqué, historique `runs.jsonl`, refus d'un brouillon non validé et des
+    étapes qui attendent l'utilisateur (`human_approval`, `user_input`). Un minuteur interne est écarté : il ne tourne que
+    si FlowPortal est ouvert.
+16. ✅ Bibliothèque de workflows prêts à l'emploi : dossier `library/` (6 modèles : résumer un document, compte rendu de réunion,
+    rapport de ventes, répondre à un courriel, lire une page web, surveiller une page web). Carte sur l'accueil du chat ; « utiliser »
+    copie le modèle dans `workflows/` en **brouillon sous bac à sable** (`Portal.library` / `Portal.use_library`, `portal_library` /
+    `portal_use_library`). Une deuxième copie reçoit un nom distinct (« … 2 »). Un modèle qui exigerait un outil absent de `mcp.json`
+    porterait « À configurer » et le chat l'expliquerait (mécanisme prêt, aucun modèle actuel n'en a besoin). Chemins limités à `output/` et `documents/` (testé).
+17. ⏸️ Playwright MCP — **abandonné pour l'instant** : trop lourd à installer pour un utilisateur non technique (Node.js, ou exécutable
+    d'environ 100 Mo non testé sous Windows, plus édition de `mcp.json`). Les modèles « Lire une page web » et « Surveiller une page
+    web » fonctionnent sans rien installer : `http_get`, puis un script Python (bibliothèque standard) extrait le texte de la page. Une
+    page qui se construit entièrement avec JavaScript est détectée (« PAGE_VIDE ») et le dit clairement ; la mémoire de surveillance
+    n'est alors pas écrasée. Si le besoin revient : essayé pour de vrai, `browser_navigate` ne renvoie plus le contenu (seulement un
+    lien vers un fichier) ; l'enchaînement qui marche est `browser_navigate` → `browser_wait_for` (3 s) → `browser_evaluate`
+    (`document.body.innerText`), avec `--output-dir output/playwright` pour ne pas créer `.playwright-mcp/` à la racine ; Playwright
+    pourrait alors être livré dans le paquet unique (point 20).
+    **Non testé :** les étapes `agent` des six modèles (pas de CSAgent dans l'environnement d'essai ; remplacées par un bouchon).
 
 **Phase 4 — distribution**
 18. Lancement unique : FlowPortal démarre CSAgent (port libre, clé générée), ouvre le chat, arrête le worker à la fermeture.
@@ -207,3 +224,5 @@ comme un suivi de progression amical, pas un schéma de pipeline.
 - **Session 6 (phase 2) :** brouillons (draft → tested → active), « Tester » / « Valider », bac à sable des fichiers.
 - **Session 6 (suite) :** phase 1 terminée (`friendly.py`, accueil, échec avec relance), essais avec le vrai eel et un faux CSAgent.
 - **Session 6 :** chat réel (`chat.html`), réponse structurée `view` / `changes`, carte de suivi, demandes d'accord de l'agent, option `--chat` ; état des jalons et backlog ordonné ; phase 0 terminée.
+- **Session 7 (phase 3) :** phase 2 fusionnée dans `main` ; catégories dans le chat (pastille, liste regroupée et repliable), liste de workflows en cartes, onglet « Chat » retiré (pas d'historique de conversations), 5 tests du lanceur ignorés sous Windows ; bibliothèque `library/` (point 16) ; points 15 (planificateur) et 17 (Playwright) mis de côté.
+- **Moteur d'IA injoignable (constaté chez l'utilisateur, WinError 10061) :** CSAgent tournait sur un autre port que `8080`, codé en dur. Adresse et clé réglables par `CSAGENT_URL` / `CSAGENT_KEY` (les scripts de démarrage les renseignent depuis `PORT` / `API_KEY`) ; voyant « Moteur d'IA arrêté » (test de port toutes les 15 s) ; échecs expliqués en clair (`friendly.explain_failure` : moteur arrêté, saisie annulée ou vide), sans bouton « corriger » quand le workflow n'y est pour rien. À reprendre au point 19 : réglage de l'adresse et de la clé dans l'interface.

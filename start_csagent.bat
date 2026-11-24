@@ -8,6 +8,9 @@ cd /d "%~dp0"
 set CSAGENT_BIN=csagent
 set PORT=8080
 set API_KEY=demo-secret
+rem FlowPortal vise le CSAgent lance ici (meme adresse, meme cle) : change PORT / API_KEY ci-dessus, rien d'autre.
+set CSAGENT_URL=http://localhost:%PORT%
+set CSAGENT_KEY=%API_KEY%
 rem MODEL : modele a utiliser (vide = deepseek par defaut avec --no-route)
 if not defined MODEL set MODEL=
 

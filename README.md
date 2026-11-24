@@ -102,6 +102,8 @@ Les deux scripts démarrent CSAgent en mode API (port 8080) **puis** CSFlow, et 
 fermeture de CSFlow. Variables facultatives : `MODEL` (nom du modèle ; sinon routage automatique),
 `PORT`, `API_KEY`, `CSAGENT_BIN`.
 
+**Adresse de CSAgent.** FlowPortal appelle CSAgent à l'adresse de la variable d'environnement `CSAGENT_URL` (défaut `http://localhost:8080`) avec la clé `CSAGENT_KEY` (défaut `demo-secret`). Les scripts `start_agent` / `start_csagent` les renseignent d'après leurs réglages `PORT` et `API_KEY` : pour changer de port, modifiez ces deux lignes en haut du script. Si vous lancez CSAgent vous-même sur un autre port, définissez `CSAGENT_URL` avant de lancer FlowPortal (`set CSAGENT_URL=http://localhost:9090` sous Windows). Le chat affiche « Moteur d'IA arrêté » quand rien ne répond à cette adresse.
+
 **3. Lancer un workflow**
 
 Interface graphique (EEL, ouvre un navigateur : Chrome ou Edge sous Windows, tout navigateur sous Linux) :
@@ -415,6 +417,7 @@ workflow/
 ├── start_agent.bat / .sh    ← lance CSAgent (API) puis CSFlow, depuis ce dossier
 ├── start_csagent.bat / .sh  ← mode MCP : worker CSAgent + CSAgent interactif qui pilote CSFlow
 ├── mcp.json.example         ← config MCP (Linux, exe) ; mcp.windows.*.example, mcp.linux.source.example
+├── library/                 ← workflows prêts à l'emploi proposés sur l'accueil du chat (copiés en brouillon)
 ├── build_nuitka.bat / .sh   ← compilation en exécutable unique
 ├── skills/                  ← skills CSAgent « CSFlow Workflows » et « CSFlow Workflow Authoring » (csflow.md, csflow-create-workflow.md, INDEX.md)
 ├── tests/mcp_smoke.py       ← test du serveur MCP, sans CSAgent

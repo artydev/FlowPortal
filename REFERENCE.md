@@ -29,7 +29,7 @@ _Générée par `python engine.py --nodes --md` à partir des `@register` de `no
 Envoie une instruction à CSAgent et suit son raisonnement en direct ; sortie : sa dernière réponse.
 
 - `prompt` *(obligatoire)* : instruction en langage naturel envoyée à CSAgent
-- `csagent_url` : URL de CSAgent (défaut http://localhost:8080)
+- `csagent_url` : URL de CSAgent (défaut : variable d'environnement `CSAGENT_URL`, sinon http://localhost:8080)
 - `csagent_key` : clé d'API (défaut demo-secret)
 - `timeout` : secondes sans donnée avant abandon (défaut 180)
 - `auto_confirm` : true = approuver automatiquement les demandes de confirmation de CSAgent

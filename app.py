@@ -453,7 +453,7 @@ WORKER = None
 
 @eel.expose
 def portal_agent_status() -> dict:
-    """État du moteur d'IA (CSAgent) : starting / ready / external / missing / failed / stopped, et s'il répond.
+    """État de CSAgent : starting / ready / external / missing / failed / stopped, et s'il répond.
     `reachable` est un simple test de port : rapide, sans jeton ni requête d'API."""
     from nodes.agent_node import current_url
     if WORKER is not None:
@@ -465,9 +465,9 @@ def portal_agent_status() -> dict:
 
 @eel.expose
 def portal_agent_restart() -> dict:
-    """Relance le moteur d'IA lancé par FlowPortal (après un échec de démarrage ou un arrêt inattendu)."""
+    """Relance CSAgent, lancé par FlowPortal (après un échec de démarrage ou un arrêt inattendu)."""
     if WORKER is None:
-        return {"ok": False, "error": "Le moteur d'IA n'est pas géré par FlowPortal."}
+        return {"ok": False, "error": "CSAgent n'est pas géré par FlowPortal."}
     WORKER.restart()
     return {"ok": True}
 
@@ -482,7 +482,7 @@ def portal_explain_failure(text: str):
         if WORKER is not None and WORKER.managed:
             found["message"] = WORKER.message or found["message"]
             if WORKER.state == "starting":
-                found["message"] = "Le moteur d'IA est en train de démarrer : réessayez dans un instant."
+                found["message"] = "CSAgent est en train de démarrer : réessayez dans un instant."
         else:
             found["message"] += f" Adresse attendue : {current_url()} (variable CSAGENT_URL pour la changer)."
     return found

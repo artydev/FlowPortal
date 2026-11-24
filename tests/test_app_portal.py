@@ -376,3 +376,25 @@ class AppPortalTests(unittest.TestCase):
 
 if __name__ == "__main__":
     unittest.main()
+
+class AgentIndicatorPagesTests(unittest.TestCase):
+    """Le voyant de CSAgent est présent dans le portail et dans le chat, avec le même code (agent-status.js)."""
+
+    def _page(self, name):
+        return (Path(__file__).resolve().parent.parent / "ui" / name).read_text(encoding="utf-8")
+
+    def test_portail_et_chat_chargent_le_script_commun(self):
+        for page, chip in (("portal.html", "status-chip-agent"), ("chat.html", "chat-engine-status-chip")):
+            with self.subTest(page):
+                text = self._page(page)
+                self.assertIn('src="/agent-status.js"', text)
+                self.assertIn(f'id="{chip}"', text)
+
+    def test_le_portail_demarre_le_voyant(self):
+        self.assertIn("startAgentStatus();", self._page("main.js"))
+
+    def test_libelles_sans_le_mot_moteur(self):
+        text = self._page("agent-status.js")
+        self.assertNotIn("oteur", text)
+        for label in ("CSAgent actif", "CSAgent : démarrage…", "CSAgent indisponible", "CSAgent arrêté"):
+            self.assertIn(label, text)

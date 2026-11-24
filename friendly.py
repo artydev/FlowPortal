@@ -78,11 +78,11 @@ _AGENT_DOWN = re.compile(r"10061|errno 111|connection refused|cannot reach csage
 
 def explain_failure(text) -> dict | None:
     """Reconnaît les échecs courants et rend {kind, message, fixable} ; None si le message est inconnu.
-    `fixable` : False quand modifier le workflow ne changerait rien (moteur d'IA arrêté, saisie annulée…)."""
+    `fixable` : False quand modifier le workflow ne changerait rien (CSAgent arrêté, saisie annulée…)."""
     raw = str(text or "")
     if _AGENT_DOWN.search(raw):
         return {"kind": "agent_down", "fixable": False,
-                "message": "Le moteur d'IA (CSAgent) ne répond pas. Vérifiez qu'il est démarré (start_agent), puis réessayez."}
+                "message": "CSAgent ne répond pas. Vérifiez qu'il est démarré (start_agent), puis réessayez."}
     if raw.startswith("Saisie annulée"):
         return {"kind": "input_cancelled", "fixable": False, "message": "La saisie a été annulée."}
     if raw.startswith("Saisie vide"):

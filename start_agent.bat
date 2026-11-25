@@ -66,7 +66,10 @@ for /f "tokens=5" %%p in ('netstat -ano ^| findstr /r /c:":%PORT% .*LISTENING"')
 rem 1. CSAgent dans sa propre fenetre (reduite), meme dossier de travail
 set "MODEL_ARG="
 if defined MODEL set MODEL_ARG=--model %MODEL%
-start "CSAgent-API" /min cmd /c %CSAGENT_BIN% --api --yes --port %PORT% --api-key %API_KEY% %MODEL_ARG% --no-route --mem csflow_worker --no-distill
+rem memoire datee : le worker demarre toujours vierge (il n'herite pas des sessions precedentes)
+set "WORKER_MEM=csflow_worker_%RANDOM%"
+for /f %%t in ('powershell -nologo -noprofile -command "Get-Date -Format yyyyMMdd-HHmmss" 2^>nul') do set "WORKER_MEM=csflow_worker_%%t"
+start "CSAgent-API" /min cmd /c %CSAGENT_BIN% --api --yes --port %PORT% --api-key %API_KEY% %MODEL_ARG% --no-route --mem %WORKER_MEM% --no-distill
 
 rem 2. laisser a CSAgent le temps d'ouvrir son port
 timeout /t 3 /nobreak >nul

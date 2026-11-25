@@ -41,7 +41,9 @@ echo "  Ecoute sur http://localhost:$PORT"
 echo
 
 # 1. CSAgent en arriere-plan, meme dossier de travail
-"$CSAGENT_BIN" --api --yes --port "$PORT" --api-key "$API_KEY" ${MODEL:+--model "$MODEL"} --no-route --mem csflow_worker --no-distill >csagent.log 2>&1 &
+# memoire datee : le worker demarre toujours vierge (il n'herite pas des sessions precedentes)
+WORKER_MEM="csflow_worker_$(date +%Y%m%d-%H%M%S)"
+"$CSAGENT_BIN" --api --yes --port "$PORT" --api-key "$API_KEY" ${MODEL:+--model "$MODEL"} --no-route --mem "$WORKER_MEM" --no-distill >csagent.log 2>&1 &
 AGENT_PID=$!
 trap 'kill "$AGENT_PID" 2>/dev/null' EXIT INT TERM
 

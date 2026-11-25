@@ -69,7 +69,7 @@ agent_memory/conversation.json
 agent_memory/exact.json
 agent_memory/semantic.json
 agent_memory/summary.json
-csflow_worker/
+csflow_worker*/
 
 # Lanceur local CSAgent+OpenRouter — contient une clé API machine
 start_csagent_openrouter.bat

@@ -630,9 +630,20 @@ function buildRunLog(steps) {
   return entries;
 }
 
+/**
+ * Plafonne les points d'une frise d'étapes pour qu'elle tienne toujours dans la carte :
+ * les `max` premières étapes, une ellipse « +N » (`{type:"ellipsis", hidden:N}`) et la dernière étape,
+ * dont la forme (fin, validation…) reste ainsi visible. Au plus `max + 2` éléments ; ne modifie pas l'entrée.
+ */
+function capTimelineSteps(steps, max = 11) {
+  if (steps.length <= max + 1) return steps;
+  return [...steps.slice(0, max), { type: "ellipsis", hidden: steps.length - max - 1 }, steps[steps.length - 1]];
+}
+
 /* ── Export pour les tests Node ────────────────────────────────────────── */
 if (typeof module !== "undefined" && module.exports)
   module.exports = {
+    capTimelineSteps,
     formatDuration,
     formatTimeAgo,
     formatDateTime,

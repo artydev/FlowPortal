@@ -303,12 +303,18 @@ function cardCategoryHtml(workflow) {
     : "";
 }
 
+/** Frise d'étapes d'une carte (plafonnée : début, « +N », dernier point). Renvoie un tableau de fragments `html` (à interpoler dans un gabarit `html`). */
+function timelineHtml(steps) {
+  const shown = capTimelineSteps(steps);
+  if (!shown.length) return [html`<div class="step-dot"></div>`];
+  return shown.map((step, index) => html`${index ? html`<div class="step-connector"></div>` : ""}${
+    step.type === "ellipsis" ? html`<span class="step-ellipsis">+${step.hidden}</span>` : html`<div class="step-dot ${step.type}"></div>`}`);
+}
+
 /** Ajoute une carte de workflow dans la conversation. */
 function appendWorkflowCardMessage(workflow) {
   const steps = workflow.steps || [];
-  const stepTimelineHtml = steps.map((step, index) => html`
-    <div class="step-dot ${step.type}"></div>${index < steps.length - 1 ? html`<div class="step-connector"></div>` : ""}`)
-    .concat(steps.length ? [] : [html`<div class="step-dot"></div>`]);
+  const stepTimelineHtml = timelineHtml(steps);
 
   const stepCount = steps.length;
   const tagsHtml = Object.keys(workflow.tags || {}).map(key =>
@@ -1277,11 +1283,7 @@ async function saveYamlFromPanel() {
         // Recharge la frise d'étapes dans la carte existante.
         const stepTimeline = activeWorkflowCardElement.querySelector(".wf-step-tl");
         if (stepTimeline) {
-          const steps = updatedWorkflow.steps || [];
-          stepTimeline.innerHTML = steps.map((step, i) =>
-            `<div class="step-dot ${step.type}"></div>` +
-            (i < steps.length - 1 ? `<div class="step-connector"></div>` : "")
-          ).join("") || `<div class="step-dot"></div>`;
+          stepTimeline.innerHTML = html`${timelineHtml(updatedWorkflow.steps || [])}`;
         }
       }
     }

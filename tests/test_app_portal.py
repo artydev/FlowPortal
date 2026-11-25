@@ -477,3 +477,18 @@ class ChatSidebarWidthTests(unittest.TestCase):
         page = (Path(__file__).resolve().parent.parent / "ui" / "chat.html").read_text(encoding="utf-8")
         self.assertIn("width:clamp(240px, 28vw, 360px)", page)
         self.assertIn("body.yaml-open .chat-sidebar { width:240px; }", page)
+
+
+class StepTimelineCapTests(unittest.TestCase):
+    """Issue #7 : la frise d'étapes est plafonnée (début, « +N », dernier point) dans le portail et le chat."""
+
+    def _ui(self, name):
+        return (Path(__file__).resolve().parent.parent / "ui" / name).read_text(encoding="utf-8")
+
+    def test_portail_et_chat_utilisent_le_plafond(self):
+        self.assertIn("capTimelineSteps(", self._ui("workflow-list.js"))
+        self.assertIn("capTimelineSteps(", self._ui("chat.js"))
+
+    def test_style_de_l_ellipse_present_partout(self):
+        self.assertIn(".step-ellipsis", self._ui("portal.css"))
+        self.assertIn(".step-ellipsis", self._ui("chat.html"))

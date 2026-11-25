@@ -148,11 +148,72 @@ function groupByCategory(workflows) {
   }));
 }
 
-/** Teinte (0–359) stable d'une catégorie : même nom, même couleur à chaque affichage. */
-function categoryHue(name) {
+/**
+ * Palette qualitative des catégories : 12 teintes espacées de 30°, rangées de façon que deux cases voisines
+ * soient très éloignées (150°). Ce sont des teintes, pas des couleurs figées : le CSS applique saturation et
+ * luminosité selon le thème (clair/sombre), donc aucune nuance pâle illisible.
+ */
+const CATEGORY_HUES = [20, 170, 320, 110, 260, 50, 200, 350, 140, 290, 80, 230];
+/** Écart minimal voulu entre deux catégories affichées (degrés de teinte). */
+const CATEGORY_MIN_HUE_GAP = 50;
+
+const hueDistance = (a, b) => Math.min(Math.abs(a - b), 360 - Math.abs(a - b));
+
+function hashName(name) {
   let hash = 0;
   for (const char of String(name)) hash = (hash * 31 + char.codePointAt(0)) >>> 0;
-  return hash % 360;
+  return hash;
+}
+
+/**
+ * Attribue une teinte de la palette à chaque catégorie : Map nom → teinte.
+ * Chaque nom a une case préférée (hash du nom, donc stable) ; si sa teinte est trop proche d'une teinte déjà
+ * attribuée (< CATEGORY_MIN_HUE_GAP) ou si la case est prise, on prend la suivante qui convient, sinon la plus
+ * éloignée. Les noms sont traités dans l'ordre des points de code : le résultat ne dépend ni de l'ordre
+ * d'arrivée ni de la langue. Garanties : jusqu'à 4 catégories, 50° d'écart au moins ; jusqu'à 12, jamais deux
+ * fois la même teinte et 30° d'écart au moins ; au-delà la palette boucle (deux catégories partagent une teinte).
+ */
+function assignCategoryHues(names) {
+  const sorted = [...new Set(names.map(String))].sort((a, b) => (a < b ? -1 : a > b ? 1 : 0));
+  const takenSlots = new Set();
+  const takenHues = [];
+  const hues = new Map();
+  for (const name of sorted) {
+    const start = hashName(name) % CATEGORY_HUES.length;
+    let chosen = -1;
+    let chosenGap = -1;
+    for (let step = 0; step < CATEGORY_HUES.length; step++) {
+      const slot = (start + step) % CATEGORY_HUES.length;
+      if (takenSlots.has(slot)) continue;
+      const gap = Math.min(Infinity, ...takenHues.map((hue) => hueDistance(CATEGORY_HUES[slot], hue)));
+      if (gap >= CATEGORY_MIN_HUE_GAP) { chosen = slot; break; }
+      if (gap > chosenGap) { chosen = slot; chosenGap = gap; }
+    }
+    if (chosen < 0) chosen = start;                       // palette épuisée : on boucle
+    takenSlots.add(chosen);
+    takenHues.push(CATEGORY_HUES[chosen]);
+    hues.set(name, CATEGORY_HUES[chosen]);
+  }
+  return hues;
+}
+
+let knownCategories = new Set();
+let categoryHues = new Map();
+
+/** Déclare les catégories présentes (liste COMPLÈTE des workflows, pas une liste filtrée) et recalcule les teintes. */
+function setKnownCategories(workflows) {
+  knownCategories = new Set(workflows.map((workflow) => workflow.category || NO_CATEGORY));
+  categoryHues = assignCategoryHues([...knownCategories]);
+}
+
+/** Teinte (0–359) d'une catégorie : stable tant que l'ensemble des catégories ne change pas. */
+function categoryHue(name) {
+  const key = String(name);
+  if (!categoryHues.has(key)) {          // catégorie pas encore déclarée : on l'ajoute
+    knownCategories.add(key);
+    categoryHues = assignCategoryHues([...knownCategories]);
+  }
+  return categoryHues.get(key);
 }
 
 /* ── Noms de fichiers ──────────────────────────────────────────────────── */
@@ -656,6 +717,10 @@ if (typeof module !== "undefined" && module.exports)
     listCategories,
     groupByCategory,
     categoryHue,
+    assignCategoryHues,
+    setKnownCategories,
+    CATEGORY_HUES,
+    CATEGORY_MIN_HUE_GAP,
     NO_CATEGORY,
     stripYamlExtension,
     suggestCopyName,

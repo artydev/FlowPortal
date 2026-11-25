@@ -487,3 +487,48 @@ test("capTimelineSteps : pas de plafond jusqu'à 12 étapes, liste vide accepté
   assert.deepEqual(core.capTimelineSteps([]), []);
   assert.equal(core.capTimelineSteps(Array.from({ length: 13 }, () => ({ type: "shell" }))).length, 13);
 });
+
+/** Générateur pseudo-aléatoire déterministe (les tests doivent être reproductibles). */
+const seededNames = (count, seed) => {
+  let state = seed;
+  const next = () => (state = (state * 1103515245 + 12345) & 0x7fffffff) / 0x7fffffff;
+  return Array.from({ length: count }, () =>
+    Array.from({ length: 4 + Math.floor(next() * 8) }, () => String.fromCharCode(97 + Math.floor(next() * 26))).join(""));
+};
+const minHueGap = (hues) => {
+  let gap = 360;
+  hues.forEach((a, i) => hues.slice(i + 1).forEach((b) => (gap = Math.min(gap, Math.abs(a - b), 360 - Math.abs(a - b)))));
+  return gap;
+};
+
+test("assignCategoryHues : teintes de la palette, jamais deux fois la même jusqu'à 12 catégories", () => {
+  for (let count = 1; count <= 12; count++)
+    for (let seed = 1; seed <= 200; seed++) {
+      const hues = [...core.assignCategoryHues(seededNames(count, seed * 31 + count)).values()];
+      assert.equal(new Set(hues).size, hues.length);
+      hues.forEach((hue) => assert.ok(core.CATEGORY_HUES.includes(hue)));
+      if (hues.length > 1) assert.ok(minHueGap(hues) >= 30);
+      if (hues.length > 1 && hues.length <= 4) assert.ok(minHueGap(hues) >= core.CATEGORY_MIN_HUE_GAP);
+    }
+});
+
+test("assignCategoryHues : indépendant de l'ordre d'arrivée, stable, et boucle au-delà de la palette", () => {
+  const names = ["Démo", "Courriels", "Finance", "RH", "Archives"];
+  const forward = core.assignCategoryHues(names);
+  const backward = core.assignCategoryHues([...names].reverse());
+  names.forEach((name) => assert.equal(forward.get(name), backward.get(name)));
+  assert.deepEqual([...core.assignCategoryHues(names)], [...forward]);
+  const many = core.assignCategoryHues(seededNames(20, 5));
+  assert.equal(many.size, 20);
+  many.forEach((hue) => assert.ok(core.CATEGORY_HUES.includes(hue)));
+  assert.equal(core.assignCategoryHues(["a", "a", "a"]).size, 1);
+  assert.equal(core.assignCategoryHues([]).size, 0);
+});
+
+test("categoryHue utilise les catégories déclarées et accepte une catégorie inconnue", () => {
+  core.setKnownCategories([{ category: "Courriels" }, { category: "Démo" }, { category: "" }, { category: "Démo" }]);
+  const hues = ["Courriels", "Démo", ""].map(core.categoryHue);
+  assert.equal(new Set(hues).size, 3);
+  assert.equal(core.categoryHue("Démo"), core.categoryHue("Démo"));
+  assert.ok(Number.isInteger(core.categoryHue("Nouvelle")) && core.categoryHue("Nouvelle") >= 0 && core.categoryHue("Nouvelle") < 360);
+});

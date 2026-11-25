@@ -12,6 +12,7 @@ async function bootApp() {
     const result = await callBackend("portal_list");
     if (result && result.cards) {
       appState.workflows = result.cards;
+      setKnownCategories(appState.workflows);
       appState.recentRuns = result.recent || [];
       appState.busy = !!result.busy;
       renderWorkflowList();
@@ -30,6 +31,7 @@ async function reloadWorkflowList() {
   const result = await callBackend("portal_list");
   if (result && result.cards) {
     appState.workflows = result.cards;
+    setKnownCategories(appState.workflows);
     appState.recentRuns = result.recent || [];
     appState.busy = !!result.busy;
   }

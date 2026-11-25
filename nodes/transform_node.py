@@ -1,5 +1,7 @@
 """nodes/transform_node.py — evaluate a Python expression to reshape data."""
 
+import safe_expr
+
 from . import register
 
 # Safe built-ins exposed inside transform expressions
@@ -16,13 +18,13 @@ _SAFE_BUILTINS = {
 
 
 @register("transform", summary="Évalue une expression Python pour transformer des données.", params={
-    "expression": ("expression Python évaluée ; les {{variables}} sont substituées avant", True),
+    "expression": ("expression Python évaluée ; les {{variables}} y sont insérées comme des données (échappées), jamais comme du code", True),
 })
 def transform(params: dict) -> dict:
     """
     Evaluate a Python expression and return the result as the step output.
-    Variables are already resolved before the expression is evaluated, so you
-    can embed {{step.output}} directly in the expression string.
+    Les {{variables}} sont insérées comme des DONNÉES (échappées dans un littéral, jamais évaluées comme du
+    code) : '{{prev.output}}' reste sûr même si la sortie contient apostrophes, retours à la ligne ou code.
 
     Params:
         expression (str): any Python expression whose result is serialisable
@@ -37,7 +39,8 @@ def transform(params: dict) -> dict:
     """
     expression = params.get("expression", "")
     try:
-        value = eval(expression, {"__builtins__": _SAFE_BUILTINS}, {})
+        safe_expr.check_expression(expression)          # refuse __class__, _module… (pas un vrai bac à sable)
+        value = eval(expression.strip(), {"__builtins__": _SAFE_BUILTINS}, {})
         return {"output": str(value), "value": value, "status": "ok"}
     except Exception as exc:
         return {"output": f"Transform error: {exc}", "status": "error"}

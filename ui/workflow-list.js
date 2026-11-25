@@ -54,14 +54,17 @@ function renderEnvChips() {
 }
 /**
  * Mini frise d'une carte : un point par étape (la forme/couleur vient de la
- * classe CSS `.n.<type>`), reliés par des traits. L'étape « end » est omise.
+ * classe CSS `.n.<type>`), reliés par des traits. L'étape « end » est omise. Au-delà de ~12 étapes la frise
+ * est plafonnée (début, ellipse « +N », dernier point).
  */
 function renderStepTimeline(workflow) {
-  const visibleSteps = workflow.steps.filter((step) => step.type != "end");
+  const visibleSteps = capTimelineSteps(workflow.steps.filter((step) => step.type != "end"));
   return html`<div class="step-timeline" aria-hidden="true">${visibleSteps.map(
     (step, i) => html`
       ${i ? html`<i class="step-connector"></i>` : ""}
-      <i class="step-dot ${step.type}"></i>
+      ${step.type === "ellipsis"
+        ? html`<span class="step-ellipsis">+${step.hidden}</span>`
+        : html`<i class="step-dot ${step.type}"></i>`}
     `,
   )}</div>`;
 }

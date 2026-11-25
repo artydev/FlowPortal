@@ -471,3 +471,19 @@ test("buildRunLog cumule les durées et omet les étapes non exécutées", () =>
     { kind: "error", message: "boom" },
   ]);
 });
+
+test("capTimelineSteps : plafonne en gardant le début, une ellipse « +N » et le dernier point", () => {
+  const steps = deepFreeze(Array.from({ length: 26 }, (_, i) => ({ type: i == 25 ? "human_approval" : "shell", id: "s" + i })));
+  const shown = core.capTimelineSteps(steps);
+  assert.equal(shown.length, 13);                                   // 11 premiers + ellipse + dernier
+  assert.deepEqual(shown[11], { type: "ellipsis", hidden: 14 });
+  assert.equal(shown[12].type, "human_approval");                   // la forme de l'étape finale reste visible
+  assert.equal(shown[0], steps[0]);
+});
+
+test("capTimelineSteps : pas de plafond jusqu'à 12 étapes, liste vide acceptée", () => {
+  const twelve = Array.from({ length: 12 }, () => ({ type: "shell" }));
+  assert.equal(core.capTimelineSteps(twelve), twelve);
+  assert.deepEqual(core.capTimelineSteps([]), []);
+  assert.equal(core.capTimelineSteps(Array.from({ length: 13 }, () => ({ type: "shell" }))).length, 13);
+});

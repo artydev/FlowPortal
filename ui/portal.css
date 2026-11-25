@@ -305,6 +305,13 @@ summary:focus-visible {
   flex: 1 1 4px;
   min-width: 3px;
 }
+.step-ellipsis {
+  flex: 0 0 auto;
+  font-size: 0.6em;
+  color: var(--mute);
+  white-space: nowrap;
+  margin: 0 2px;
+}
 .tag-list {
   display: flex;
   flex-wrap: wrap;

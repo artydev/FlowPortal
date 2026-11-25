@@ -113,7 +113,7 @@ Exécute une commande shell (cmd.exe sous Windows, bash ailleurs).
 ### transform
 Évalue une expression Python pour transformer des données.
 
-- `expression` *(obligatoire)* : expression Python évaluée ; les {{variables}} sont substituées avant
+- `expression` *(obligatoire)* : expression Python évaluée ; les {{variables}} y sont insérées comme des données (échappées), jamais comme du code
 
 ### user_input
 Demande un texte à l'humain (saisie, interface graphique ou terminal) ; sortie : le texte, aussi écrit dans un fichier.

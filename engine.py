@@ -31,6 +31,7 @@ from nodes import REGISTRY
 import schema
 import jsonlogic
 import sandbox
+import safe_expr
 
 # ── Windows : sortie UTF-8 + séquences ANSI (couleurs) dans la console ────────
 for _stream in (sys.stdout, sys.stderr):
@@ -66,16 +67,28 @@ def resolve(template, ctx: dict) -> str:
         return template
 
     def _sub(m):
-        expr = m.group(1).strip()
-        bi = _builtin(expr)
-        if bi is not None:
-            return bi
-        parts = expr.split(".", 1)
-        sid   = parts[0]
-        field = parts[1] if len(parts) > 1 else "output"
-        return str(ctx.get(sid, {}).get(field, ""))
+        return str(_raw_value(m.group(1).strip(), ctx))
 
     return _VAR_RE.sub(_sub, template)
+
+
+def _raw_value(expr: str, ctx: dict):
+    """Valeur brute (objet Python) d'un {{nom}} : variable intégrée, ou champ d'une étape (« output » par défaut)."""
+    bi = _builtin(expr)
+    if bi is not None:
+        return bi
+    parts = expr.split(".", 1)
+    sid   = parts[0]
+    field = parts[1] if len(parts) > 1 else "output"
+    return ctx.get(sid, {}).get(field, "")
+
+
+def resolve_expr(expression, ctx: dict):
+    """Comme `resolve`, mais pour une expression Python évaluée (transform, skip_if) : les valeurs insérées
+    restent des données et ne deviennent jamais du code (voir safe_expr.py, issue #9)."""
+    if not isinstance(expression, str):
+        return expression
+    return safe_expr.substitute(expression, lambda name: _raw_value(name, ctx))
 
 
 def resolve_all(obj, ctx: dict):
@@ -97,10 +110,11 @@ def eval_logic(rule, ctx: dict, on_error=None) -> bool:
 
 
 def eval_expr(expr: str, ctx: dict) -> bool:
-    resolved = resolve(expr, ctx)
+    resolved = resolve_expr(expr, ctx)
     try:
+        safe_expr.check_expression(resolved)
         safe = {"__builtins__": {}, "true": True, "false": False}
-        return bool(eval(resolved, safe, {}))
+        return bool(eval(resolved.strip(), safe, {}))
     except Exception:
         return False
 
@@ -325,6 +339,9 @@ class WorkflowEngine:
                 {k: v for k, v in step.items() if k not in _RESERVED},
                 self.ctx,
             )
+            if stype == "transform":
+                # expression Python : les valeurs restent des données (jamais du code), issue #9
+                params["expression"] = resolve_expr(step.get("expression", ""), self.ctx)
             # Inject runtime callbacks into params (not visible in YAML)
             if self._cb:
                 params["_callback"] = lambda ev, _sid=sid: self._cb(

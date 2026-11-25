@@ -300,7 +300,9 @@ class WorkflowEngine:
                 self.ctx[sid] = {"output": "", "status": "skipped"}
                 self._emit({"type": "step_skip", "step_id": sid, "index": step_num,
                             "total": total, "reason": str(skip_expr if skip_expr else skip_rule)})
-                current_id = self._next_id(step, {"answer": "rejected"})
+                # Une étape sautée poursuit le flux normal, comme si elle avait réussi : pour une porte
+                # (human_approval) c'est on_approve. Personne n'a refusé : suivre on_reject provoquait des boucles.
+                current_id = self._next_id(step, {"answer": "approved"})
                 continue
 
             self._emit({"type": "step_start", "step_id": sid,

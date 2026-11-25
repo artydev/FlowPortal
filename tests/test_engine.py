@@ -98,3 +98,46 @@ class EvalExprTests(unittest.TestCase):
 
 if __name__ == "__main__":
     unittest.main()
+
+
+class SkipIfBranchTests(unittest.TestCase):
+    """Une étape sautée par skip_if poursuit le flux normal (on_approve), jamais on_reject (issue #5)."""
+
+    def _run(self, yaml_text):
+        import tempfile
+        from pathlib import Path
+        from engine import WorkflowEngine
+        events = []
+        with tempfile.TemporaryDirectory() as folder:
+            path = Path(folder) / "wf.yaml"
+            path.write_text(yaml_text, encoding="utf-8")
+            WorkflowEngine(str(path), event_callback=events.append).run()
+        return events
+
+    GATE_LOOP = """
+name: demo-skip-loop
+steps:
+- id: go
+  type: shell
+  cmd: echo ok
+- id: gate
+  type: human_approval
+  skip_if: "1 == 1"
+  message: jamais vue
+  on_approve: fin_ok
+  on_reject: go
+- id: fin_ok
+  type: end
+  message: flux normal
+"""
+
+    def test_porte_sautee_suit_on_approve_et_termine(self):
+        events = self._run(self.GATE_LOOP)
+        self.assertEqual([e["type"] for e in events if e["type"] in ("workflow_done", "workflow_error")], ["workflow_done"])
+        self.assertEqual([e["step_id"] for e in events if e["type"] == "step_skip"], ["gate"])
+        self.assertEqual(sum(1 for e in events if e["type"] == "step_start" and e["step_id"] == "go"), 1)
+
+    def test_porte_sautee_ne_visite_jamais_on_reject(self):
+        events = self._run(self.GATE_LOOP)
+        starts = [e["step_id"] for e in events if e["type"] == "step_start"]
+        self.assertEqual(starts, ["go", "fin_ok"])

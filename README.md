@@ -543,7 +543,7 @@ Au premier lancement, l'exe crée à côté de lui `workflows\`, `tmp\`, `csflow
    start_csagent.bat
    ```
    Au premier lancement le script crée `mcp.json` (à partir de `mcp.windows.exe.example`), démarre le
-   **worker** `csagent --api` (port 8080, mémoire `csflow_worker`) puis le CSAgent interactif avec
+   **worker** `csagent --api` (port 8080, mémoire neuve `csflow_worker_<date>` à chaque lancement) puis le CSAgent interactif avec
    `--mcp-config mcp.json`. Fermer CSAgent arrête le worker.
 3. Dans CSAgent : « Liste les workflows CSFlow », « Vérifie demo_report », « Lance demo_report ».
    Chaque appel MCP vous est demandé (CSAgent interactif lancé sans `--yes`).

@@ -34,7 +34,8 @@ if [ ! -f mcp.json ]; then
 fi
 
 # Worker : memoire separee (--mem) pour ne pas melanger avec votre conversation
-"$CSAGENT_BIN" --api --yes --port "$PORT" --api-key "$API_KEY" ${MODEL:+--model "$MODEL"} --no-route --mem csflow_worker --no-distill >csagent_worker.log 2>&1 &
+WORKER_MEM="csflow_worker_$(date +%Y%m%d-%H%M%S)"   # memoire datee : worker vierge a chaque session
+"$CSAGENT_BIN" --api --yes --port "$PORT" --api-key "$API_KEY" ${MODEL:+--model "$MODEL"} --no-route --mem "$WORKER_MEM" --no-distill >csagent_worker.log 2>&1 &
 WORKER_PID=$!
 trap 'kill "$WORKER_PID" 2>/dev/null' EXIT INT TERM
 sleep 3

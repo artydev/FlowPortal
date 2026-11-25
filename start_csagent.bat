@@ -54,7 +54,10 @@ for /f "tokens=5" %%p in ('netstat -ano ^| findstr /r /c:":%PORT% .*LISTENING"')
 echo   Worker CSAgent dans : %WORKDIR%
 set "MODEL_ARG="
 if defined MODEL set MODEL_ARG=--model %MODEL%
-start "CSAgent-Worker" /min /d "%WORKDIR%" cmd /c %CSAGENT_BIN% --api --yes --port %PORT% --api-key %API_KEY% %MODEL_ARG% --no-route --mem csflow_worker --no-distill
+rem memoire datee : le worker demarre toujours vierge (il n'herite pas des sessions precedentes)
+set "WORKER_MEM=csflow_worker_%RANDOM%"
+for /f %%t in ('powershell -nologo -noprofile -command "Get-Date -Format yyyyMMdd-HHmmss" 2^>nul') do set "WORKER_MEM=csflow_worker_%%t"
+start "CSAgent-Worker" /min /d "%WORKDIR%" cmd /c %CSAGENT_BIN% --api --yes --port %PORT% --api-key %API_KEY% %MODEL_ARG% --no-route --mem %WORKER_MEM% --no-distill
 timeout /t 3 /nobreak >nul
 
 echo   CSAgent interactif avec le serveur MCP CSFlow...

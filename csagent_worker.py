@@ -22,6 +22,7 @@ from __future__ import annotations
 import atexit
 import json
 import os
+import re
 import secrets
 import shutil
 import signal
@@ -30,10 +31,40 @@ import subprocess
 import sys
 import threading
 import time
+from datetime import datetime
 from pathlib import Path
 from urllib.parse import urlparse
 
 import nodes.agent_node as agent_node
+
+
+# ── mémoire du worker ─────────────────────────────────────────────────────────
+# Chaque lancement de FlowPortal démarre un worker à la mémoire vierge : une mémoire fixe héritait des
+# échanges des sessions précédentes (étapes agent qui dérivent, résultats non reproductibles, contexte gaspillé).
+MEMORY_PREFIX = "csflow_worker"
+KEEP_MEMORIES = 5                                   # anciennes mémoires gardées pour inspection (issue #8)
+_MEMORY_RE = re.compile(r"^csflow_worker(_\d{8}-\d{6}(_[0-9a-f]+)?)?$")
+
+
+def new_session_memory() -> str:
+    """Nom d'une mémoire neuve pour cette session : csflow_worker_AAAAMMJJ-HHMMSS_xxxx (triable par date)."""
+    return f"{MEMORY_PREFIX}_{datetime.now():%Y%m%d-%H%M%S}_{secrets.token_hex(2)}"
+
+
+def prune_old_memories(folder: Path, keep: int = KEEP_MEMORIES, current: str = "") -> list[str]:
+    """Supprime les plus anciennes mémoires de worker de `folder`, en gardant les `keep` plus récentes.
+
+    Ne touche qu'aux dossiers dont le nom suit exactement le motif des mémoires de worker, jamais à la
+    mémoire `current` ni à un fichier. Rend les noms supprimés."""
+    try:
+        found = sorted(p.name for p in Path(folder).iterdir() if p.is_dir() and _MEMORY_RE.match(p.name))
+    except OSError:
+        return []
+    found = [name for name in found if name != current]
+    removed = found[:max(0, len(found) - max(0, keep - 1))] if keep > 0 else found
+    for name in removed:
+        shutil.rmtree(Path(folder) / name, ignore_errors=True)
+    return removed
 
 START_TIMEOUT = 45.0          # secondes d'attente maximale avant de déclarer l'échec du démarrage
 STOP_GRACE = 4.0              # secondes accordées à l'arrêt « poli » avant de forcer
@@ -131,6 +162,7 @@ class AgentWorker:
         self.message = ""
         self.url = agent_node.current_url()
         self.key = agent_node.current_key()
+        self.memory = ""                            # mémoire neuve de la session en cours (--mem)
         self.managed = False                        # vrai : c'est FlowPortal qui a lancé le worker
         self._proc: subprocess.Popen | None = None
         self._lock = threading.Lock()
@@ -162,7 +194,9 @@ class AgentWorker:
             model = os.environ.get("CSAGENT_MODEL", "").strip()
             if model:
                 args += ["--model", model]
-            args += ["--no-route", "--mem", "csflow_worker", "--no-distill"]
+            self.memory = new_session_memory()
+            prune_old_memories(self.app_dir, current=self.memory)
+            args += ["--no-route", "--mem", self.memory, "--no-distill"]
             try:
                 log = open(self.log_path, "wb")
                 kwargs = {"creationflags": 0x08000000 | 0x00000200} if _IS_WINDOWS else {"start_new_session": True}

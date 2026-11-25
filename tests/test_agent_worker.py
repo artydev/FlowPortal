@@ -68,7 +68,7 @@ class StartStopTests(WorkerCase):
         self.assertRegex(key, r"^[0-9a-f]+$")             # jamais de « - » en tête : ce serait pris pour une option
         for flag in ("--api", "--yes", "--no-route", "--no-distill"):
             self.assertIn(flag, seen)
-        self.assertEqual(seen[seen.index("--mem") + 1], "csflow_worker")
+        self.assertRegex(seen[seen.index("--mem") + 1], r"^csflow_worker_\d{8}-\d{6}_[0-9a-f]{4}$")   # mémoire neuve datée
         self.assertEqual((agent_node.current_url(), agent_node.current_key()), (w.url, key))
 
     def test_le_worker_tourne_dans_le_dossier_de_flowportal(self):
@@ -271,3 +271,38 @@ class StaleWorkerTests(WorkerCase):
 
 if __name__ == "__main__":
     unittest.main()
+
+class SessionMemoryTests(WorkerCase):
+    """Issue #8 : chaque lancement démarre un worker à la mémoire vierge ; les anciennes sont nettoyées."""
+
+    def mem_arg(self):
+        argv = self.fake_args()["argv"]
+        return argv[argv.index("--mem") + 1]
+
+    def test_deux_sessions_n_ont_pas_la_meme_memoire(self):
+        w1 = self.worker(); w1.start_async(); self.wait_for(w1, ("ready",)); first = self.mem_arg(); w1.stop()
+        w2 = self.worker(); w2.start_async(); self.wait_for(w2, ("ready",)); second = self.mem_arg(); w2.stop()
+        self.assertNotEqual(first, second)
+        self.assertEqual(w2.memory, second)
+
+    def test_les_plus_anciennes_memoires_sont_supprimees_et_les_autres_dossiers_epargnes(self):
+        for name in ("csflow_worker", "csflow_worker_20250101-000001_aaaa", "csflow_worker_20250102-000001_bbbb",
+                     "csflow_worker_20250103-000001_cccc", "csflow_worker_20250104-000001_dddd",
+                     "csflow_worker_20250105-000001_eeee", "csflow_worker_20250106-000001_ffff",
+                     "output", "csflow_worker_backup", "csflow_workerX"):
+            (self.dir / name).mkdir()
+        (self.dir / "csflow_worker_20240101-000001_aaaa.txt").write_text("fichier, pas un dossier", encoding="utf-8")
+        removed = csagent_worker.prune_old_memories(self.dir, keep=5, current="csflow_worker_20250107-000001_gggg")
+        self.assertEqual(sorted(removed), ["csflow_worker", "csflow_worker_20250101-000001_aaaa",
+                                            "csflow_worker_20250102-000001_bbbb"])
+        remaining = sorted(p.name for p in self.dir.iterdir())
+        for kept in ("csflow_worker_20250103-000001_cccc", "csflow_worker_20250106-000001_ffff",
+                     "output", "csflow_worker_backup", "csflow_workerX", "csflow_worker_20240101-000001_aaaa.txt"):
+            self.assertIn(kept, remaining)
+        self.assertNotIn("csflow_worker", remaining)
+
+    def test_le_demarrage_garde_au_plus_cinq_memoires(self):
+        for day in range(1, 9):
+            (self.dir / f"csflow_worker_2025010{day}-000001_abcd").mkdir()
+        w = self.worker(); w.start_async(); self.wait_for(w, ("ready",))
+        self.assertLessEqual(len([p for p in self.dir.iterdir() if p.name.startswith("csflow_worker")]), 5)
